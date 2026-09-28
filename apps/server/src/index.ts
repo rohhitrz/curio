@@ -1,16 +1,21 @@
 import { createApp } from './app.js';
+import { EnvError, loadEnv, type Env } from './config/index.js';
 import { createLogger } from './logger.js';
 
-// Temporary: replaced by validated config in step 0.4.
-const port = Number(process.env.PORT ?? 4000);
-const logger = createLogger({
-  level: process.env.LOG_LEVEL ?? 'info',
-  pretty: process.env.NODE_ENV === 'development',
-});
-const corsOrigins = (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean);
+let env: Env;
+try {
+  env = loadEnv();
+} catch (error) {
+  if (error instanceof EnvError) {
+    console.error(error.message);
+    process.exit(1);
+  }
+  throw error;
+}
 
-const app = createApp({ logger, corsOrigins });
+const logger = createLogger({ level: env.LOG_LEVEL, pretty: env.NODE_ENV === 'development' });
+const app = createApp({ logger, corsOrigins: env.CORS_ORIGINS });
 
-app.listen(port, () => {
-  logger.info({ port }, 'server listening');
+app.listen(env.PORT, () => {
+  logger.info({ port: env.PORT }, 'server listening');
 });

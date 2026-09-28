@@ -5,7 +5,7 @@
 
 ## Current status
 - **Phase:** 0 (Foundation)
-- **Next step:** 0.4
+- **Next step:** 0.5
 - **State:** In progress
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 0.1 Root: pnpm workspace, tsconfig, ESLint + Prettier, .gitignore, .env.example
 - [x] 0.2 packages/shared: Zod, error codes, error + pagination schemas
 - [x] 0.3 apps/server: Express 5, pino, helmet, CORS, error handler, /health
-- [ ] 0.4 config/: env validation, limits, models, feature flags
+- [x] 0.4 config/: env validation, limits, models, feature flags
 - [ ] 0.5 Drizzle + Neon: pooled connection, drizzle-kit, vector extension migration
 - [ ] 0.6 Vitest on Neon test branch; /health test
 - [ ] 0.7 apps/web: Next.js, Tailwind, shadcn/ui, TanStack Query, API client
@@ -52,7 +52,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Tavily | 8 | ⬜ Not set up |
 
 ## Blockers
-- None
+- Step 0.5 needs Neon (project + `dev` and `test` branches, pooled URLs in `.env`); waiting on owner
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -66,5 +66,5 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 -->
 
 ### 2026-09-28
-- Done: repo setup (private GitHub `rohhitrz/curio`), steps 0.1–0.3
-- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own). `@curio/shared` builds to `dist/` with tsc; root `dev`/`test`/`typecheck`/`lint` build it first. Pagination max limit = 100 (API contract, lives in shared; default 20 per API doc). Server extras: `pino-http` (request logging + `x-request-id`), `tsx` (dev runner); pnpm `allowBuilds` approves `esbuild` only. `GET /health` is at the root, not under `/api/v1`.
+- Done: repo setup (private GitHub `rohhitrz/curio`), steps 0.1–0.4
+- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own). `@curio/shared` builds to `dist/` with tsc; root `dev`/`test`/`typecheck`/`lint` build it first. Pagination max limit = 100 (API contract, lives in shared; default 20 per API doc). Server extras: `pino-http` (request logging + `x-request-id`), `tsx` (dev runner); pnpm `allowBuilds` approves `esbuild` only. `GET /health` is at the root, not under `/api/v1`. Config: LLM tasks map to tiers (`luna`/`sol`); exact OpenAI model IDs to be set + verified in step 5.2. Retrieval flags all off until Phase 6. Rate-limit windows modeled as `{limit, windowSeconds}`.
