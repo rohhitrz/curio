@@ -9,6 +9,7 @@ describe('env validation', () => {
   it('lists every missing required var', () => {
     expect(() => loadEnv({})).toThrow(EnvError);
     expect(() => loadEnv({})).toThrow('DATABASE_URL is required');
+    expect(() => loadEnv({})).toThrow('CLERK_SECRET_KEY is required');
   });
 
   it('rejects invalid values', () => {
@@ -20,6 +21,8 @@ describe('env validation', () => {
   it('parses valid env with defaults', () => {
     const env = loadEnv({
       DATABASE_URL: 'postgresql://user:pw@localhost/db',
+      CLERK_SECRET_KEY: 'sk_test_x',
+      CLERK_PUBLISHABLE_KEY: 'pk_test_x',
       CORS_ORIGINS: 'http://a.test, http://b.test',
     });
     expect(env).toMatchObject({

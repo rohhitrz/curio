@@ -8,6 +8,13 @@
       "when": 1790605358029,
       "tag": "0000_enable_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790607441434,
+      "tag": "0001_users",
+      "breakpoints": true
     }
   ]
 }
