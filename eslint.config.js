@@ -31,6 +31,8 @@ export default tseslint.config(
       ],
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+      // Allows React handlers like `onClick={() => setOpen(false)}`
+      '@typescript-eslint/no-confusing-void-expression': ['error', { ignoreArrowShorthand: true }],
     },
   },
   {
