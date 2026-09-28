@@ -8,8 +8,11 @@ import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFound } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
+import { createNotebooksRepository } from './repositories/notebooks.repository.js';
 import { createUsersRepository } from './repositories/users.repository.js';
 import { healthRouter } from './routes/health.routes.js';
+import { createNotebooksRouter } from './routes/notebooks.routes.js';
+import { createNotebooksService } from './services/notebooks.service.js';
 import { createUsersService } from './services/users.service.js';
 
 export interface AppOptions {
@@ -21,9 +24,11 @@ export interface AppOptions {
 
 export function createApp({ logger, corsOrigins, db, auth }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
+  const notebooksService = createNotebooksService(createNotebooksRepository(db));
 
   const api = Router();
   api.use(requireAuth(auth, usersService));
+  api.use(createNotebooksRouter(notebooksService));
 
   const app = express();
 
