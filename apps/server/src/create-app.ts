@@ -1,6 +1,8 @@
 import cors from 'cors';
 import express, { Router, type Express } from 'express';
-import helmet from 'helmet';
+// Namespace import: helmet ships separate ESM/CJS types, and a default import isn't
+// callable under CommonJS interop (Vercel's build). `.default` works in both.
+import * as helmetModule from 'helmet';
 import type { Logger } from 'pino';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
@@ -33,7 +35,7 @@ export function createApp({ logger, corsOrigins, db, auth }: AppOptions): Expres
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(helmet());
+  app.use(helmetModule.default());
   app.use(cors({ origin: corsOrigins, exposedHeaders: ['x-request-id', 'retry-after'] }));
   app.use(requestLogger(logger));
   app.use(express.json());
