@@ -5,13 +5,13 @@
 
 ## Current status
 - **Phase:** 0 (Foundation)
-- **Next step:** 0.1
-- **State:** Not started
+- **Next step:** 0.2
+- **State:** In progress
 
 ## Phases
 | # | Phase | Status |
 |---|---|---|
-| 0 | Foundation | ⏳ Not started |
+| 0 | Foundation | 🔨 In progress |
 | 1 | Auth + notebooks + first deploy | ⏳ Not started |
 | 2 | Sources (no processing) | ⏳ Not started |
 | 3 | Ingestion pipeline | ⏳ Not started |
@@ -27,7 +27,7 @@
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 0
-- [ ] 0.1 Root: pnpm workspace, tsconfig, ESLint + Prettier, .gitignore, .env.example
+- [x] 0.1 Root: pnpm workspace, tsconfig, ESLint + Prettier, .gitignore, .env.example
 - [ ] 0.2 packages/shared: Zod, error codes, error + pagination schemas
 - [ ] 0.3 apps/server: Express 5, pino, helmet, CORS, error handler, /health
 - [ ] 0.4 config/: env validation, limits, models, feature flags
@@ -64,3 +64,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-28
+- Done: repo setup (private GitHub `rohhitrz/curio`), step 0.1
+- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own).
