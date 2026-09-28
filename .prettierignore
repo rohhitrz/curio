@@ -7,3 +7,4 @@ drizzle
 docs
 CLAUDE.md
 **/db/migrations
+.claude
