@@ -4,16 +4,16 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 1 (Auth + notebooks + first deploy)
-- **Next step:** Phase 2 (after owner approval)
-- **State:** Phase 1 complete, awaiting owner approval
+- **Phase:** 2 (Sources, no processing)
+- **Next step:** 2.2
+- **State:** In progress
 
 ## Phases
 | # | Phase | Status |
 |---|---|---|
 | 0 | Foundation | ✅ Done (owner approved) |
-| 1 | Auth + notebooks + first deploy | 🔨 In progress |
-| 2 | Sources (no processing) | ⏳ Not started |
+| 1 | Auth + notebooks + first deploy | ✅ Done (owner approved) |
+| 2 | Sources (no processing) | 🔨 In progress |
 | 3 | Ingestion pipeline | ⏳ Not started |
 | 4 | Eval foundation | ⏳ Not started |
 | 5 | Basic RAG chat | ⏳ Not started |
@@ -26,13 +26,12 @@
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 1
-- [x] 1.1 Frontend Clerk: sign-in/sign-up, protected routes
-- [x] 1.2 Backend auth middleware: verify token → create user on first request → attach `userId`
-- [x] 1.3 Migration: `users`, `topics`, `notebooks`
-- [x] 1.4 Notebooks API (5 endpoints), full layering + cursor pagination helper
-- [x] 1.5 Frontend: notebooks list, create, rename, delete
-- [x] 1.6 Deploy: two Vercel projects, env vars, CORS for real domain, Neon `main`, manual migration script
+## Current phase steps: Phase 2
+- [x] 2.1 Migration: `sources`
+- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete
+- [ ] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
+- [ ] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
+- [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
 ## Accounts & keys
 | Service | Needed in phase | Status |
@@ -71,3 +70,4 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - Deploy gotchas hit: Vercel's Express build type-checks helmet via its CJS types → `middleware/security-headers.ts` resolves helmet in both shapes; Vercel stores env values literally, so quotes copied from `.env` break URLs (startup validation caught it). Server code always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only locally for `pnpm db:migrate:prod`.
 - Verified live: `/health` 200, no/forged token 401, CORS only for the web origin, security headers present; owner signed in on the live URL, CRUD writes to Neon `main`; second account gets "Notebook not found" (404) on the first account's notebook.
 - Working rule: the agent can't trigger production deploys (includes pushing to `main`, which auto-deploys); owner pushes/redeploys.
+- Phase 1 approved by owner. Phase 2.1: `sources` table (3 enums, `UNIQUE(notebook_id, content_hash)`, partial index for the sweeper) migrated on dev, test, and main. Uploads endpoint follows the API doc path `POST /notebooks/:id/uploads` (build plan's `/uploads` is shorthand).
