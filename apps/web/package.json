@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "vercel-build": "pnpm --filter @curio/shared build && next build"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

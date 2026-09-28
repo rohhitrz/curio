@@ -1,5 +1,6 @@
-import { createApp } from './app.js';
+import type { Express } from 'express';
 import { EnvError, loadEnv, type Env } from './config/index.js';
+import { createApp } from './create-app.js';
 import { createDb } from './db/client.js';
 import { createClerkAuthProvider } from './lib/auth/index.js';
 import { createLogger } from './logger.js';
@@ -23,8 +24,13 @@ const auth = createClerkAuthProvider({
   authorizedParties: env.CORS_ORIGINS,
 });
 
-const app = createApp({ logger, corsOrigins: env.CORS_ORIGINS, db, auth });
+const app: Express = createApp({ logger, corsOrigins: env.CORS_ORIGINS, db, auth });
 
-app.listen(env.PORT, () => {
-  logger.info({ port: env.PORT }, 'server listening');
-});
+// On Vercel the app runs as a function (default export); locally we listen.
+if (!process.env.VERCEL) {
+  app.listen(env.PORT, () => {
+    logger.info({ port: env.PORT }, 'server listening');
+  });
+}
+
+export default app;
