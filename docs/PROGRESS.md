@@ -5,7 +5,7 @@
 
 ## Current status
 - **Phase:** 0 (Foundation)
-- **Next step:** 0.6
+- **Next step:** 0.7
 - **State:** In progress
 
 ## Phases
@@ -32,7 +32,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 0.3 apps/server: Express 5, pino, helmet, CORS, error handler, /health
 - [x] 0.4 config/: env validation, limits, models, feature flags
 - [x] 0.5 Drizzle + Neon: pooled connection, drizzle-kit, vector extension migration
-- [ ] 0.6 Vitest on Neon test branch; /health test
+- [x] 0.6 Vitest on Neon test branch; /health test
 - [ ] 0.7 apps/web: Next.js, Tailwind, shadcn/ui, TanStack Query, API client
 
 ## Accounts & keys
@@ -66,5 +66,5 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 -->
 
 ### 2026-09-28
-- Done: repo setup (private GitHub `rohhitrz/curio`), steps 0.1–0.5
-- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own). `@curio/shared` builds to `dist/` with tsc; root `dev`/`test`/`typecheck`/`lint` build it first. Pagination max limit = 100 (API contract, lives in shared; default 20 per API doc). Server extras: `pino-http` (request logging + `x-request-id`), `tsx` (dev runner); pnpm `allowBuilds` approves `esbuild` only. `GET /health` is at the root, not under `/api/v1`. Config: LLM tasks map to tiers (`luna`/`sol`); exact OpenAI model IDs to be set + verified in step 5.2. Retrieval flags all off until Phase 6. Rate-limit windows modeled as `{limit, windowSeconds}`. DB: `@neondatabase/serverless` Pool (WebSocket, supports transactions) + Drizzle; migrations in `apps/server/src/db/migrations`, run manually with `pnpm db:migrate` (dev) / `pnpm db:migrate:test`. `vector` 0.8.6 enabled on `dev` and `test`; `main` not migrated yet (Phase 1.6).
+- Done: repo setup (private GitHub `rohhitrz/curio`), steps 0.1–0.6
+- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own). `@curio/shared` builds to `dist/` with tsc; root `dev`/`test`/`typecheck`/`lint` build it first. Pagination max limit = 100 (API contract, lives in shared; default 20 per API doc). Server extras: `pino-http` (request logging + `x-request-id`), `tsx` (dev runner); pnpm `allowBuilds` approves `esbuild` only. `GET /health` is at the root, not under `/api/v1`. Config: LLM tasks map to tiers (`luna`/`sol`); exact OpenAI model IDs to be set + verified in step 5.2. Retrieval flags all off until Phase 6. Rate-limit windows modeled as `{limit, windowSeconds}`. DB: `@neondatabase/serverless` Pool (WebSocket, supports transactions) + Drizzle; migrations in `apps/server/src/db/migrations`, run manually with `pnpm db:migrate` (dev) / `pnpm db:migrate:test`. `vector` 0.8.6 enabled on `dev` and `test`; `main` not migrated yet (Phase 1.6). Tests: Vitest + Supertest in `apps/server`; `test/setup.ts` forces `DATABASE_URL` = `TEST_DATABASE_URL` (refuses if equal to dev), truncates all public tables before each file, files run serially. 13 tests passing.
