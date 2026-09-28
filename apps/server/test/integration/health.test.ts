@@ -19,4 +19,12 @@ describe('GET /health', () => {
     const reused = await request(app).get('/health').set('x-request-id', 'abc-123');
     expect(reused.headers['x-request-id']).toBe('abc-123');
   });
+
+  it('sends security headers', async () => {
+    const res = await request(createTestApp()).get('/health');
+
+    expect(res.headers['content-security-policy']).toContain("default-src 'self'");
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-powered-by']).toBeUndefined();
+  });
 });
