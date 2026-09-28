@@ -1,7 +1,8 @@
 'use client';
 
+import { useAuth } from '@clerk/nextjs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useRef, useState, type ReactNode } from 'react';
 import { createApiClient, isApiError, type ApiClient } from '@/lib/api';
 
 const ApiContext = createContext<ApiClient | null>(null);
@@ -27,11 +28,14 @@ function makeQueryClient() {
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(makeQueryClient);
+  const { getToken } = useAuth();
+  // Keep the client stable; always read the latest getToken.
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const [apiClient] = useState(() =>
     createApiClient({
       baseUrl: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000',
-      // Replaced by Clerk's getToken in step 1.1.
-      getToken: () => Promise.resolve(null),
+      getToken: () => getTokenRef.current(),
     }),
   );
 
