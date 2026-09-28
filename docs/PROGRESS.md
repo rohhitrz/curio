@@ -5,7 +5,7 @@
 
 ## Current status
 - **Phase:** 0 (Foundation)
-- **Next step:** 0.2
+- **Next step:** 0.3
 - **State:** In progress
 
 ## Phases
@@ -28,7 +28,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 0
 - [x] 0.1 Root: pnpm workspace, tsconfig, ESLint + Prettier, .gitignore, .env.example
-- [ ] 0.2 packages/shared: Zod, error codes, error + pagination schemas
+- [x] 0.2 packages/shared: Zod, error codes, error + pagination schemas
 - [ ] 0.3 apps/server: Express 5, pino, helmet, CORS, error handler, /health
 - [ ] 0.4 config/: env validation, limits, models, feature flags
 - [ ] 0.5 Drizzle + Neon: pooled connection, drizzle-kit, vector extension migration
@@ -66,5 +66,5 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 -->
 
 ### 2026-09-28
-- Done: repo setup (private GitHub `rohhitrz/curio`), step 0.1
-- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own).
+- Done: repo setup (private GitHub `rohhitrz/curio`), steps 0.1–0.2
+- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own). `@curio/shared` builds to `dist/` with tsc; root `dev`/`test`/`typecheck`/`lint` build it first. Pagination max limit = 100 (API contract, lives in shared; default 20 per API doc).

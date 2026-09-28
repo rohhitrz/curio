@@ -7,11 +7,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel --if-present dev",
+    "build:shared": "pnpm --filter @curio/shared build",
+    "dev": "pnpm build:shared && pnpm -r --parallel --if-present dev",
     "build": "pnpm -r --if-present build",
-    "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "lint": "eslint .",
+    "test": "pnpm build:shared && pnpm -r --if-present test",
+    "typecheck": "pnpm build:shared && pnpm -r --if-present typecheck",
+    "lint": "pnpm build:shared && eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
