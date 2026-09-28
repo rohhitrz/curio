@@ -15,6 +15,13 @@
       "when": 1790607441434,
       "tag": "0001_users",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790607600326,
+      "tag": "0002_topics_notebooks",
+      "breakpoints": true
     }
   ]
 }
