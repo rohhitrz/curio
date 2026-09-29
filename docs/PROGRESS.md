@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 2 (Sources, no processing)
-- **Current step:** 2.5 (frontend sources panel)
-- **Blocked on:** nothing
-- **Next step:** 2.5 (see "Resume here"). It's the last step of Phase 2, so stop for owner approval after it
+- **Current step:** Phase 2 complete in code; waiting on the owner's live check + approval
+- **Blocked on:** owner verifying Phase 2 on the live URL (see "Resume here")
+- **Next step:** after approval, Phase 3 (ingestion pipeline; needs Inngest, OpenAI, Firecrawl, transcript API accounts)
 
 ## Phases
 | # | Phase | Status |
@@ -32,10 +32,15 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. Smoke-tested on both real buckets; required `R2_*` env vars; provider passed into `createApp`
 - [x] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
 - [x] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
-- [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
+- [x] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
-## Resume here: 2.5
-2.4 is done; all Phase 2 API endpoints are live. For 2.5 (frontend): sources panel on the notebook page, 4 add dialogs, SHA-256 in the browser (Web Crypto), `POST .../uploads` → PUT to R2 with progress (XHR, same `Content-Type` + size) → `POST .../sources`, status badges, polling `GET /notebooks/:id/sources` every ~2s while any source is `PENDING`/`PROCESSING`. Handle 409 via `details.existingSourceId`. Then verify on the live URL (Phase 2 "done when": all 4 types sit in `PENDING`, duplicates → 409, PDF lands under the user prefix in `curio-prod`) and stop for approval.
+## Resume here: Phase 2 approval
+2.5 is built and deployed, but it hasn't been clicked through in a browser by the agent (Clerk sign-in is the owner's). Owner checks on https://curio-web-theta.vercel.app, in a notebook:
+1. Add one of each: PDF (progress bar shows), website, YouTube, text → all show **Pending**
+2. Add the same website again (e.g. with `?utm_source=x`) → "already in the notebook" + **Show it** highlights the original
+3. Rename and delete a source; Open PDF opens the file in a new tab
+4. In Cloudflare, `curio-prod` has the PDF under `users/<id>/uploads/`; deleting the PDF source removes it
+Sources stay **Pending** until Phase 3; the list keeps polling every 2s meanwhile (expected).
 
 ## Pending on owner
 - **Vercel `curio-server`: add `CORS_ORIGINS` for Preview** (same value as Production). It's now required, and without it preview deployments (non-`main` branches) refuse to start. Production already has it.
@@ -122,6 +127,7 @@ API and server:
   - **Text over 100k chars** → `QUOTA_EXCEEDED` (the test plan lists text length under quotas). The JSON body cap is raised to 1 MB (`config/limits.ts` `requests`) because 100k multi-byte chars exceed Express's 100 KB default.
   - **R2 failures** → 503 `SERVICE_UNAVAILABLE` (the cause is kept and logged; the error handler now logs every 5xx `AppError`).
   - **2.4 choices** (docs don't specify): `PATCH /sources/:id` edits `title` only (strict body). `GET /notebooks/:id/sources` returns `{ items, nextCursor: null }` (bounded, oldest first). `file-url` on a non-PDF source → 404 "This source has no file". Delete removes the row first, then R2; an R2 failure still returns 204 and logs `orphaned upload` at warn. `toSource` lists fields explicitly so `storageKey` never leaks.
+  - **Frontend (2.5):** `features/sources/`. One add dialog with 4 tabs; PDF = SHA-256 in the browser (Web Crypto) → `POST uploads` → XHR PUT with progress (`application/pdf`, exact file) → `POST sources`. Closing the dialog aborts the upload. A 409 offers "Show it", which scrolls to and highlights the existing row. "Open PDF" opens the tab during the click, then sets the signed URL (avoids pop-up blocking). Polling stops when nothing is `PENDING`/`PROCESSING`. A duplicate PDF is only detected after its upload, which leaves an orphan in R2 (post-launch cleanup job). Lucide 1.x has no brand icons, so YouTube uses `SquarePlay`.
   - **Not yet:** the `POST /sources` rate limit (50/day) needs Upstash (Phase 5). No `source/created` event until Phase 3.
 
 ## Eval results so far
@@ -134,6 +140,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30
+- Done: 2.5 (sources panel, add dialog for 4 types, browser SHA-256, direct upload + progress, status badges, polling, rename/delete/open)
+- Notes: 193 tests passing (168 server, 25 web). Not clicked through locally (no signed-in session); owner verifies live. `.claude/launch.json` now also has separate `api` (:4000) and `web` (:3000) configs, which avoid the `PORT=3000` quirk
 
 ### 2026-09-29 (session 2, review fixes)
 - Done: 4 owner-reported fixes before 2.5: body-parser errors → 400; `CORS_ORIGINS` required + validated; stronger test-DB guard; per-user query cache in the web app

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isApiError } from '@/lib/api';
+import { SourcesPanel } from '@/features/sources/sources-panel';
 import { timeAgo } from '@/lib/format';
 import { useNotebook } from './queries';
 
@@ -37,11 +38,10 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
             {notebook.data.title}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount} sources
+            Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount}{' '}
+            {notebook.data.sourceCount === 1 ? 'source' : 'sources'}
           </p>
-          <div className="text-muted-foreground mt-8 rounded-xl border border-dashed px-6 py-12 text-center text-sm">
-            Adding sources arrives in Phase 2.
-          </div>
+          <SourcesPanel notebookId={notebookId} />
         </>
       )}
     </main>
