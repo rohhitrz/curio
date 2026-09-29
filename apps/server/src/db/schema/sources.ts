@@ -53,6 +53,9 @@ export const sources = pgTable(
   (t) => [
     // DB-level dedupe; also stops double-click races.
     unique('sources_notebook_id_content_hash_unique').on(t.notebookId, t.contentHash),
+    // One uploaded file backs at most one source, so deleting a source can't break another.
+    // (NULLs are distinct, so non-PDF sources are unaffected.)
+    unique('sources_storage_key_unique').on(t.storageKey),
     index('sources_notebook_id_created_at_idx').on(t.notebookId, t.createdAt),
     // For the sweeper (Phase 3).
     index('sources_processing_started_at_idx')

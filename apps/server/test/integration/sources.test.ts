@@ -292,6 +292,53 @@ describe('dedupe', () => {
 });
 
 describe('PDF registration', () => {
+  const OTHER_HASH = 'b'.repeat(64);
+
+  function registerPdf(notebookId: string, storageKey: string, contentHash: string) {
+    return addSource(ALICE, notebookId, { type: 'PDF', title: 'Lecture', storageKey, contentHash });
+  }
+
+  it('the same upload registered twice in one notebook → second is 400 UPLOAD_NOT_FOUND', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const storageKey = await uploadPdf(ALICE, notebookId);
+    expect((await registerPdf(notebookId, storageKey, PDF_HASH)).status).toBe(202);
+
+    const res = await registerPdf(notebookId, storageKey, OTHER_HASH);
+
+    expect(res.status).toBe(400);
+    expect(errorOf(res.body)).toMatchObject({
+      code: 'UPLOAD_NOT_FOUND',
+      message: 'This upload was already added as a source. Please upload the file again.',
+    });
+  });
+
+  it('the same upload registered in another notebook → 400 UPLOAD_NOT_FOUND', async () => {
+    const a = await createNotebook(ALICE, 'A');
+    const b = await createNotebook(ALICE, 'B');
+    const storageKey = await uploadPdf(ALICE, a);
+    expect((await registerPdf(a, storageKey, PDF_HASH)).status).toBe(202);
+
+    const res = await registerPdf(b, storageKey, PDF_HASH);
+
+    expect(res.status).toBe(400);
+    expect(errorOf(res.body).code).toBe('UPLOAD_NOT_FOUND');
+  });
+
+  it('parallel registrations of one upload in two notebooks → exactly one source', async () => {
+    const a = await createNotebook(ALICE, 'A');
+    const b = await createNotebook(ALICE, 'B');
+    const storageKey = await uploadPdf(ALICE, a);
+
+    const results = await Promise.all([
+      registerPdf(a, storageKey, PDF_HASH),
+      registerPdf(b, storageKey, PDF_HASH),
+    ]);
+
+    expect(results.map((r) => r.status).sort()).toEqual([202, 400]);
+    const rows = await getTestDb().select().from(sources).where(eq(sources.storageKey, storageKey));
+    expect(rows).toHaveLength(1);
+  });
+
   it("another user's storageKey → 400 UPLOAD_NOT_FOUND", async () => {
     const bobNotebook = await createNotebook(BOB);
     const bobKey = await uploadPdf(BOB, bobNotebook);

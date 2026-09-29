@@ -113,7 +113,9 @@ users 1──* notebooks 1──* sources 1──* source_chunks
 | `processed_at` | timestamptz | nullable |
 | `created_at`, `updated_at` | timestamptz | NOT NULL |
 
-**Constraints:** `UNIQUE (notebook_id, content_hash)`, which is DB-level dedupe that also stops double-click races
+**Constraints:**
+- `UNIQUE (notebook_id, content_hash)`, which is DB-level dedupe that also stops double-click races
+- `UNIQUE (storage_key)`: one uploaded file backs at most one source, so deleting a source can never delete another source's file (NULLs are distinct, so non-PDF sources are unaffected)
 
 **Indexes:**
 - `(notebook_id, created_at)`

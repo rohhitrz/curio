@@ -35,6 +35,7 @@ export type CreateSourceResult =
   | { kind: 'created'; row: SourceRow }
   | { kind: 'duplicate'; existingId: string }
   | { kind: 'quota' }
+  | { kind: 'upload_used' }
   | { kind: 'notebook_not_found' };
 
 export function createSourcesRepository(db: Db) {
@@ -100,8 +101,9 @@ export function createSourcesRepository(db: Db) {
 
     /**
      * Adds a source unless it's a duplicate or the notebook is full. Locking the notebook row
-     * checks ownership and serializes concurrent adds, so the count can't race; the unique
-     * `(notebook_id, content_hash)` constraint is the backstop for dedupe.
+     * checks ownership and serializes concurrent adds, so the count can't race. The unique
+     * `(notebook_id, content_hash)` and `storage_key` constraints are the backstops: an upload used
+     * from another notebook isn't serialized by this lock.
      */
     async createWithinQuota(
       userId: string,
@@ -128,8 +130,20 @@ export function createSourcesRepository(db: Db) {
           return existing;
         };
 
+        /** An uploaded file can back only one source; deleting that source deletes the file. */
+        const isUploadUsed = async () => {
+          if (values.storageKey === undefined) return false;
+          const [used] = await tx
+            .select({ id: sources.id })
+            .from(sources)
+            .where(eq(sources.storageKey, values.storageKey))
+            .limit(1);
+          return used !== undefined;
+        };
+
         const duplicate = await findDuplicate();
         if (duplicate) return { kind: 'duplicate', existingId: duplicate.id };
+        if (await isUploadUsed()) return { kind: 'upload_used' };
 
         const [existing] = await tx
           .select({ n: count() })
@@ -140,13 +154,15 @@ export function createSourcesRepository(db: Db) {
         const [row] = await tx
           .insert(sources)
           .values({ ...values, notebookId, userId })
-          .onConflictDoNothing({ target: [sources.notebookId, sources.contentHash] })
+          // Any unique conflict (hash or storage key) means a concurrent add won; see which.
+          .onConflictDoNothing()
           .returning(columns);
         if (row) return { kind: 'created', row };
 
         const raced = await findDuplicate();
-        if (!raced) throw new Error('source insert conflicted but no duplicate was found');
-        return { kind: 'duplicate', existingId: raced.id };
+        if (raced) return { kind: 'duplicate', existingId: raced.id };
+        if (await isUploadUsed()) return { kind: 'upload_used' };
+        throw new Error('source insert conflicted but no conflicting source was found');
       });
     },
   };

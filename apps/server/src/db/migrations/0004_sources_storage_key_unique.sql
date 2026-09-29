@@ -1,0 +1,1 @@
+ALTER TABLE "sources" ADD CONSTRAINT "sources_storage_key_unique" UNIQUE("storage_key");

@@ -232,6 +232,11 @@ export function createSourcesService(
           });
         case 'quota':
           throw quotaExceeded();
+        case 'upload_used':
+          throw new AppError(
+            'UPLOAD_NOT_FOUND',
+            'This upload was already added as a source. Please upload the file again.',
+          );
         case 'notebook_not_found':
           throw notebookNotFound();
       }
