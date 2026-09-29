@@ -1,15 +1,18 @@
 import { existsSync } from 'node:fs';
 import { afterAll, beforeAll } from 'vitest';
-import { closeTestDb, truncateAllTables } from './helpers/db.js';
+import {
+  assertSafeTestDatabase,
+  closeTestDb,
+  rememberProtectedEnv,
+  truncateAllTables,
+} from './helpers/db.js';
 
 const envFile = new URL('../../../.env', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
-const testUrl = process.env.TEST_DATABASE_URL;
-if (!testUrl) throw new Error('TEST_DATABASE_URL is required to run tests');
-if (testUrl === process.env.DATABASE_URL) {
-  throw new Error('TEST_DATABASE_URL must point at the Neon `test` branch, not the dev database');
-}
+// Checked against dev and prod before `DATABASE_URL` is overwritten below.
+rememberProtectedEnv(process.env);
+const testUrl = assertSafeTestDatabase();
 
 // Everything under test uses the `test` branch only.
 process.env.NODE_ENV = 'test';
