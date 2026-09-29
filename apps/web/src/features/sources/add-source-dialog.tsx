@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { isApiError } from '@/lib/api';
 import { cn } from 'cn';
 import { useAddSource, useUploadPdf, type PdfUploadStage } from './queries';
-import { UploadError, titleFromFileName } from './upload';
+import { UploadError, titleAfterFileChange } from './upload';
 
 interface AddSourceDialogProps {
   notebookId: string;
@@ -80,6 +80,8 @@ function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialo
   const [type, setType] = useState<SourceType>('PDF');
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
+  /** The title we filled in from the file name; replaced when the file changes unless edited. */
+  const [autoTitle, setAutoTitle] = useState('');
   const [content, setContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<FormError | null>(null);
@@ -201,7 +203,11 @@ function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialo
               onChange={(event) => {
                 const chosen = event.target.files?.[0] ?? null;
                 setFile(chosen);
-                if (chosen && !title) setTitle(titleFromFileName(chosen.name));
+                const next = titleAfterFileChange(title, autoTitle, chosen?.name ?? null);
+                if (next !== null) {
+                  setTitle(next);
+                  setAutoTitle(next);
+                }
                 setError(null);
               }}
               aria-invalid={fieldError('file') ? true : undefined}

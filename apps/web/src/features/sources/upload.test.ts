@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto';
 import { SOURCE_TITLE_MAX } from '@curio/shared';
 import { describe, expect, it } from 'vitest';
-import { hasActiveSources, pdfContentType, sha256Hex, titleFromFileName } from './upload';
+import {
+  hasActiveSources,
+  pdfContentType,
+  sha256Hex,
+  titleAfterFileChange,
+  titleFromFileName,
+} from './upload';
 
 describe('sha256Hex', () => {
   it('matches the server-side SHA-256 of the same bytes', async () => {
@@ -53,5 +59,24 @@ describe('hasActiveSources', () => {
   it('false when all are ready or failed, or there are none', () => {
     expect(hasActiveSources([{ status: 'READY' }, { status: 'FAILED' }])).toBe(false);
     expect(hasActiveSources([])).toBe(false);
+  });
+});
+
+describe('titleAfterFileChange', () => {
+  it('fills an empty title from the file name', () => {
+    expect(titleAfterFileChange('', '', 'Lecture 1.pdf')).toBe('Lecture 1');
+  });
+
+  it('switching files replaces the auto-filled title', () => {
+    expect(titleAfterFileChange('Lecture 1', 'Lecture 1', 'Lecture 2.pdf')).toBe('Lecture 2');
+  });
+
+  it('keeps a title the user typed', () => {
+    expect(titleAfterFileChange('My notes', 'Lecture 1', 'Lecture 2.pdf')).toBeNull();
+    expect(titleAfterFileChange('My notes', '', 'Lecture 2.pdf')).toBeNull();
+  });
+
+  it('clearing the file clears an auto-filled title', () => {
+    expect(titleAfterFileChange('Lecture 1', 'Lecture 1', null)).toBe('');
   });
 });

@@ -50,7 +50,7 @@ export function useAddSource(notebookId: string) {
   return useMutation({
     mutationFn: (input: Exclude<CreateSourceInput, { type: 'PDF' }>) =>
       api.post<Source>(`/notebooks/${notebookId}/sources`, input, { schema: sourceSchema }),
-    onSuccess: refresh,
+    onSettled: refresh,
   });
 }
 
@@ -64,7 +64,11 @@ interface PdfUploadInput {
   signal?: AbortSignal;
 }
 
-/** Hash in the browser → signed upload URL → PUT straight to R2 → register the source. */
+/**
+ * Hash in the browser → signed upload URL → PUT straight to R2 → register the source.
+ * `signal` cancels only the hashing and upload. Once the file is in R2 the source is always
+ * registered, so a cancel can't leave an orphaned file or a source the list doesn't show.
+ */
 export function useUploadPdf(notebookId: string) {
   const api = useApi();
   const refresh = useRefreshSources(notebookId);
@@ -72,6 +76,7 @@ export function useUploadPdf(notebookId: string) {
     mutationFn: async ({ file, title, onStage, onProgress, signal }: PdfUploadInput) => {
       onStage?.('hashing');
       const contentHash = await sha256Hex(await file.arrayBuffer());
+      signal?.throwIfAborted();
 
       const upload = await api.post(
         `/notebooks/${notebookId}/uploads`,
@@ -91,10 +96,12 @@ export function useUploadPdf(notebookId: string) {
           storageKey: upload.storageKey,
           contentHash,
         },
-        { schema: sourceSchema, signal },
+        { schema: sourceSchema },
       );
     },
-    onSuccess: refresh,
+    // On settle, not just success: a cancelled or failed add may still have created the source.
+    // Hook-level callbacks run even after the dialog unmounts.
+    onSettled: refresh,
   });
 }
 

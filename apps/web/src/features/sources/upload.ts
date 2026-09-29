@@ -16,6 +16,19 @@ export function titleFromFileName(fileName: string): string {
 }
 
 /**
+ * The title after choosing a file: it follows the file name while the title is empty or still
+ * the one we filled in, and is kept once the user has typed their own. Returns null to keep it.
+ */
+export function titleAfterFileChange(
+  current: string,
+  autoFilled: string,
+  fileName: string | null,
+): string | null {
+  if (current && current !== autoFilled) return null;
+  return fileName ? titleFromFileName(fileName) : '';
+}
+
+/**
  * Some browsers report an empty type for PDFs; trust the extension then. Anything else is sent
  * as-is so the API can answer `UNSUPPORTED_FILE_TYPE`.
  */
