@@ -35,12 +35,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
 ## Resume here: Phase 2 approval
-2.5 is built and deployed, but it hasn't been clicked through in a browser by the agent (Clerk sign-in is the owner's). Owner checks on https://curio-web-theta.vercel.app, in a notebook:
-1. Add one of each: PDF (progress bar shows), website, YouTube, text → all show **Pending**
-2. Add the same website again (e.g. with `?utm_source=x`) → "already in the notebook" + **Show it** highlights the original
-3. Rename and delete a source; Open PDF opens the file in a new tab
-4. In Cloudflare, `curio-prod` has the PDF under `users/<id>/uploads/`; deleting the PDF source removes it
-Sources stay **Pending** until Phase 3; the list keeps polling every 2s meanwhile (expected).
+Agent-verified locally on 2026-09-30 in a signed-in browser (test notebook "Phase 2 test" in the dev DB): all 4 types → Pending; the duplicate website (`www.` + trailing slash + `utm_`) → 409 with "Show it" highlighting the original; PDF upload stages + progress, title follows the chosen file, file lands under the user's prefix in `curio-dev` at the exact size; `file-url` returns the exact bytes (5 min TTL); rename; delete updates the count and removes the R2 file. Not visible in the agent's pane: the PDF viewer tab itself (the pane blocks pop-ups). Owner: a quick look on the live URL, then approve Phase 2.
 
 ## Pending on owner
 - **Vercel `curio-server`: add `CORS_ORIGINS` for Preview** (same value as Production). It's now required, and without it preview deployments (non-`main` branches) refuse to start. Production already has it.
@@ -91,7 +86,7 @@ Tooling and stack:
 - **TypeScript is pinned to `~6.0`** because typescript-eslint 8.x doesn't support TS 7. Revisit when it does.
 - **Server extras:** `pino-http` (request logs + `x-request-id`), `tsx` (dev runner), `pino-pretty` (dev). pnpm `allowBuilds` approves `esbuild` only.
 - **Driver:** `@neondatabase/serverless` Pool (WebSocket, so interactive transactions work) with Drizzle.
-- **Web query cache is per user:** `providers.tsx` swaps in a fresh `QueryClient` whenever Clerk's `userId` changes, so query keys don't need the user.
+- **Web query cache is per user:** `providers.tsx` + `lib/user-cache.ts`. A real user change (sign-out, account switch) gets a fresh `QueryClient` **and remounts the provider subtree** (`key={generation}`), because `useQuery` stays bound to the client it first saw. Clerk resolving the user for the first time is not a change and keeps the client.
 - **Web:** Next.js 16 (`src/proxy.ts` is the middleware), Tailwind 4, shadcn/ui `base-nova` style (Base UI primitives, shadcn's `cn` package). A Base UI `Button` rendering a `Link` needs `nativeButton={false}`. `next.config.ts` loads the root `.env`.
 - **Clerk:** `@clerk/nextjs` 7 via the manual quickstart (the Clerk CLI's login failed). `@clerk/ui` was skipped because it pulls a Solana wallet stack; Clerk is themed with `appearance.variables`. `createRouteMatcher` is deprecated, so the proxy is plain `clerkMiddleware()` and the `(app)` layout calls `auth.protect()`. Still on dev keys, because a production instance needs a custom domain.
 - **`@curio/shared`** builds to `dist/`. Root `dev`/`test`/`typecheck`/`lint` build it first; Vercel builds use `vercel-build` scripts that do the same.
@@ -142,6 +137,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (browser verification)
+- Done: signed-in browser run of Phase 2 (see "Resume here"). Found and fixed a bug in the per-user cache fix: the notebook header's source count never updated, because the first `userId` report swapped the `QueryClient` and already-mounted queries stayed on the old one
+- Notes: 205 tests passing (171 server, 34 web). Leftover in `curio-dev`: a 12.7 MB upload from 2026-09-29 under user `7226501d…` (likely an orphan from earlier manual testing)
 
 ### 2026-09-30 (review fixes 2)
 - Done: 4 owner-reported fixes: one upload per source (migration 0004 + app check); PDF title follows the chosen file; cancel no longer hides a source or orphans a file; `NODE_ENV` defaults to production
