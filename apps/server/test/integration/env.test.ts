@@ -13,6 +13,7 @@ const validEnv = {
   R2_ACCESS_KEY_ID: 'key',
   R2_SECRET_ACCESS_KEY: 'secret',
   R2_BUCKET: 'curio-test',
+  CORS_ORIGINS: 'http://localhost:3000',
 };
 
 describe('env validation', () => {
@@ -23,11 +24,22 @@ describe('env validation', () => {
     expect(() => loadEnv({})).toThrow('R2_ACCOUNT_ID is required');
     expect(() => loadEnv({})).toThrow('R2_SECRET_ACCESS_KEY is required');
     expect(() => loadEnv({})).toThrow('R2_BUCKET is required');
+    expect(() => loadEnv({})).toThrow('CORS_ORIGINS is required');
+  });
+
+  it.each([
+    ['empty', '', 'CORS_ORIGINS is required'],
+    ['only commas', ' , ', 'CORS_ORIGINS: must list at least one origin'],
+    ['trailing slash', 'https://app.example.com/', 'CORS_ORIGINS.0: must be an origin'],
+    ['a path', 'http://a.test,https://app.example.com/app', 'CORS_ORIGINS.1: must be an origin'],
+    ['not a URL', 'localhost:3000', 'CORS_ORIGINS.0: must be an origin'],
+  ])('CORS_ORIGINS %s → refuses to start', (_label, value, message) => {
+    expect(() => loadEnv({ ...validEnv, CORS_ORIGINS: value })).toThrow(message);
   });
 
   it('rejects invalid values', () => {
     expect(() => loadEnv({ DATABASE_URL: 'mysql://x', PORT: 'abc' })).toThrow(
-      /PORT: .*\n.*DATABASE_URL: /,
+      /PORT: [^\n]*\n(.*\n)*.*DATABASE_URL: /,
     );
   });
 
