@@ -39,7 +39,11 @@ export function createR2StorageProvider(config: R2Config): StorageProvider {
         ContentType: contentType,
         ContentLength: contentLength,
       });
-      return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+      // The presigner leaves Content-Type unsigned unless told to sign it.
+      return getSignedUrl(client, command, {
+        expiresIn: expiresInSeconds,
+        signableHeaders: new Set(['content-type']),
+      });
     },
 
     createDownloadUrl({ key, expiresInSeconds }) {

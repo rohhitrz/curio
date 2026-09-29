@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 2 (Sources, no processing)
-- **Current step:** 2.2 R2 provider. Code is done, tested with a fake, committed, and live in production (not wired into the running server yet)
-- **Blocked on:** owner creating the R2 buckets and keys (see "Pending on owner")
-- **Next step once unblocked:** finish 2.2 (see "Resume here"), then 2.3
+- **Current step:** 2.2 R2 provider. Smoke-tested against real `curio-dev` (passes except CORS). Not wired into the running server yet
+- **Blocked on:** owner: CORS on `curio-dev`; `curio-prod` token + Vercel env vars (see "Pending on owner")
+- **Next step once unblocked:** finish 2.2 (see "Resume here", step 3 onward), then 2.3
 
 ## Phases
 | # | Phase | Status |
@@ -29,13 +29,13 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 2
 - [x] 2.1 Migration: `sources` (applied on `dev`, `test`, and `main`)
-- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. **Partially done**: interface, R2 implementation, fake, and upload rules are committed (`9c70acd`). Still missing: R2 env vars in the config, a smoke test against the real bucket, and the Vercel env vars
+- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. **Partially done**: interface, R2 implementation, fake, and upload rules are committed (`9c70acd`). Real-bucket smoke test done 2026-09-29 (found and fixed an unsigned Content-Type). Still missing: bucket CORS check, R2 env vars in the config, and the Vercel env vars
 - [ ] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
 - [ ] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
 - [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
 ## Resume here: finishing 2.2
-Once the owner confirms the R2 keys are in `.env`:
+Steps 1–2 done 2026-09-29. The smoke script checks: wrong Content-Type → 403, wrong length → 403, PUT → 200, head size/type, GET bytes match, CORS preflight from `localhost:3000` allowed and from other origins denied, delete → head null, deleting a missing key is fine. Rerun it after CORS is set; it failed only on the allowed preflight (403, no `Access-Control-Allow-Origin`).
 1. Check the four `R2_*` vars exist in `.env` by name only; never print or read values.
 2. Smoke-test the real R2 provider (`apps/server/src/lib/storage/r2.ts`) against `curio-dev` with a throwaway script in the scratchpad:
    - `createUploadUrl`, then `curl -X PUT` a small PDF with a matching `Content-Type` and `Content-Length`
@@ -46,9 +46,10 @@ Once the owner confirms the R2 keys are in `.env`:
 5. Tests + lint + typecheck, update this file, commit, push, then confirm the new deployment's `/health` is 200.
 
 ## Pending on owner
-- **Cloudflare R2**, in progress as of 2026-09-29:
-  - Two **private** buckets: `curio-dev` (local) and `curio-prod` (live).
-  - API token with **Object Read & Write** on both. Put `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-dev` in root `.env`, no quotes. `.env.example` lists them.
+- **Cloudflare R2**, as of 2026-09-29:
+  - ✅ Buckets `curio-dev` and `curio-prod` exist (private). ✅ `curio-dev-token` (Object Read & Write, `curio-dev` only), keys in `.env`.
+  - ⏳ CORS on `curio-dev` is **not effective yet** (preflight from `localhost:3000` → 403). Set it and ask the agent to rerun the smoke test.
+  - ⏳ `curio-prod` token (Object Read & Write, `curio-prod` only). The owner creates it at step 3 of "Resume here", right before the wiring push. Put `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-dev` in root `.env`, no quotes. `.env.example` lists them.
   - Bucket CORS, approved by the owner: GET + PUT, `Content-Type` header only.
     - `curio-dev`:
       ```json
@@ -66,7 +67,7 @@ Once the owner confirms the R2 keys are in `.env`:
 | Neon | 0 | ✅ Project `curio` (`red-forest-65860222`): `main` = production, `dev` = local, `test` = tests |
 | Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
-| Cloudflare R2 | 2 | ⏳ Owner setting up (`curio-dev`, `curio-prod`) |
+| Cloudflare R2 | 2 | 🔨 `curio-dev` + token ready; `curio-prod` bucket exists, token pending |
 | Inngest | 3 | ⬜ Not set up |
 | OpenAI | 3 | ⬜ Not set up |
 | Firecrawl | 3 | ⬜ Not set up |
@@ -120,7 +121,7 @@ API and server:
 - **Uploads path:** `POST /notebooks/:id/uploads` (the API doc path; the build plan's `/uploads` is shorthand).
 - **Storage (2.2):**
   - AWS SDK v3 with checksums `WHEN_REQUIRED` (decision A-10).
-  - The signed PUT binds Content-Type and Content-Length, so the browser must upload exactly the declared file.
+  - The signed PUT binds Content-Type and Content-Length, so the browser must upload exactly the declared file. The presigner drops Content-Type unless it is passed in `signableHeaders`; `storage-r2-signing.test.ts` guards this.
   - Upload URL TTL is 10 min and download URL TTL is 5 min (`config/limits.ts` `uploads`).
   - Upload rules (`services/upload-rules.ts`): only `application/pdf` (case-insensitive), max `quotas.pdfMaxBytes`. The key is `users/{userId}/uploads/{uuid}.pdf`, checked by a strict ownership regex.
   - Shared schemas: `createUploadSchema` doesn't cap size, so the API can return `FILE_TOO_LARGE` rather than `VALIDATION_ERROR`.
@@ -135,6 +136,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-29 (session 2)
+- Done: 2.2 steps 1–2 (real `curio-dev` smoke test). Fixed Content-Type not being signed on upload URLs; added a signing test
+- Notes: 82 tests passing (69 server, 13 web). CORS preflight on `curio-dev` fails, so the owner needs to check the bucket CORS rule
 
 ### 2026-09-29
 - Done: 2.2 partial (storage interface, R2 provider, fake, upload rules; A-10 + stack table; `.env.example` gets `PROD_DATABASE_URL` + R2 vars)
