@@ -59,7 +59,7 @@
 | **Database** | Neon Postgres | Serverless, free tier, doesn't pause, branches for dev/prod |
 | **Vectors** | pgvector (HNSW index) | Same DB means atomic indexing, no half-indexed sources |
 | **ORM** | Drizzle | SQL-heavy queries, native pgvector support |
-| **Files** | Cloudflare R2 | S3-standard, free egress |
+| **Files** | Cloudflare R2 via AWS SDK v3 (`@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`) | S3-standard, free egress; official SDK for signed URLs |
 | **Jobs** | Inngest | Step-based retries, fits Vercel time limits, pause/resume |
 | **Rate limits** | Upstash Redis | Shared counters across serverless instances |
 | **LLM** | GPT-6 Luna (default), configurable per task | Cheap; heavier tasks upgradable to Sol if evals demand |

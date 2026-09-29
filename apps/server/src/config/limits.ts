@@ -38,3 +38,11 @@ export const retrieval = {
 export const conversation = {
   recentMessages: 10,
 } as const;
+
+export const uploads = {
+  pdfContentType: 'application/pdf',
+  /** Signed PUT URL lifetime (API doc: 10 min). */
+  uploadUrlTtlSeconds: 10 * 60,
+  /** Signed GET URL lifetime for the PDF viewer. */
+  downloadUrlTtlSeconds: 5 * 60,
+} as const;

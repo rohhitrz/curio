@@ -85,6 +85,12 @@
 **A-09 · Provider interfaces for every external service**
 - **Why:** swapping a vendor = one file; enables fake providers so **tests never call paid APIs**
 
+**A-10 · AWS SDK v3 for R2, with flexible checksums off**
+- **Alternatives:** a hand-rolled SigV4 signer; R2's Workers bindings (not usable from Vercel)
+- **Why:** R2 is S3-compatible; the official SDK signs PUT/GET URLs and handles head/delete. It lives only behind the storage provider in `lib/`
+- **Config:** `requestChecksumCalculation` and `responseChecksumValidation` = `WHEN_REQUIRED`, because the SDK's default checksums add headers that break R2 presigned uploads from the browser
+- **Trade-off:** a large dependency for four operations
+
 ---
 
 ## 3. Ingestion decisions

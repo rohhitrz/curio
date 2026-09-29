@@ -5,8 +5,8 @@
 
 ## Current status
 - **Phase:** 2 (Sources, no processing)
-- **Next step:** 2.2
-- **State:** In progress
+- **Next step:** 2.2 (finish: R2 keys)
+- **State:** Waiting on owner for R2 buckets + keys
 
 ## Phases
 | # | Phase | Status |
@@ -28,7 +28,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 2
 - [x] 2.1 Migration: `sources`
-- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete
+- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete — code + fake + upload rules done; waiting on R2 keys to wire env and smoke-test real R2
 - [ ] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
 - [ ] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
 - [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
@@ -39,7 +39,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Neon | 0 | ✅ Project `curio` (`red-forest-65860222`), branches `main` / `dev` / `test` |
 | Clerk | 1 | ✅ App `curio` (development instance), keys in `.env` |
 | Vercel | 1 | ✅ `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app (team `rohits-projects-f028bcc9`) |
-| Cloudflare R2 | 2 | ⬜ Not set up |
+| Cloudflare R2 | 2 | ⏳ Owner setting up (`curio-dev`, `curio-prod`) |
 | Inngest | 3 | ⬜ Not set up |
 | OpenAI | 3 | ⬜ Not set up |
 | Firecrawl | 3 | ⬜ Not set up |
@@ -50,7 +50,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Tavily | 8 | ⬜ Not set up |
 
 ## Blockers
-- None
+- R2: owner creating `curio-dev` + `curio-prod` buckets, API token, CORS (GET+PUT, Content-Type) → `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` in `.env`
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -71,3 +71,4 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - Verified live: `/health` 200, no/forged token 401, CORS only for the web origin, security headers present; owner signed in on the live URL, CRUD writes to Neon `main`; second account gets "Notebook not found" (404) on the first account's notebook.
 - Working rule: the agent can't trigger production deploys (includes pushing to `main`, which auto-deploys); owner pushes/redeploys.
 - Phase 1 approved by owner. Phase 2.1: `sources` table (3 enums, `UNIQUE(notebook_id, content_hash)`, partial index for the sweeper) migrated on dev, test, and main. Uploads endpoint follows the API doc path `POST /notebooks/:id/uploads` (build plan's `/uploads` is shorthand).
+- 2.2 (partial): owner approved `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (decision A-10, stack table updated). `lib/storage`: `StorageProvider` interface + R2 impl (checksums `WHEN_REQUIRED`; signed PUT binds Content-Type and Content-Length). Fake in `test/fakes/storage.ts`. Pure upload rules in `services/upload-rules.ts` (PDF only, ≤ 25 MB, key `users/{userId}/uploads/{uuid}.pdf`, strict ownership regex). R2 env vars deliberately not in the env schema yet: adding required vars before prod has them would crash the auto-deploy.
