@@ -5,8 +5,9 @@
 
 ## Current status
 - **Phase:** 2 (Sources, no processing)
-- **Next step:** 2.2 (finish: R2 keys)
-- **State:** Waiting on owner for R2 buckets + keys
+- **Current step:** 2.2 R2 provider. Code is done, tested with a fake, committed, and live in production (not wired into the running server yet)
+- **Blocked on:** owner creating the R2 buckets and keys (see "Pending on owner")
+- **Next step once unblocked:** finish 2.2 (see "Resume here"), then 2.3
 
 ## Phases
 | # | Phase | Status |
@@ -27,18 +28,44 @@
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 2
-- [x] 2.1 Migration: `sources`
-- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete — code + fake + upload rules done; waiting on R2 keys to wire env and smoke-test real R2
+- [x] 2.1 Migration: `sources` (applied on `dev`, `test`, and `main`)
+- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. **Partially done**: interface, R2 implementation, fake, and upload rules are committed (`9c70acd`). Still missing: R2 env vars in the config, a smoke test against the real bucket, and the Vercel env vars
 - [ ] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
 - [ ] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
 - [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
+## Resume here: finishing 2.2
+Once the owner confirms the R2 keys are in `.env`:
+1. Check the four `R2_*` vars exist in `.env` by name only; never print or read values.
+2. Smoke-test the real R2 provider (`apps/server/src/lib/storage/r2.ts`) against `curio-dev` with a throwaway script in the scratchpad:
+   - `createUploadUrl`, then `curl -X PUT` a small PDF with a matching `Content-Type` and `Content-Length`
+   - `head` should return the size; `createDownloadUrl` + GET should return the bytes
+   - `delete`, then `head` should return `null`
+3. Give the owner the Vercel env vars for **curio-server**, to paste without quotes: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. Set production and preview. The agent can't read secret values, so the owner pastes them.
+4. **Only after** the owner confirms step 3: add the four vars to the Zod env schema (`apps/server/src/config/env.ts`, required), create the provider in `src/index.ts`, and pass `storage` into `createApp` (test helper passes the fake from `test/fakes/storage.ts`). Update the env tests. Order matters: pushing required vars before Vercel has them crashes production on the auto-deploy.
+5. Tests + lint + typecheck, update this file, commit, push, then confirm the new deployment's `/health` is 200.
+
+## Pending on owner
+- **Cloudflare R2**, in progress as of 2026-09-29:
+  - Two **private** buckets: `curio-dev` (local) and `curio-prod` (live).
+  - API token with **Object Read & Write** on both. Put `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-dev` in root `.env`, no quotes. `.env.example` lists them.
+  - Bucket CORS, approved by the owner: GET + PUT, `Content-Type` header only.
+    - `curio-dev`:
+      ```json
+      [{ "AllowedOrigins": ["http://localhost:3000"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["Content-Type"], "MaxAgeSeconds": 3600 }]
+      ```
+    - `curio-prod`:
+      ```json
+      [{ "AllowedOrigins": ["https://curio-web-theta.vercel.app"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["Content-Type"], "MaxAgeSeconds": 3600 }]
+      ```
+- **Vercel env for R2**: step 3 of "Resume here", after the keys exist.
+
 ## Accounts & keys
 | Service | Needed in phase | Status |
 |---|---|---|
-| Neon | 0 | ✅ Project `curio` (`red-forest-65860222`), branches `main` / `dev` / `test` |
-| Clerk | 1 | ✅ App `curio` (development instance), keys in `.env` |
-| Vercel | 1 | ✅ `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app (team `rohits-projects-f028bcc9`) |
+| Neon | 0 | ✅ Project `curio` (`red-forest-65860222`): `main` = production, `dev` = local, `test` = tests |
+| Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
+| Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
 | Cloudflare R2 | 2 | ⏳ Owner setting up (`curio-dev`, `curio-prod`) |
 | Inngest | 3 | ⬜ Not set up |
 | OpenAI | 3 | ⬜ Not set up |
@@ -50,7 +77,53 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Tavily | 8 | ⬜ Not set up |
 
 ## Blockers
-- R2: owner creating `curio-dev` + `curio-prod` buckets, API token, CORS (GET+PUT, Content-Type) → `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` in `.env`
+- R2 buckets + keys (owner). Everything from 2.2's finish onward depends on it.
+
+## Working agreements (owner-approved)
+- **The agent pushes** after every committed step, including pushes to `main`. Every push auto-deploys both Vercel projects. After pushing, check the new deployment is healthy.
+- **Secrets:** the agent never reads or prints secret values from `.env`. It checks names only (e.g. mask with `sed`). The owner pastes secret env vars into Vercel; the agent sets non-secret ones via the Vercel connector.
+- **The production database is not read by the agent.** The owner checks Neon `main` in the console. Migrations on `main` run manually: `cd apps/server && pnpm db:migrate:prod`.
+- **Direct production deploys** (Vercel "create deployment" / Redeploy) are the owner's to click; a git push is the normal way to deploy.
+- **Vercel env values are stored literally.** Paste without the quotes used in `.env`; quoted values broke `DATABASE_URL` once.
+
+## Environments & runbook
+- **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling.
+- **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`; `test/setup.ts` refuses if it equals dev, truncates all tables per file, runs files serially). **Prod** = Neon `main`.
+- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches.
+- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app`, `LOG_LEVEL=info`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
+- **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
+- **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
+
+## Decisions & conventions not (yet) in the design docs
+Tooling and stack:
+- **TypeScript is pinned to `~6.0`** because typescript-eslint 8.x doesn't support TS 7. Revisit when it does.
+- **Server extras:** `pino-http` (request logs + `x-request-id`), `tsx` (dev runner), `pino-pretty` (dev). pnpm `allowBuilds` approves `esbuild` only.
+- **Driver:** `@neondatabase/serverless` Pool (WebSocket, so interactive transactions work) with Drizzle.
+- **Web:** Next.js 16 (`src/proxy.ts` is the middleware), Tailwind 4, shadcn/ui `base-nova` style (Base UI primitives, shadcn's `cn` package). A Base UI `Button` rendering a `Link` needs `nativeButton={false}`. `next.config.ts` loads the root `.env`.
+- **Clerk:** `@clerk/nextjs` 7 via the manual quickstart (the Clerk CLI's login failed). `@clerk/ui` was skipped because it pulls a Solana wallet stack; Clerk is themed with `appearance.variables`. `createRouteMatcher` is deprecated, so the proxy is plain `clerkMiddleware()` and the `(app)` layout calls `auth.protect()`. Still on dev keys, because a production instance needs a custom domain.
+- **`@curio/shared`** builds to `dist/`. Root `dev`/`test`/`typecheck`/`lint` build it first; Vercel builds use `vercel-build` scripts that do the same.
+- **ESLint:** `strictTypeChecked`; `no-confusing-void-expression` has `ignoreArrowShorthand` for React handlers.
+
+API and server:
+- **`GET /health`** sits at the root, not under `/api/v1`.
+- **Pagination:** default 20 (API doc), **max 100** (our choice), in shared.
+- **Keyset cursor:** base64url `{t, i}`, with `updated_at` as microsecond text (a JS `Date` loses precision and would cause duplicates or gaps). Order is `updated_at DESC, id DESC`. A tampered cursor → 400.
+- **Notebook title:** 1–200 chars, trimmed (`NOTEBOOK_TITLE_MAX`).
+- **Notebook quota:** enforced in a transaction with a per-user advisory lock.
+- **Malformed IDs** in paths → 404, not 400.
+- **`GET /notebooks/:id` counts** return 0 and `learningPathId: null` until sources, conversations and paths are wired (wire `sourceCount` in 2.4).
+- **Auth:** `AuthProvider` in `lib/auth` (Clerk `clerkMiddleware` + `getAuth`, `authorizedParties` = CORS origins). The test provider uses `Bearer test_<clerkUserId>` and throws unless `NODE_ENV=test`. User get-or-create is select → insert on conflict do nothing → reselect.
+- **Build-plan ordering:** the `users` table was created in 1.2, not 1.3, because auth creates the row.
+- **Server entry:** `src/index.ts` default-exports the app for Vercel and only listens when `VERCEL` is unset. `createApp` lives in `create-app.ts`, so Vercel can't mistake it for the entrypoint.
+- **helmet:** Vercel's build type-checks it via its CJS types, so `middleware/security-headers.ts` resolves the function in both ESM and CJS shapes. Don't import `helmet` directly.
+- **Config:** LLM tasks map to tiers (`luna`/`sol`); exact model IDs get set and verified in step 5.2. Retrieval flags stay off until Phase 6. Rate limits are modeled as `{limit, windowSeconds}`.
+- **Uploads path:** `POST /notebooks/:id/uploads` (the API doc path; the build plan's `/uploads` is shorthand).
+- **Storage (2.2):**
+  - AWS SDK v3 with checksums `WHEN_REQUIRED` (decision A-10).
+  - The signed PUT binds Content-Type and Content-Length, so the browser must upload exactly the declared file.
+  - Upload URL TTL is 10 min and download URL TTL is 5 min (`config/limits.ts` `uploads`).
+  - Upload rules (`services/upload-rules.ts`): only `application/pdf` (case-insensitive), max `quotas.pdfMaxBytes`. The key is `users/{userId}/uploads/{uuid}.pdf`, checked by a strict ownership regex.
+  - Shared schemas: `createUploadSchema` doesn't cap size, so the API can return `FILE_TOO_LARGE` rather than `VALIDATION_ERROR`.
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -63,12 +136,18 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - Notes: anything the next session must know
 -->
 
+### 2026-09-29
+- Done: 2.2 partial (storage interface, R2 provider, fake, upload rules; A-10 + stack table; `.env.example` gets `PROD_DATABASE_URL` + R2 vars)
+- Commits: `9c70acd`, plus this handoff commit
+- Notes: 80 tests passing (67 server, 13 web). The `9c70acd` deployment is healthy in production. The R2 provider has only run against the fake so far.
+
 ### 2026-09-28
-- Done: repo setup (private GitHub `rohhitrz/curio`), steps 0.1–0.7; Phase 0 approved by owner
-- Notes: TypeScript pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7 yet; revisit when it does. Root `.env` holds all env vars (`.env.example` lists Phase 0 keys only; each phase adds its own). `@curio/shared` builds to `dist/` with tsc; root `dev`/`test`/`typecheck`/`lint` build it first. Pagination max limit = 100 (API contract, lives in shared; default 20 per API doc). Server extras: `pino-http` (request logging + `x-request-id`), `tsx` (dev runner); pnpm `allowBuilds` approves `esbuild` only. `GET /health` is at the root, not under `/api/v1`. Config: LLM tasks map to tiers (`luna`/`sol`); exact OpenAI model IDs to be set + verified in step 5.2. Retrieval flags all off until Phase 6. Rate-limit windows modeled as `{limit, windowSeconds}`. DB: `@neondatabase/serverless` Pool (WebSocket, supports transactions) + Drizzle; migrations in `apps/server/src/db/migrations`, run manually with `pnpm db:migrate` (dev) / `pnpm db:migrate:test`. `vector` 0.8.6 enabled on `dev` and `test`; `main` not migrated yet (Phase 1.6). Tests: Vitest + Supertest in `apps/server`; `test/setup.ts` forces `DATABASE_URL` = `TEST_DATABASE_URL` (refuses if equal to dev), truncates all public tables before each file, files run serially. 13 tests passing. Web: Next.js 16 + Tailwind 4 + shadcn/ui (`base-nova` style, Base UI primitives, shadcn's `cn` package) + TanStack Query; API client in `apps/web/src/lib/api` (bearer token via `getToken`, stub until Clerk in 1.1; parses standard error format into `ApiError`); `next.config.ts` loads the root `.env`. 8 web unit tests passing. Phase 1.1: `@clerk/nextjs` 7 via manual quickstart (Clerk CLI login failed with a server-side OAuth error). Skipped `@clerk/ui` shadcn theme (pulls a Solana wallet stack); Clerk styled via `appearance.variables` mapped to our CSS tokens. `createRouteMatcher` is deprecated: `src/proxy.ts` is plain `clerkMiddleware()`, and the `(app)` route group layout calls `auth.protect()`. Base UI `Button` rendering a `Link` needs `nativeButton={false}`. Owner signed up as first test user. Phase 1.2: `users` table + migration moved into 1.2 (auth creates the row, so it can't wait for 1.3); 1.3 adds `topics` + `notebooks`. `AuthProvider` in `lib/auth` (Clerk via `@clerk/express` `clerkMiddleware` + `getAuth`, `authorizedParties` = CORS origins; test provider = `Bearer test_<clerkUserId>`, throws unless `NODE_ENV=test`). `requireAuth` on the `/api/v1` router; user get-or-create is select → insert on conflict do nothing → reselect. Real signed-in token E2E deferred to 1.5. Phase 1.3: `topics` (HNSW cosine on embedding) + `notebooks` (`notebook_kind` enum, `(user_id, updated_at DESC)` index) migrated on `dev` + `test`. Phase 1.4: 5 notebook endpoints (route → controller → service → repository). Keyset cursor = base64url `{t, i}` with `updated_at` as microsecond text (JS Date would lose precision → dup/gap); order `updated_at DESC, id DESC`. Title 1–200 chars trimmed (`NOTEBOOK_TITLE_MAX` in shared). 30-notebook quota enforced in a transaction with a per-user advisory lock. Malformed notebook ID → 404. `GET` detail counts return 0 / `learningPathId: null` until Phases 2/5/8 add the tables. Phase 1.5: notebooks UI in `apps/web/src/features/notebooks` (infinite list + Load more, create/rename dialog validated with the shared Zod schema, delete confirm, detail page at `/notebooks/[id]`). Owner verified CRUD signed in with a real Clerk token; dev DB shows the user row created on first request. ESLint `no-confusing-void-expression` set to `ignoreArrowShorthand` for React handlers. Phase 1.6 prep: `apps/server/src/index.ts` default-exports the app for Vercel and only listens when `VERCEL` is unset; `createApp` moved to `create-app.ts` so Vercel can't pick it as the entrypoint. `vercel-build` scripts build `@curio/shared` first. `pnpm db:migrate:prod` (`DB_TARGET=prod`, `PROD_DATABASE_URL`) migrates Neon `main`, run manually. First attempt silently hit `dev` (a config edit didn't apply); fixed `drizzle.config.ts` to map dev/test/prod explicitly and fail on unknown targets, then migrated `main` 2026-09-28.
-- Phase 1.6 deploy: two Vercel projects linked to GitHub (push to `main` deploys both; root dirs `apps/web`, `apps/server`; Node 22; Vercel Authentication on previews only). Server env: `DATABASE_URL` (Neon `main` pooled, **no quotes**), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV`, `CORS_ORIGINS=https://curio-web-theta.vercel.app`, `LOG_LEVEL`. Web env: `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, Clerk keys, sign-in/up URLs. Clerk still on the development instance (production needs a custom domain). Preview deploys aren't in `CORS_ORIGINS`, so only production talks to the API.
-- Deploy gotchas hit: Vercel's Express build type-checks helmet via its CJS types → `middleware/security-headers.ts` resolves helmet in both shapes; Vercel stores env values literally, so quotes copied from `.env` break URLs (startup validation caught it). Server code always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only locally for `pnpm db:migrate:prod`.
-- Verified live: `/health` 200, no/forged token 401, CORS only for the web origin, security headers present; owner signed in on the live URL, CRUD writes to Neon `main`; second account gets "Notebook not found" (404) on the first account's notebook.
-- Working rule: the agent can't trigger production deploys (includes pushing to `main`, which auto-deploys); owner pushes/redeploys.
-- Phase 1 approved by owner. Phase 2.1: `sources` table (3 enums, `UNIQUE(notebook_id, content_hash)`, partial index for the sweeper) migrated on dev, test, and main. Uploads endpoint follows the API doc path `POST /notebooks/:id/uploads` (build plan's `/uploads` is shorthand).
-- 2.2 (partial): owner approved `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (decision A-10, stack table updated). `lib/storage`: `StorageProvider` interface + R2 impl (checksums `WHEN_REQUIRED`; signed PUT binds Content-Type and Content-Length). Fake in `test/fakes/storage.ts`. Pure upload rules in `services/upload-rules.ts` (PDF only, ≤ 25 MB, key `users/{userId}/uploads/{uuid}.pdf`, strict ownership regex). R2 env vars deliberately not in the env schema yet: adding required vars before prod has them would crash the auto-deploy.
+- Done: repo setup (private GitHub `rohhitrz/curio`); Phase 0 (0.1–0.7, approved); Phase 1 (1.1–1.6, approved, live); 2.1
+- Commits: `1a5894d` … `ed64612`
+- Notes:
+  - **Deploy lessons:**
+    - The first `db:migrate:prod` silently hit dev because an edit didn't apply. Verify config edits.
+    - The Vercel `DATABASE_URL` was first the dev string, then renamed, then quoted. The startup env validation caught each one.
+    - Clicking Redeploy on an old failed deployment rebuilds the old commit.
+  - **Verified live:** `/health` 200; no/forged token → 401; CORS only for the web origin; security headers present; owner CRUD writes to Neon `main`; a second account gets "Notebook not found" (404) on the first account's notebook.
+  - **Leftover local process:** a `tsx watch` API process from this session may still hold port 4000 (PIDs 47138/64300 at the time). If `pnpm dev` complains, stop it.
