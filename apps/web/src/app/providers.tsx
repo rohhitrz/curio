@@ -26,9 +26,25 @@ function makeQueryClient() {
   });
 }
 
+/**
+ * One cache per signed-in user. Query keys don't include the user, so on sign-out or an account
+ * switch in the same tab the old cache is dropped instead of showing the previous user's data.
+ */
+function useQueryClientForUser(userId: string | null | undefined): QueryClient {
+  const [cache, setCache] = useState(() => ({ userId, client: makeQueryClient() }));
+  if (cache.userId !== userId) {
+    // Adjusting state during render (React's pattern for "reset on prop change"): children never
+    // render with the old user's cache, and the old client is dropped with its data.
+    const next = { userId, client: makeQueryClient() };
+    setCache(next);
+    return next.client;
+  }
+  return cache.client;
+}
+
 export function Providers({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(makeQueryClient);
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
+  const queryClient = useQueryClientForUser(userId);
   // Keep the client stable; always read the latest getToken.
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
