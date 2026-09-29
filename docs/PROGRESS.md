@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 2 (Sources, no processing)
-- **Current step:** 2.2 R2 provider. Smoke-tested against real `curio-dev` (passes except CORS). Not wired into the running server yet
-- **Blocked on:** owner: CORS on `curio-dev`; `curio-prod` token + Vercel env vars (see "Pending on owner")
-- **Next step once unblocked:** finish 2.2 (see "Resume here", step 3 onward), then 2.3
+- **Current step:** 2.3 (uploads + create source endpoints)
+- **Blocked on:** nothing
+- **Next step:** 2.3 (see "Resume here")
 
 ## Phases
 | # | Phase | Status |
@@ -29,37 +29,23 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 2
 - [x] 2.1 Migration: `sources` (applied on `dev`, `test`, and `main`)
-- [ ] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. **Partially done**: interface, R2 implementation, fake, and upload rules are committed (`9c70acd`). Real-bucket smoke test done 2026-09-29 (found and fixed an unsigned Content-Type). Still missing: bucket CORS check, R2 env vars in the config, and the Vercel env vars
+- [x] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. Smoke-tested on both real buckets; required `R2_*` env vars; provider passed into `createApp`
 - [ ] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
 - [ ] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
 - [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
-## Resume here: finishing 2.2
-Steps 1–2 done 2026-09-29. The smoke script checks: wrong Content-Type → 403, wrong length → 403, PUT → 200, head size/type, GET bytes match, CORS preflight from `localhost:3000` allowed and from other origins denied, delete → head null, deleting a missing key is fine. Rerun it after CORS is set; it failed only on the allowed preflight (403, no `Access-Control-Allow-Origin`).
-1. Check the four `R2_*` vars exist in `.env` by name only; never print or read values.
-2. Smoke-test the real R2 provider (`apps/server/src/lib/storage/r2.ts`) against `curio-dev` with a throwaway script in the scratchpad:
-   - `createUploadUrl`, then `curl -X PUT` a small PDF with a matching `Content-Type` and `Content-Length`
-   - `head` should return the size; `createDownloadUrl` + GET should return the bytes
-   - `delete`, then `head` should return `null`
-3. Give the owner the Vercel env vars for **curio-server**, to paste without quotes: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. Set production and preview. The agent can't read secret values, so the owner pastes them.
-4. **Only after** the owner confirms step 3: add the four vars to the Zod env schema (`apps/server/src/config/env.ts`, required), create the provider in `src/index.ts`, and pass `storage` into `createApp` (test helper passes the fake from `test/fakes/storage.ts`). Update the env tests. Order matters: pushing required vars before Vercel has them crashes production on the auto-deploy.
-5. Tests + lint + typecheck, update this file, commit, push, then confirm the new deployment's `/health` is 200.
+## Resume here: 2.3
+2.2 is done. Start 2.3 (`POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources`). `createApp` already receives `storage` (R2 in `src/index.ts`, the fake via `createTestApp(storage?)` in tests), so wire it into the new service.
 
 ## Pending on owner
-- **Cloudflare R2**, as of 2026-09-29:
-  - ✅ Buckets `curio-dev` and `curio-prod` exist (private). ✅ `curio-dev-token` (Object Read & Write, `curio-dev` only), keys in `.env`.
-  - ⏳ CORS on `curio-dev` is **not effective yet** (preflight from `localhost:3000` → 403). Set it and ask the agent to rerun the smoke test.
-  - ⏳ `curio-prod` token (Object Read & Write, `curio-prod` only). The owner creates it at step 3 of "Resume here", right before the wiring push. Put `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-dev` in root `.env`, no quotes. `.env.example` lists them.
-  - Bucket CORS, approved by the owner: GET + PUT, `Content-Type` header only.
-    - `curio-dev`:
-      ```json
-      [{ "AllowedOrigins": ["http://localhost:3000"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["Content-Type"], "MaxAgeSeconds": 3600 }]
-      ```
-    - `curio-prod`:
-      ```json
-      [{ "AllowedOrigins": ["https://curio-web-theta.vercel.app"], "AllowedMethods": ["GET", "PUT"], "AllowedHeaders": ["Content-Type"], "MaxAgeSeconds": 3600 }]
-      ```
-- **Vercel env for R2**: step 3 of "Resume here", after the keys exist.
+- Nothing right now.
+
+## R2 setup (done 2026-09-29)
+- Private buckets `curio-dev` (local, `.env`) and `curio-prod` (Vercel `curio-server`, Production + Preview). One Object Read & Write token per bucket, each scoped to its own bucket. Local `.env` also keeps the prod keys as `R2_ACCESS_KEY_ID_PROD` / `R2_SECRET_ACCESS_KEY_PROD`; the app ignores those names.
+- Bucket CORS: GET + PUT, `Content-Type` header only, one origin each:
+  - `curio-dev`: `http://localhost:3000`
+  - `curio-prod`: `https://curio-web-theta.vercel.app`
+- Both buckets passed a real smoke test (scratchpad script, since deleted): wrong Content-Type → 403, wrong length → 403, PUT → 200, head size/type, GET bytes match, CORS preflight allowed for the bucket's origin and denied for others, delete → head null, deleting a missing key is fine.
 
 ## Accounts & keys
 | Service | Needed in phase | Status |
@@ -67,7 +53,7 @@ Steps 1–2 done 2026-09-29. The smoke script checks: wrong Content-Type → 403
 | Neon | 0 | ✅ Project `curio` (`red-forest-65860222`): `main` = production, `dev` = local, `test` = tests |
 | Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
-| Cloudflare R2 | 2 | 🔨 `curio-dev` + token ready; `curio-prod` bucket exists, token pending |
+| Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
 | Inngest | 3 | ⬜ Not set up |
 | OpenAI | 3 | ⬜ Not set up |
 | Firecrawl | 3 | ⬜ Not set up |
@@ -78,7 +64,7 @@ Steps 1–2 done 2026-09-29. The smoke script checks: wrong Content-Type → 403
 | Tavily | 8 | ⬜ Not set up |
 
 ## Blockers
-- R2 buckets + keys (owner). Everything from 2.2's finish onward depends on it.
+- None
 
 ## Working agreements (owner-approved)
 - **The agent pushes** after every committed step, including pushes to `main`. Every push auto-deploys both Vercel projects. After pushing, check the new deployment is healthy.
@@ -91,7 +77,7 @@ Steps 1–2 done 2026-09-29. The smoke script checks: wrong Content-Type → 403
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`; `test/setup.ts` refuses if it equals dev, truncates all tables per file, runs files serially). **Prod** = Neon `main`.
 - **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches.
-- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app`, `LOG_LEVEL=info`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
+- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app`, `LOG_LEVEL=info`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
 
@@ -138,8 +124,8 @@ API and server:
 -->
 
 ### 2026-09-29 (session 2)
-- Done: 2.2 steps 1–2 (real `curio-dev` smoke test). Fixed Content-Type not being signed on upload URLs; added a signing test
-- Notes: 82 tests passing (69 server, 13 web). CORS preflight on `curio-dev` fails, so the owner needs to check the bucket CORS rule
+- Done: 2.2 complete. Real smoke tests on `curio-dev` and `curio-prod`; fixed Content-Type not being signed on upload URLs (`7cf1d55`); R2 env vars required and provider wired into `createApp`
+- Notes: 83 tests passing (70 server, 13 web). `R2_ACCOUNT_ID` is validated as 32-char hex
 
 ### 2026-09-29
 - Done: 2.2 partial (storage interface, R2 provider, fake, upload rules; A-10 + stack table; `.env.example` gets `PROD_DATABASE_URL` + R2 vars)

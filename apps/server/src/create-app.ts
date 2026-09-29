@@ -3,6 +3,7 @@ import express, { Router, type Express } from 'express';
 import type { Logger } from 'pino';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
+import type { StorageProvider } from './lib/storage/index.js';
 import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFound } from './middleware/not-found.js';
@@ -20,6 +21,7 @@ export interface AppOptions {
   corsOrigins: string[];
   db: Db;
   auth: AuthProvider;
+  storage: StorageProvider;
 }
 
 export function createApp({ logger, corsOrigins, db, auth }: AppOptions): Express {

@@ -5,11 +5,24 @@ import { EnvError, loadEnv } from '../../src/config/env.js';
 
 const serverDir = fileURLToPath(new URL('../..', import.meta.url));
 
+const validEnv = {
+  DATABASE_URL: 'postgresql://user:pw@localhost/db',
+  CLERK_SECRET_KEY: 'sk_test_x',
+  CLERK_PUBLISHABLE_KEY: 'pk_test_x',
+  R2_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
+  R2_ACCESS_KEY_ID: 'key',
+  R2_SECRET_ACCESS_KEY: 'secret',
+  R2_BUCKET: 'curio-test',
+};
+
 describe('env validation', () => {
   it('lists every missing required var', () => {
     expect(() => loadEnv({})).toThrow(EnvError);
     expect(() => loadEnv({})).toThrow('DATABASE_URL is required');
     expect(() => loadEnv({})).toThrow('CLERK_SECRET_KEY is required');
+    expect(() => loadEnv({})).toThrow('R2_ACCOUNT_ID is required');
+    expect(() => loadEnv({})).toThrow('R2_SECRET_ACCESS_KEY is required');
+    expect(() => loadEnv({})).toThrow('R2_BUCKET is required');
   });
 
   it('rejects invalid values', () => {
@@ -18,11 +31,15 @@ describe('env validation', () => {
     );
   });
 
+  it('rejects a malformed R2 account ID', () => {
+    expect(() => loadEnv({ ...validEnv, R2_ACCOUNT_ID: 'not-an-id' })).toThrow(
+      'R2_ACCOUNT_ID: must be a 32-char hex Cloudflare account ID',
+    );
+  });
+
   it('parses valid env with defaults', () => {
     const env = loadEnv({
-      DATABASE_URL: 'postgresql://user:pw@localhost/db',
-      CLERK_SECRET_KEY: 'sk_test_x',
-      CLERK_PUBLISHABLE_KEY: 'pk_test_x',
+      ...validEnv,
       CORS_ORIGINS: 'http://a.test, http://b.test',
     });
     expect(env).toMatchObject({

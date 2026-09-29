@@ -3,6 +3,7 @@ import { EnvError, loadEnv, type Env } from './config/index.js';
 import { createApp } from './create-app.js';
 import { createDb } from './db/client.js';
 import { createClerkAuthProvider } from './lib/auth/index.js';
+import { createR2StorageProvider } from './lib/storage/index.js';
 import { createLogger } from './logger.js';
 
 let env: Env;
@@ -23,8 +24,14 @@ const auth = createClerkAuthProvider({
   publishableKey: env.CLERK_PUBLISHABLE_KEY,
   authorizedParties: env.CORS_ORIGINS,
 });
+const storage = createR2StorageProvider({
+  accountId: env.R2_ACCOUNT_ID,
+  accessKeyId: env.R2_ACCESS_KEY_ID,
+  secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+  bucket: env.R2_BUCKET,
+});
 
-const app: Express = createApp({ logger, corsOrigins: env.CORS_ORIGINS, db, auth });
+const app: Express = createApp({ logger, corsOrigins: env.CORS_ORIGINS, db, auth, storage });
 
 // On Vercel the app runs as a function (default export); locally we listen.
 if (!process.env.VERCEL) {
