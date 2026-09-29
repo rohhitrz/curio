@@ -88,3 +88,43 @@ describe('error format', () => {
     expect(errorResponseSchema.parse(res.body).error.code).toBe('VALIDATION_ERROR');
   });
 });
+
+// Bodies are parsed before auth, so no token is needed to hit these paths.
+describe('unreadable request bodies → 400, not 500', () => {
+  const app = createTestApp();
+
+  function post() {
+    return request(app).post('/api/v1/notebooks');
+  }
+
+  function expectBadBody(res: request.Response, message: string) {
+    expect(res.status).toBe(400);
+    expect(errorResponseSchema.parse(res.body).error).toEqual({
+      code: 'VALIDATION_ERROR',
+      message,
+    });
+  }
+
+  it('body over the size limit', async () => {
+    const res = await post()
+      .set('content-type', 'application/json')
+      .send(JSON.stringify({ title: 'x'.repeat(2 * 1024 * 1024) }));
+
+    expectBadBody(res, 'Request body is too large.');
+  });
+
+  it('unsupported charset', async () => {
+    const res = await post().set('content-type', 'application/json; charset=iso-8859-1').send('{}');
+
+    expectBadBody(res, 'Request body charset is not supported.');
+  });
+
+  it('unsupported content encoding', async () => {
+    const res = await post()
+      .set('content-type', 'application/json')
+      .set('content-encoding', 'x-unknown')
+      .send('{}');
+
+    expectBadBody(res, 'Request body encoding is not supported.');
+  });
+});
