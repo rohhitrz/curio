@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 2 (Sources, no processing)
-- **Current step:** 2.3 (uploads + create source endpoints)
+- **Current step:** 2.4 (list, get, patch, delete sources + `file-url`)
 - **Blocked on:** nothing
-- **Next step:** 2.3 (see "Resume here")
+- **Next step:** 2.4 (see "Resume here")
 
 ## Phases
 | # | Phase | Status |
@@ -30,12 +30,12 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 2
 - [x] 2.1 Migration: `sources` (applied on `dev`, `test`, and `main`)
 - [x] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. Smoke-tested on both real buckets; required `R2_*` env vars; provider passed into `createApp`
-- [ ] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
+- [x] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
 - [ ] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
 - [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
-## Resume here: 2.3
-2.2 is done. Start 2.3 (`POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources`). `createApp` already receives `storage` (R2 in `src/index.ts`, the fake via `createTestApp(storage?)` in tests), so wire it into the new service.
+## Resume here: 2.4
+2.3 is done. For 2.4: add list/get/patch/delete to `sources.repository.ts` / `sources.service.ts` / `sources.controller.ts` (single items are flat: `/sources/:sourceId`). Delete calls `storage.delete` after the row is gone and logs failures as orphans. `file-url` uses `uploads.downloadUrlTtlSeconds`. Also wire `sourceCount` in `GET /notebooks/:id`.
 
 ## Pending on owner
 - Nothing right now.
@@ -111,6 +111,14 @@ API and server:
   - Upload URL TTL is 10 min and download URL TTL is 5 min (`config/limits.ts` `uploads`).
   - Upload rules (`services/upload-rules.ts`): only `application/pdf` (case-insensitive), max `quotas.pdfMaxBytes`. The key is `users/{userId}/uploads/{uuid}.pdf`, checked by a strict ownership regex.
   - Shared schemas: `createUploadSchema` doesn't cap size, so the API can return `FILE_TOO_LARGE` rather than `VALIDATION_ERROR`.
+- **Sources (2.3):**
+  - **Dedupe hashes** (`services/source-identity.ts`): WEBSITE = SHA-256 of the normalized URL (lowercase host, no `www.`, no default port/fragment/trailing slash, `utm_*` and click IDs dropped, query sorted; **path case kept**). YOUTUBE = SHA-256 of `https://www.youtube.com/watch?v={id}` (`watch`, `youtu.be`, `shorts`, `embed`, `live`, `v`; `m.`/`music.` hosts). TEXT = SHA-256 of the trimmed text with `\n` line endings. PDF = the browser's SHA-256, lowercased.
+  - **What's stored:** WEBSITE keeps the user's URL (normalization is for hashing only; stripping `www` can break fetching). YOUTUBE stores the canonical URL + `metadata.videoId`. TEXT content goes in `extracted_text`. PDF gets `metadata.fileSize` from R2 `head`.
+  - **Placeholder titles** until the Phase 3 job reads the real one: WEBSITE = normalized URL without the scheme; YOUTUBE = `YouTube video {id}`.
+  - **Order of checks:** notebook ownership (404) → type rules (upload key/R2, text length) → one transaction that locks the notebook row (`FOR NO KEY UPDATE`), checks duplicate (409) then quota (400), and inserts with `ON CONFLICT DO NOTHING` as a backstop. Duplicate is checked before quota.
+  - **Text over 100k chars** → `QUOTA_EXCEEDED` (the test plan lists text length under quotas). The JSON body cap is raised to 1 MB (`config/limits.ts` `requests`) because 100k multi-byte chars exceed Express's 100 KB default.
+  - **R2 failures** → 503 `SERVICE_UNAVAILABLE` (the cause is kept and logged; the error handler now logs every 5xx `AppError`).
+  - **Not yet:** the `POST /sources` rate limit (50/day) needs Upstash (Phase 5). No `source/created` event until Phase 3.
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -122,6 +130,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-29 (session 2, cont.)
+- Done: 2.3 (`POST /notebooks/:id/uploads`, `POST /notebooks/:id/sources`, dedupe, quotas). API doc: `DUPLICATE_SOURCE` carries `details.existingSourceId` (owner-approved)
+- Notes: 152 tests passing (139 server, 13 web). The sources integration file takes ~3 min against Neon `test`
 
 ### 2026-09-29 (session 2)
 - Done: 2.2 complete. Real smoke tests on `curio-dev` and `curio-prod`; fixed Content-Type not being signed on upload URLs (`7cf1d55`); R2 env vars required and provider wired into `createApp`

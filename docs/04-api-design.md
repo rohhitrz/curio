@@ -52,7 +52,7 @@
   }
 }
 ```
-`details` only for validation errors.
+`details` only for validation errors, plus one exception: `DUPLICATE_SOURCE` carries `details.existingSourceId`.
 
 ### Async operations
 - `POST` → **202** with the resource in its initial status
@@ -148,7 +148,7 @@
 { "type": "PDF", "title": "Lecture 3", "storageKey": "…", "contentHash": "…" }
 ```
 - ← **202**, source in `PENDING` → `processSource` job starts
-- **409 `DUPLICATE_SOURCE`** (with the existing source ID) · **400 `QUOTA_EXCEEDED`**
+- **409 `DUPLICATE_SOURCE`** (existing source ID in `details.existingSourceId`) · **400 `QUOTA_EXCEEDED`**
 
 ### PDF upload flow
 ```

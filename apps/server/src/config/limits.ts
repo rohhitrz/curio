@@ -46,3 +46,8 @@ export const uploads = {
   /** Signed GET URL lifetime for the PDF viewer. */
   downloadUrlTtlSeconds: 5 * 60,
 } as const;
+
+export const requests = {
+  /** JSON body cap. Pasted text can be 100k chars, which is up to ~400 KB of UTF-8. */
+  jsonBodyLimit: '1mb',
+} as const;

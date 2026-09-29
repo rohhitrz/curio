@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express, { Router, type Express } from 'express';
 import type { Logger } from 'pino';
+import { requests } from './config/index.js';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
 import type { StorageProvider } from './lib/storage/index.js';
@@ -10,10 +11,13 @@ import { notFound } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
+import { createSourcesRepository } from './repositories/sources.repository.js';
 import { createUsersRepository } from './repositories/users.repository.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createNotebooksRouter } from './routes/notebooks.routes.js';
+import { createSourcesRouter } from './routes/sources.routes.js';
 import { createNotebooksService } from './services/notebooks.service.js';
+import { createSourcesService } from './services/sources.service.js';
 import { createUsersService } from './services/users.service.js';
 
 export interface AppOptions {
@@ -24,13 +28,15 @@ export interface AppOptions {
   storage: StorageProvider;
 }
 
-export function createApp({ logger, corsOrigins, db, auth }: AppOptions): Express {
+export function createApp({ logger, corsOrigins, db, auth, storage }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
   const notebooksService = createNotebooksService(createNotebooksRepository(db));
+  const sourcesService = createSourcesService(createSourcesRepository(db), storage);
 
   const api = Router();
   api.use(requireAuth(auth, usersService));
   api.use(createNotebooksRouter(notebooksService));
+  api.use(createSourcesRouter(sourcesService));
 
   const app = express();
 
@@ -38,7 +44,7 @@ export function createApp({ logger, corsOrigins, db, auth }: AppOptions): Expres
   app.use(securityHeaders());
   app.use(cors({ origin: corsOrigins, exposedHeaders: ['x-request-id', 'retry-after'] }));
   app.use(requestLogger(logger));
-  app.use(express.json());
+  app.use(express.json({ limit: requests.jsonBodyLimit }));
 
   app.use(healthRouter);
   app.use('/api/v1', api);

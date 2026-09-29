@@ -1,16 +1,8 @@
 import { createNotebookSchema, paginationQuerySchema, updateNotebookSchema } from '@curio/shared';
-import type { Request, RequestHandler } from 'express';
-import { z } from 'zod';
-import { NotFoundError } from '../errors/app-error.js';
+import type { RequestHandler } from 'express';
 import { getUserId } from '../middleware/auth.js';
 import type { NotebooksService } from '../services/notebooks.service.js';
-
-/** A malformed ID can't belong to the user, so it's a 404 like any other missing notebook. */
-function notebookIdParam(req: Request): string {
-  const parsed = z.uuid().safeParse(req.params.notebookId);
-  if (!parsed.success) throw new NotFoundError('Notebook not found.');
-  return parsed.data;
-}
+import { notebookIdParam } from './params.js';
 
 export function createNotebooksController(service: NotebooksService) {
   const list: RequestHandler = async (req, res) => {

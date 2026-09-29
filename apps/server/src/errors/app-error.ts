@@ -6,8 +6,13 @@ export class AppError extends Error {
   readonly status: number;
   readonly details: Record<string, string> | undefined;
 
-  constructor(code: ErrorCode, message: string, details?: Record<string, string>) {
-    super(message);
+  constructor(
+    code: ErrorCode,
+    message: string,
+    details?: Record<string, string>,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
     this.name = new.target.name;
     this.code = code;
     this.status = errorCodeStatus[code];
@@ -34,7 +39,10 @@ export class NotFoundError extends AppError {
 }
 
 export class ServiceUnavailableError extends AppError {
-  constructor(message = 'A required service is unavailable. Please try again shortly.') {
-    super('SERVICE_UNAVAILABLE', message);
+  constructor(
+    message = 'A required service is unavailable. Please try again shortly.',
+    options?: ErrorOptions,
+  ) {
+    super('SERVICE_UNAVAILABLE', message, undefined, options);
   }
 }

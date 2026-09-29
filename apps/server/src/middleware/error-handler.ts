@@ -30,6 +30,8 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   let body: ErrorResponse;
 
   if (err instanceof AppError) {
+    // Expected errors are the client's; 5xx ones (e.g. a provider outage) are ours to see.
+    if (err.status >= 500) req.log.error({ err }, 'service error');
     status = err.status;
     body = { error: { code: err.code, message: err.message } };
     if (err.details) body.error.details = err.details;

@@ -48,7 +48,10 @@ export const errorCodeStatus = {
 
 export const errorCodeSchema = z.enum(ErrorCode);
 
-/** Standard error body: `{ error: { code, message, details? } }`. `details` only for validation errors. */
+/**
+ * Standard error body: `{ error: { code, message, details? } }`. `details` only for validation
+ * errors, plus `DUPLICATE_SOURCE`, which carries `details.existingSourceId`.
+ */
 export const errorResponseSchema = z.object({
   error: z.object({
     code: errorCodeSchema,
