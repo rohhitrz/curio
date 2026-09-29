@@ -38,7 +38,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 2.4 is done; all Phase 2 API endpoints are live. For 2.5 (frontend): sources panel on the notebook page, 4 add dialogs, SHA-256 in the browser (Web Crypto), `POST .../uploads` → PUT to R2 with progress (XHR, same `Content-Type` + size) → `POST .../sources`, status badges, polling `GET /notebooks/:id/sources` every ~2s while any source is `PENDING`/`PROCESSING`. Handle 409 via `details.existingSourceId`. Then verify on the live URL (Phase 2 "done when": all 4 types sit in `PENDING`, duplicates → 409, PDF lands under the user prefix in `curio-prod`) and stop for approval.
 
 ## Pending on owner
-- Nothing right now.
+- **Vercel `curio-server`: add `CORS_ORIGINS` for Preview** (same value as Production). It's now required, and without it preview deployments (non-`main` branches) refuse to start. Production already has it.
 
 ## R2 setup (done 2026-09-29)
 - Private buckets `curio-dev` (local, `.env`) and `curio-prod` (Vercel `curio-server`, Production + Preview). One Object Read & Write token per bucket, each scoped to its own bucket. Local `.env` also keeps the prod keys as `R2_ACCESS_KEY_ID_PROD` / `R2_SECRET_ACCESS_KEY_PROD`; the app ignores those names.
@@ -74,8 +74,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Vercel env values are stored literally.** Paste without the quotes used in `.env`; quoted values broke `DATABASE_URL` once.
 
 ## Environments & runbook
-- **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling.
-- **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`; `test/setup.ts` refuses if it equals dev, truncates all tables per file, runs files serially). **Prod** = Neon `main`.
+- **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
+- **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
 - **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches.
 - **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app`, `LOG_LEVEL=info`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
@@ -86,6 +86,7 @@ Tooling and stack:
 - **TypeScript is pinned to `~6.0`** because typescript-eslint 8.x doesn't support TS 7. Revisit when it does.
 - **Server extras:** `pino-http` (request logs + `x-request-id`), `tsx` (dev runner), `pino-pretty` (dev). pnpm `allowBuilds` approves `esbuild` only.
 - **Driver:** `@neondatabase/serverless` Pool (WebSocket, so interactive transactions work) with Drizzle.
+- **Web query cache is per user:** `providers.tsx` swaps in a fresh `QueryClient` whenever Clerk's `userId` changes, so query keys don't need the user.
 - **Web:** Next.js 16 (`src/proxy.ts` is the middleware), Tailwind 4, shadcn/ui `base-nova` style (Base UI primitives, shadcn's `cn` package). A Base UI `Button` rendering a `Link` needs `nativeButton={false}`. `next.config.ts` loads the root `.env`.
 - **Clerk:** `@clerk/nextjs` 7 via the manual quickstart (the Clerk CLI's login failed). `@clerk/ui` was skipped because it pulls a Solana wallet stack; Clerk is themed with `appearance.variables`. `createRouteMatcher` is deprecated, so the proxy is plain `clerkMiddleware()` and the `(app)` layout calls `auth.protect()`. Still on dev keys, because a production instance needs a custom domain.
 - **`@curio/shared`** builds to `dist/`. Root `dev`/`test`/`typecheck`/`lint` build it first; Vercel builds use `vercel-build` scripts that do the same.
@@ -98,6 +99,8 @@ API and server:
 - **Notebook title:** 1–200 chars, trimmed (`NOTEBOOK_TITLE_MAX`).
 - **Notebook quota:** enforced in a transaction with a per-user advisory lock.
 - **Malformed IDs** in paths → 404, not 400.
+- **Unreadable bodies** (too large, bad charset/encoding, malformed JSON, aborted) → 400 `VALIDATION_ERROR`, never 500. 400 rather than 413/415 because the API doc's status table has neither.
+- **`CORS_ORIGINS` is required** and every entry must be a bare origin (no path or trailing slash). An empty list used to boot and disable Clerk's `authorizedParties` check.
 - **`GET /notebooks/:id` counts:** `sourceCount` is real (2.4); `conversationCount` is 0 and `learningPathId` null until Phases 5 and 8.
 - **Auth:** `AuthProvider` in `lib/auth` (Clerk `clerkMiddleware` + `getAuth`, `authorizedParties` = CORS origins). The test provider uses `Bearer test_<clerkUserId>` and throws unless `NODE_ENV=test`. User get-or-create is select → insert on conflict do nothing → reselect.
 - **Build-plan ordering:** the `users` table was created in 1.2, not 1.3, because auth creates the row.
@@ -131,6 +134,11 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-29 (session 2, review fixes)
+- Done: 4 owner-reported fixes before 2.5: body-parser errors → 400; `CORS_ORIGINS` required + validated; stronger test-DB guard; per-user query cache in the web app
+- Commits: `f0010d1`, `6a2c5c8`, `d8a607f`, `15e1936`
+- Notes: 181 tests passing (168 server, 13 web). The web fix is covered by typecheck/build and a signed-out render check only; an account switch wasn't clicked through (it needs a real Clerk sign-in)
 
 ### 2026-09-29 (session 2, 2.4)
 - Done: 2.4 (list, get, rename, delete + R2 delete, `file-url`, real `sourceCount`)
