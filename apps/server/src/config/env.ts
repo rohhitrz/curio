@@ -22,7 +22,9 @@ const corsOrigins = z
   .pipe(z.array(origin).min(1, 'must list at least one origin'));
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Unset means production: `development` turns on `pino-pretty`, a devDependency that isn't
+  // installed in production builds, so defaulting to it crashes any non-Vercel deploy on boot.
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
   PORT: z.coerce.number().int().positive().default(4000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   CORS_ORIGINS: corsOrigins,

@@ -55,7 +55,8 @@ describe('env validation', () => {
       CORS_ORIGINS: 'http://a.test, http://b.test',
     });
     expect(env).toMatchObject({
-      NODE_ENV: 'development',
+      // Not `development`: that needs the dev-only `pino-pretty` and would crash a real deploy.
+      NODE_ENV: 'production',
       PORT: 4000,
       CORS_ORIGINS: ['http://a.test', 'http://b.test'],
     });
