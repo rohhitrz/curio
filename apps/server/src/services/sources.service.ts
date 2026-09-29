@@ -1,5 +1,13 @@
-import type { CreateSourceInput, CreateUploadInput, Source, UploadResponse } from '@curio/shared';
+import type {
+  CreateSourceInput,
+  CreateUploadInput,
+  FileUrlResponse,
+  Source,
+  SourceList,
+  UploadResponse,
+} from '@curio/shared';
 import { SOURCE_TITLE_MAX } from '@curio/shared';
+import type { Logger } from 'pino';
 import { quotas, uploads } from '../config/index.js';
 import {
   AppError,
@@ -22,9 +30,20 @@ import {
 } from './source-identity.js';
 import { assertUploadAllowed, isOwnUploadKey, newUploadKey } from './upload-rules.js';
 
+/** Explicit fields, so internal columns (e.g. `storageKey`) never leak into responses. */
 function toSource(row: SourceRow): Source {
   return {
-    ...row,
+    id: row.id,
+    notebookId: row.notebookId,
+    type: row.type,
+    origin: row.origin,
+    title: row.title,
+    status: row.status,
+    errorCode: row.errorCode,
+    errorMessage: row.errorMessage,
+    url: row.url,
+    chunkCount: row.chunkCount,
+    metadata: row.metadata,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     processedAt: row.processedAt?.toISOString() ?? null,
@@ -32,6 +51,7 @@ function toSource(row: SourceRow): Source {
 }
 
 const notebookNotFound = () => new NotFoundError('Notebook not found.');
+const sourceNotFound = () => new NotFoundError('Source not found.');
 
 const quotaExceeded = () =>
   new AppError(
@@ -58,7 +78,11 @@ function titleFromUrl(normalized: string): string {
   return normalized.replace(/^https?:\/\//, '').slice(0, SOURCE_TITLE_MAX);
 }
 
-export function createSourcesService(repository: SourcesRepository, storage: StorageProvider) {
+export function createSourcesService(
+  repository: SourcesRepository,
+  storage: StorageProvider,
+  logger: Logger,
+) {
   async function toNewSource(userId: string, input: CreateSourceInput): Promise<NewSource> {
     switch (input.type) {
       case 'WEBSITE': {
@@ -114,6 +138,54 @@ export function createSourcesService(repository: SourcesRepository, storage: Sto
   }
 
   return {
+    async list(userId: string, notebookId: string): Promise<SourceList> {
+      const rows = await repository.listByNotebook(userId, notebookId);
+      if (!rows) throw notebookNotFound();
+      return { items: rows.map(toSource), nextCursor: null };
+    },
+
+    async get(userId: string, sourceId: string): Promise<Source> {
+      const row = await repository.findById(userId, sourceId);
+      if (!row) throw sourceNotFound();
+      return toSource(row);
+    },
+
+    async rename(userId: string, sourceId: string, title: string): Promise<Source> {
+      const row = await repository.updateTitle(userId, sourceId, title);
+      if (!row) throw sourceNotFound();
+      return toSource(row);
+    },
+
+    /**
+     * Deletes the row first, so the source leaves search immediately. The R2 file is cleaned up
+     * afterwards; if that fails the file is an orphan, logged for the cleanup job (post-launch).
+     */
+    async delete(userId: string, sourceId: string): Promise<void> {
+      const deleted = await repository.delete(userId, sourceId);
+      if (!deleted) throw sourceNotFound();
+      const { storageKey } = deleted;
+      if (storageKey === null) return;
+      try {
+        await storage.delete(storageKey);
+      } catch (err) {
+        logger.warn({ err, storageKey, sourceId }, 'orphaned upload: R2 delete failed');
+      }
+    },
+
+    /** Signed GET URL for the PDF viewer. Sources without a file (non-PDF) are a 404. */
+    async fileUrl(userId: string, sourceId: string): Promise<FileUrlResponse> {
+      const row = await repository.findById(userId, sourceId);
+      if (!row) throw sourceNotFound();
+      const { storageKey } = row;
+      if (storageKey === null) throw new NotFoundError('This source has no file.');
+
+      const expiresInSeconds = uploads.downloadUrlTtlSeconds;
+      const url = await callStorage(() =>
+        storage.createDownloadUrl({ key: storageKey, expiresInSeconds }),
+      );
+      return { url, expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString() };
+    },
+
     /** Checks the file and quota, then returns a signed URL for the browser to PUT the PDF to. */
     async createUpload(
       userId: string,

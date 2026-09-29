@@ -1,4 +1,4 @@
-import { and, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { notebooks, sources } from '../db/schema/index.js';
 
@@ -59,6 +59,43 @@ export function createSourcesRepository(db: Db) {
         .from(sources)
         .where(eq(sources.notebookId, notebookId));
       return row?.n ?? 0;
+    },
+
+    /** Oldest first, never `extracted_text`. Undefined if the notebook isn't the user's. */
+    async listByNotebook(userId: string, notebookId: string) {
+      if (!(await ownsNotebook(userId, notebookId))) return undefined;
+      return db
+        .select(columns)
+        .from(sources)
+        .where(and(eq(sources.notebookId, notebookId), eq(sources.userId, userId)))
+        .orderBy(asc(sources.createdAt), asc(sources.id));
+    },
+
+    async findById(userId: string, sourceId: string) {
+      const [row] = await db
+        .select({ ...columns, storageKey: sources.storageKey })
+        .from(sources)
+        .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
+        .limit(1);
+      return row;
+    },
+
+    async updateTitle(userId: string, sourceId: string, title: string) {
+      const [row] = await db
+        .update(sources)
+        .set({ title })
+        .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
+        .returning(columns);
+      return row;
+    },
+
+    /** Deletes the row (chunks cascade). Returns the R2 key to clean up, or undefined if nothing was deleted. */
+    async delete(userId: string, sourceId: string) {
+      const [row] = await db
+        .delete(sources)
+        .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
+        .returning({ storageKey: sources.storageKey });
+      return row;
     },
 
     /**

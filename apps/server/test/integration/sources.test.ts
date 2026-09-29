@@ -1,6 +1,9 @@
 import {
   errorResponseSchema,
+  fileUrlResponseSchema,
+  notebookDetailSchema,
   notebookSchema,
+  sourceListSchema,
   sourceSchema,
   uploadResponseSchema,
 } from '@curio/shared';
@@ -499,5 +502,227 @@ describe('ownership', () => {
       .send({ type: 'WEBSITE', url: 'https://x.dev' });
 
     expect(res.status).toBe(401);
+  });
+});
+
+describe('list, get, rename', () => {
+  it('list → all sources oldest first, without internal fields', async () => {
+    const notebookId = await createNotebook(ALICE);
+    await addSource(ALICE, notebookId, { type: 'WEBSITE', url: 'https://example.com/1' });
+    await addSource(ALICE, notebookId, { type: 'TEXT', title: 'Notes', content: 'secret text' });
+
+    const res = await request(app)
+      .get(`/api/v1/notebooks/${notebookId}/sources`)
+      .set('authorization', ALICE);
+
+    expect(res.status).toBe(200);
+    const list = sourceListSchema.parse(res.body);
+    expect(list.items.map((s) => s.type)).toEqual(['WEBSITE', 'TEXT']);
+    expect(list.nextCursor).toBeNull();
+    expect(JSON.stringify(res.body)).not.toContain('secret text');
+  });
+
+  it('list of an empty notebook → empty items', async () => {
+    const notebookId = await createNotebook(ALICE);
+
+    const res = await request(app)
+      .get(`/api/v1/notebooks/${notebookId}/sources`)
+      .set('authorization', ALICE);
+
+    expect(sourceListSchema.parse(res.body).items).toEqual([]);
+  });
+
+  it('get → the source; PDF responses never include the storage key', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const storageKey = await uploadPdf(ALICE, notebookId);
+    const created = await addSource(ALICE, notebookId, {
+      type: 'PDF',
+      title: 'Lecture',
+      storageKey,
+      contentHash: PDF_HASH,
+    });
+    const { id } = sourceSchema.parse(created.body);
+
+    const res = await request(app).get(`/api/v1/sources/${id}`).set('authorization', ALICE);
+
+    expect(res.status).toBe(200);
+    expect(sourceSchema.parse(res.body)).toEqual(sourceSchema.parse(created.body));
+    expect(JSON.stringify(res.body)).not.toContain(storageKey);
+  });
+
+  it('rename → 200 with the trimmed title; empty title → 400', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const created = await addSource(ALICE, notebookId, { type: 'WEBSITE', url: 'https://x.dev' });
+    const { id } = sourceSchema.parse(created.body);
+
+    const ok = await request(app)
+      .patch(`/api/v1/sources/${id}`)
+      .set('authorization', ALICE)
+      .send({ title: '  Better title  ' });
+    const bad = await request(app)
+      .patch(`/api/v1/sources/${id}`)
+      .set('authorization', ALICE)
+      .send({ title: '  ' });
+    const extra = await request(app)
+      .patch(`/api/v1/sources/${id}`)
+      .set('authorization', ALICE)
+      .send({ title: 'x', status: 'READY' });
+
+    expect(ok.status).toBe(200);
+    expect(sourceSchema.parse(ok.body).title).toBe('Better title');
+    expect(bad.status).toBe(400);
+    expect(extra.status).toBe(400);
+  });
+
+  it('notebook detail counts its sources', async () => {
+    const notebookId = await createNotebook(ALICE);
+    await addSource(ALICE, notebookId, { type: 'WEBSITE', url: 'https://example.com/1' });
+    await addSource(ALICE, notebookId, { type: 'WEBSITE', url: 'https://example.com/2' });
+
+    const res = await request(app)
+      .get(`/api/v1/notebooks/${notebookId}`)
+      .set('authorization', ALICE);
+
+    expect(notebookDetailSchema.parse(res.body).sourceCount).toBe(2);
+  });
+});
+
+describe('delete', () => {
+  async function addPdf(auth: string) {
+    const notebookId = await createNotebook(auth);
+    const storageKey = await uploadPdf(auth, notebookId);
+    const res = await addSource(auth, notebookId, {
+      type: 'PDF',
+      title: 'Lecture',
+      storageKey,
+      contentHash: PDF_HASH,
+    });
+    return { id: sourceSchema.parse(res.body).id, storageKey, notebookId };
+  }
+
+  it('delete source → 204, row gone, R2 delete called', async () => {
+    const { id, storageKey } = await addPdf(ALICE);
+
+    const res = await request(app).delete(`/api/v1/sources/${id}`).set('authorization', ALICE);
+
+    expect(res.status).toBe(204);
+    expect(await getTestDb().select().from(sources).where(eq(sources.id, id))).toEqual([]);
+    expect(storage.deleted).toEqual([storageKey]);
+    expect(storage.has(storageKey)).toBe(false);
+  });
+
+  it('deleting a non-PDF source never calls R2', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const created = await addSource(ALICE, notebookId, { type: 'WEBSITE', url: 'https://x.dev' });
+
+    const res = await request(app)
+      .delete(`/api/v1/sources/${sourceSchema.parse(created.body).id}`)
+      .set('authorization', ALICE);
+
+    expect(res.status).toBe(204);
+    expect(storage.deleted).toEqual([]);
+  });
+
+  it('R2 delete fails → still 204 and the row is gone (orphan logged)', async () => {
+    const { id } = await addPdf(ALICE);
+    storage.failNextCall(new Error('R2 down'));
+
+    const res = await request(app).delete(`/api/v1/sources/${id}`).set('authorization', ALICE);
+
+    expect(res.status).toBe(204);
+    expect(await getTestDb().select().from(sources).where(eq(sources.id, id))).toEqual([]);
+  });
+
+  it('deleted source can be added again', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const body = { type: 'WEBSITE', url: 'https://example.com/again' };
+    const first = await addSource(ALICE, notebookId, body);
+    await request(app)
+      .delete(`/api/v1/sources/${sourceSchema.parse(first.body).id}`)
+      .set('authorization', ALICE);
+
+    expect((await addSource(ALICE, notebookId, body)).status).toBe(202);
+  });
+
+  it('delete twice → second is 404', async () => {
+    const { id } = await addPdf(ALICE);
+    await request(app).delete(`/api/v1/sources/${id}`).set('authorization', ALICE);
+
+    const res = await request(app).delete(`/api/v1/sources/${id}`).set('authorization', ALICE);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('file-url', () => {
+  it('PDF → signed GET URL with the download TTL', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const storageKey = await uploadPdf(ALICE, notebookId);
+    const created = await addSource(ALICE, notebookId, {
+      type: 'PDF',
+      title: 'Lecture',
+      storageKey,
+      contentHash: PDF_HASH,
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/sources/${sourceSchema.parse(created.body).id}/file-url`)
+      .set('authorization', ALICE);
+
+    expect(res.status).toBe(200);
+    const body = fileUrlResponseSchema.parse(res.body);
+    const url = new URL(body.url);
+    expect(url.pathname).toBe(`/${storageKey}`);
+    expect(url.searchParams.get('ttl')).toBe(String(uploads.downloadUrlTtlSeconds));
+    expect(Date.parse(body.expiresAt) - Date.now()).toBeLessThanOrEqual(
+      uploads.downloadUrlTtlSeconds * 1000,
+    );
+  });
+
+  it('non-PDF source → 404', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const created = await addSource(ALICE, notebookId, { type: 'WEBSITE', url: 'https://x.dev' });
+
+    const res = await request(app)
+      .get(`/api/v1/sources/${sourceSchema.parse(created.body).id}/file-url`)
+      .set('authorization', ALICE);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("another user's source", () => {
+  it('get, patch, delete, file-url, list → 404, and nothing changes', async () => {
+    const notebookId = await createNotebook(BOB);
+    const storageKey = await uploadPdf(BOB, notebookId);
+    const created = await addSource(BOB, notebookId, {
+      type: 'PDF',
+      title: "Bob's",
+      storageKey,
+      contentHash: PDF_HASH,
+    });
+    const { id } = sourceSchema.parse(created.body);
+
+    const calls = [
+      request(app).get(`/api/v1/sources/${id}`).set('authorization', ALICE),
+      request(app).patch(`/api/v1/sources/${id}`).set('authorization', ALICE).send({ title: 'x' }),
+      request(app).delete(`/api/v1/sources/${id}`).set('authorization', ALICE),
+      request(app).get(`/api/v1/sources/${id}/file-url`).set('authorization', ALICE),
+      request(app).get(`/api/v1/notebooks/${notebookId}/sources`).set('authorization', ALICE),
+    ];
+
+    for (const res of await Promise.all(calls)) {
+      expect(res.status).toBe(404);
+      expect(errorOf(res.body).code).toBe('NOT_FOUND');
+    }
+    const [row] = await getTestDb().select().from(sources).where(eq(sources.id, id));
+    expect(row?.title).toBe("Bob's");
+    expect(storage.deleted).toEqual([]);
+  });
+
+  it('malformed source ID → 404', async () => {
+    const res = await request(app).get('/api/v1/sources/not-a-uuid').set('authorization', ALICE);
+
+    expect(res.status).toBe(404);
   });
 });

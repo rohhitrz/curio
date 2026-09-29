@@ -30,9 +30,8 @@ export function createNotebooksService(repository: NotebooksRepository) {
       if (!row) throw notFound();
       return {
         ...toNotebook(row),
-        // Wired to real counts when sources (Phase 2), conversations (Phase 5),
-        // and learning paths (Phase 8) exist.
-        sourceCount: 0,
+        sourceCount: await repository.countSources(row.id),
+        // Wired when conversations (Phase 5) and learning paths (Phase 8) exist.
         conversationCount: 0,
         learningPathId: null,
       };

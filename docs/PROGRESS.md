@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 2 (Sources, no processing)
-- **Current step:** 2.4 (list, get, patch, delete sources + `file-url`)
+- **Current step:** 2.5 (frontend sources panel)
 - **Blocked on:** nothing
-- **Next step:** 2.4 (see "Resume here")
+- **Next step:** 2.5 (see "Resume here"). It's the last step of Phase 2, so stop for owner approval after it
 
 ## Phases
 | # | Phase | Status |
@@ -31,11 +31,11 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 2.1 Migration: `sources` (applied on `dev`, `test`, and `main`)
 - [x] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. Smoke-tested on both real buckets; required `R2_*` env vars; provider passed into `createApp`
 - [x] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
-- [ ] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
+- [x] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
 - [ ] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
-## Resume here: 2.4
-2.3 is done. For 2.4: add list/get/patch/delete to `sources.repository.ts` / `sources.service.ts` / `sources.controller.ts` (single items are flat: `/sources/:sourceId`). Delete calls `storage.delete` after the row is gone and logs failures as orphans. `file-url` uses `uploads.downloadUrlTtlSeconds`. Also wire `sourceCount` in `GET /notebooks/:id`.
+## Resume here: 2.5
+2.4 is done; all Phase 2 API endpoints are live. For 2.5 (frontend): sources panel on the notebook page, 4 add dialogs, SHA-256 in the browser (Web Crypto), `POST .../uploads` → PUT to R2 with progress (XHR, same `Content-Type` + size) → `POST .../sources`, status badges, polling `GET /notebooks/:id/sources` every ~2s while any source is `PENDING`/`PROCESSING`. Handle 409 via `details.existingSourceId`. Then verify on the live URL (Phase 2 "done when": all 4 types sit in `PENDING`, duplicates → 409, PDF lands under the user prefix in `curio-prod`) and stop for approval.
 
 ## Pending on owner
 - Nothing right now.
@@ -98,7 +98,7 @@ API and server:
 - **Notebook title:** 1–200 chars, trimmed (`NOTEBOOK_TITLE_MAX`).
 - **Notebook quota:** enforced in a transaction with a per-user advisory lock.
 - **Malformed IDs** in paths → 404, not 400.
-- **`GET /notebooks/:id` counts** return 0 and `learningPathId: null` until sources, conversations and paths are wired (wire `sourceCount` in 2.4).
+- **`GET /notebooks/:id` counts:** `sourceCount` is real (2.4); `conversationCount` is 0 and `learningPathId` null until Phases 5 and 8.
 - **Auth:** `AuthProvider` in `lib/auth` (Clerk `clerkMiddleware` + `getAuth`, `authorizedParties` = CORS origins). The test provider uses `Bearer test_<clerkUserId>` and throws unless `NODE_ENV=test`. User get-or-create is select → insert on conflict do nothing → reselect.
 - **Build-plan ordering:** the `users` table was created in 1.2, not 1.3, because auth creates the row.
 - **Server entry:** `src/index.ts` default-exports the app for Vercel and only listens when `VERCEL` is unset. `createApp` lives in `create-app.ts`, so Vercel can't mistake it for the entrypoint.
@@ -118,6 +118,7 @@ API and server:
   - **Order of checks:** notebook ownership (404) → type rules (upload key/R2, text length) → one transaction that locks the notebook row (`FOR NO KEY UPDATE`), checks duplicate (409) then quota (400), and inserts with `ON CONFLICT DO NOTHING` as a backstop. Duplicate is checked before quota.
   - **Text over 100k chars** → `QUOTA_EXCEEDED` (the test plan lists text length under quotas). The JSON body cap is raised to 1 MB (`config/limits.ts` `requests`) because 100k multi-byte chars exceed Express's 100 KB default.
   - **R2 failures** → 503 `SERVICE_UNAVAILABLE` (the cause is kept and logged; the error handler now logs every 5xx `AppError`).
+  - **2.4 choices** (docs don't specify): `PATCH /sources/:id` edits `title` only (strict body). `GET /notebooks/:id/sources` returns `{ items, nextCursor: null }` (bounded, oldest first). `file-url` on a non-PDF source → 404 "This source has no file". Delete removes the row first, then R2; an R2 failure still returns 204 and logs `orphaned upload` at warn. `toSource` lists fields explicitly so `storageKey` never leaks.
   - **Not yet:** the `POST /sources` rate limit (50/day) needs Upstash (Phase 5). No `source/created` event until Phase 3.
 
 ## Eval results so far
@@ -130,6 +131,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-29 (session 2, 2.4)
+- Done: 2.4 (list, get, rename, delete + R2 delete, `file-url`, real `sourceCount`)
+- Notes: 166 tests passing (153 server, 13 web)
 
 ### 2026-09-29 (session 2, cont.)
 - Done: 2.3 (`POST /notebooks/:id/uploads`, `POST /notebooks/:id/sources`, dedupe, quotas). API doc: `DUPLICATE_SOURCE` carries `details.existingSourceId` (owner-approved)

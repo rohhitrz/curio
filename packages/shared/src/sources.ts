@@ -65,3 +65,21 @@ export const sourceSchema = z.object({
   processedAt: z.iso.datetime().nullable(),
 });
 export type Source = z.infer<typeof sourceSchema>;
+
+/** `PATCH /sources/:sourceId`. Only the title is editable. */
+export const updateSourceSchema = z.strictObject({ title: titleSchema });
+export type UpdateSourceInput = z.infer<typeof updateSourceSchema>;
+
+/** `GET /notebooks/:notebookId/sources`. Bounded (≤ 50), so never paginated: `nextCursor` is always null. */
+export const sourceListSchema = z.object({
+  items: z.array(sourceSchema),
+  nextCursor: z.null(),
+});
+export type SourceList = z.infer<typeof sourceListSchema>;
+
+/** `GET /sources/:sourceId/file-url`. Short-lived signed GET URL for the PDF viewer. */
+export const fileUrlResponseSchema = z.object({
+  url: z.url(),
+  expiresAt: z.iso.datetime(),
+});
+export type FileUrlResponse = z.infer<typeof fileUrlResponseSchema>;

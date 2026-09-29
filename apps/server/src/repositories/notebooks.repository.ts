@@ -1,6 +1,6 @@
 import { and, count, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { notebooks } from '../db/schema/index.js';
+import { notebooks, sources } from '../db/schema/index.js';
 import type { Cursor } from '../pagination/cursor.js';
 
 /** `updated_at` as ISO text with microseconds, so cursors don't lose precision. */
@@ -42,6 +42,14 @@ export function createNotebooksRepository(db: Db) {
         .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, userId)))
         .limit(1);
       return row;
+    },
+
+    async countSources(notebookId: string) {
+      const [row] = await db
+        .select({ n: count() })
+        .from(sources)
+        .where(eq(sources.notebookId, notebookId));
+      return row?.n ?? 0;
     },
 
     /**

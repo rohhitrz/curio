@@ -31,7 +31,7 @@ export interface AppOptions {
 export function createApp({ logger, corsOrigins, db, auth, storage }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
   const notebooksService = createNotebooksService(createNotebooksRepository(db));
-  const sourcesService = createSourcesService(createSourcesRepository(db), storage);
+  const sourcesService = createSourcesService(createSourcesRepository(db), storage, logger);
 
   const api = Router();
   api.use(requireAuth(auth, usersService));
