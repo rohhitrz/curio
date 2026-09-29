@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/nextjs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react';
 import { createApiClient, isApiError, type ApiClient } from '@/lib/api';
+import { nextUserCache, type UserCache } from '@/lib/user-cache';
 
 const ApiContext = createContext<ApiClient | null>(null);
 
@@ -26,25 +27,25 @@ function makeQueryClient() {
   });
 }
 
-/**
- * One cache per signed-in user. Query keys don't include the user, so on sign-out or an account
- * switch in the same tab the old cache is dropped instead of showing the previous user's data.
- */
-function useQueryClientForUser(userId: string | null | undefined): QueryClient {
-  const [cache, setCache] = useState(() => ({ userId, client: makeQueryClient() }));
-  if (cache.userId !== userId) {
+/** One cache per signed-in user (see `nextUserCache`). */
+function useQueryClientForUser(userId: string | null | undefined): UserCache<QueryClient> {
+  const [cache, setCache] = useState<UserCache<QueryClient>>(() => ({
+    userId,
+    client: makeQueryClient(),
+    generation: 0,
+  }));
+  const next = nextUserCache(cache, userId, makeQueryClient);
+  if (next !== cache) {
     // Adjusting state during render (React's pattern for "reset on prop change"): children never
-    // render with the old user's cache, and the old client is dropped with its data.
-    const next = { userId, client: makeQueryClient() };
+    // render with the previous user's cache.
     setCache(next);
-    return next.client;
   }
-  return cache.client;
+  return next;
 }
 
 export function Providers({ children }: { children: ReactNode }) {
   const { getToken, userId } = useAuth();
-  const queryClient = useQueryClientForUser(userId);
+  const { client: queryClient, generation } = useQueryClientForUser(userId);
   // Keep the client stable; always read the latest getToken.
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
@@ -57,7 +58,10 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <ApiContext.Provider value={apiClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      {/* useQuery binds to the client it first saw, so a new client needs a fresh subtree */}
+      <QueryClientProvider key={generation} client={queryClient}>
+        {children}
+      </QueryClientProvider>
     </ApiContext.Provider>
   );
 }
