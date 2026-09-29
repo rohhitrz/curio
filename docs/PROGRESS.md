@@ -4,17 +4,17 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 2 (Sources, no processing)
-- **Current step:** Phase 2 complete in code; waiting on the owner's live check + approval
-- **Blocked on:** owner verifying Phase 2 on the live URL (see "Resume here")
-- **Next step:** after approval, Phase 3 (ingestion pipeline; needs Inngest, OpenAI, Firecrawl, transcript API accounts)
+- **Phase:** 3 (Ingestion pipeline), not started
+- **Current step:** 3.1 (Inngest client + signed endpoint)
+- **Blocked on:** owner adding the Phase 3 keys to `.env` (names are in `.env.example`)
+- **Next step:** 3.1, once the keys are in (see "Resume here")
 
 ## Phases
 | # | Phase | Status |
 |---|---|---|
 | 0 | Foundation | ✅ Done (owner approved) |
 | 1 | Auth + notebooks + first deploy | ✅ Done (owner approved) |
-| 2 | Sources (no processing) | 🔨 In progress |
+| 2 | Sources (no processing) | ✅ Done (owner approved) |
 | 3 | Ingestion pipeline | ⏳ Not started |
 | 4 | Eval foundation | ⏳ Not started |
 | 5 | Basic RAG chat | ⏳ Not started |
@@ -34,11 +34,14 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
 - [x] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
 
-## Resume here: Phase 2 approval
-Agent-verified locally on 2026-09-30 in a signed-in browser (test notebook "Phase 2 test" in the dev DB): all 4 types → Pending; the duplicate website (`www.` + trailing slash + `utm_`) → 409 with "Show it" highlighting the original; PDF upload stages + progress, title follows the chosen file, file lands under the user's prefix in `curio-dev` at the exact size; `file-url` returns the exact bytes (5 min TTL); rename; delete updates the count and removes the R2 file. Not visible in the agent's pane: the PDF viewer tab itself (the pane blocks pop-ups). Owner: a quick look on the live URL, then approve Phase 2.
+## Resume here: Phase 3
+Phase 2 approved by the owner on 2026-09-30 (browser-verified; see the session log).
+1. Check the Phase 3 names exist in `.env` by name only (never read values): `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY`; `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` are needed for Vercel (locally `INNGEST_DEV=1` + the Inngest dev server). Any missing → stop and ask.
+2. Read `docs/05-build-plan.md` §6 and the docs each step touches. Inngest, `unpdf`, the OpenAI SDK and the Firecrawl SDK are already named in `02-system-design.md`; the transcript vendor is decision I-12 (record it in `07-decisions.md` in 3.2).
+3. Build 3.1 → 3.7. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- Phase 2 approval (see "Resume here").
+- **Phase 3 accounts + keys:** Inngest, OpenAI, Firecrawl, a YouTube transcript API. Put them in root `.env` (names in `.env.example`), no quotes.
 
 ## R2 setup (done 2026-09-29)
 - Private buckets `curio-dev` (local, `.env`) and `curio-prod` (Vercel `curio-server`, Production + Preview). One Object Read & Write token per bucket, each scoped to its own bucket. Local `.env` also keeps the prod keys as `R2_ACCESS_KEY_ID_PROD` / `R2_SECRET_ACCESS_KEY_PROD`; the app ignores those names.
@@ -54,10 +57,10 @@ Agent-verified locally on 2026-09-30 in a signed-in browser (test notebook "Phas
 | Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
 | Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
-| Inngest | 3 | ⬜ Not set up |
-| OpenAI | 3 | ⬜ Not set up |
-| Firecrawl | 3 | ⬜ Not set up |
-| Transcript API | 3 | ⬜ Not set up |
+| Inngest | 3 | ⬜ Owner getting keys (`INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`) |
+| OpenAI | 3 | ⬜ Owner getting key (`OPENAI_API_KEY`) |
+| Firecrawl | 3 | ⬜ Owner getting key (`FIRECRAWL_API_KEY`) |
+| Transcript API | 3 | ⬜ Owner getting key (`TRANSCRIPT_API_KEY`; vendor = decision I-12) |
 | Langfuse | 5 | ⬜ Not set up |
 | Upstash | 5 | ⬜ Not set up |
 | Cohere / Jina | 6 | ⬜ Not set up |
@@ -137,6 +140,9 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (Phase 2 approved)
+- Owner approved Phase 2. `.env.example` lists the Phase 3 key names; Phase 3 starts in a new session once the keys are in `.env`
 
 ### 2026-09-30 (browser verification)
 - Done: signed-in browser run of Phase 2 (see "Resume here"). Found and fixed a bug in the per-user cache fix: the notebook header's source count never updated, because the first `userId` report swapped the `QueryClient` and already-mounted queries stayed on the old one
