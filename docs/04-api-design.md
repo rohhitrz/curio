@@ -167,12 +167,12 @@
 
 ### Reading
 - **`GET /notebooks/:id/sources`** → all sources with statuses (the endpoint the frontend polls); excludes `extracted_text`
-- **`GET /sources/:id/content`** → extracted text (viewer + passage highlighting)
+- **`GET /sources/:id/content`** → `{ content }`: the extracted text (viewer + passage highlighting); `null` until the source has been read
 - **`GET /sources/:id/file-url`** → short-lived signed GET URL (private bucket) for the PDF viewer
-- **`GET /sources/:id/chunks`** → chunks, cursor-paginated
+- **`GET /sources/:id/chunks`** → chunks in document order with their locations, cursor-paginated; never the embedding
 
 ### Reprocess
-- Allowed for `FAILED` or `READY` → **202**
+- Allowed for `FAILED` or `READY` → **202** with the source, back in `PENDING`; the old chunks stay until the new ones are committed
 - `PENDING` / `PROCESSING` → **409 `ALREADY_PROCESSING`**
 
 ### Delete during processing

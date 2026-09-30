@@ -42,7 +42,12 @@ export function createApp({
   jobsHandler,
 }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
-  const notebooksService = createNotebooksService(createNotebooksRepository(db));
+  const notebooksService = createNotebooksService(
+    createNotebooksRepository(db),
+    storage,
+    jobs,
+    logger,
+  );
   const sourcesService = createSourcesService(createSourcesRepository(db), storage, jobs, logger);
 
   const api = Router();

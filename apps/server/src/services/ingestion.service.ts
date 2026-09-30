@@ -2,6 +2,7 @@ import { SOURCE_TITLE_MAX } from '@curio/shared';
 import type { Logger } from 'pino';
 import { IngestionError, type SourceErrorCode } from '../errors/ingestion-error.js';
 import type { EmbeddingsProvider } from '../lib/embeddings/index.js';
+import type { JobsProvider } from '../lib/jobs/index.js';
 import { chunkContent, type ChunkOptions } from '../pipelines/ingestion/chunk.js';
 import {
   extractSource,
@@ -29,8 +30,10 @@ export interface StepAttempt {
 export interface IngestionDeps extends ExtractionDeps {
   repository: IngestionRepository;
   embeddings: EmbeddingsProvider;
+  jobs: JobsProvider;
   logger: Logger;
   chunking: Pick<ChunkOptions, 'targetTokens' | 'overlapRatio' | 'countTokens'>;
+  sweep: { processingTimeoutMinutes: number; pendingResendMinutes: number; batchSize: number };
 }
 
 const NOT_FOUND: StepResult = { status: 'stopped', reason: 'not_found' };
@@ -39,6 +42,7 @@ const messages = {
   hashMismatch: "The uploaded file doesn't match what was registered. Please upload it again.",
   nothingToIndex: 'No readable text was found in this source.',
   unexpected: 'Something went wrong while processing this source. Please try again.',
+  timedOut: 'Processing timed out, please retry.',
 };
 
 interface SourceForTitle {
@@ -65,7 +69,7 @@ function embeddingInput(chunk: { contextHeader: string; content: string }): stri
 }
 
 export function createIngestionService(deps: IngestionDeps) {
-  const { repository, embeddings, logger } = deps;
+  const { repository, embeddings, jobs, logger } = deps;
 
   /**
    * Runs a step. A permanent failure marks the source `FAILED` with its reason and stops the
@@ -170,6 +174,38 @@ export function createIngestionService(deps: IngestionDeps) {
         const committed = await repository.commitChunks(ref, rows, embeddings.model);
         return committed ? { status: 'ok', chunkCount: rows.length } : NOT_FOUND;
       });
+    },
+
+    /**
+     * The sweeper. Guarantees no source is left waiting forever:
+     * - `PROCESSING` for too long (the job died) → `FAILED` / `TIMEOUT`, so the user can retry;
+     * - `PENDING` for too long (its event was never sent, or never picked up) → the event is
+     *   sent again. Processing is idempotent, so a duplicate run is harmless.
+     */
+    async sweep(): Promise<{ timedOut: number; resent: number }> {
+      const timedOut = await repository.failStuckProcessing(
+        deps.sweep.processingTimeoutMinutes,
+        'TIMEOUT',
+        messages.timedOut,
+      );
+      const stale = await repository.claimStalePending(
+        deps.sweep.pendingResendMinutes,
+        deps.sweep.batchSize,
+      );
+      // One at a time: a failed send leaves that source for the next sweep.
+      let resent = 0;
+      for (const ref of stale) {
+        try {
+          await jobs.send('source/reprocess', ref);
+          resent++;
+        } catch (err) {
+          logger.warn({ err, ...ref }, 'sweeper could not re-send a pending source');
+        }
+      }
+      if (timedOut > 0 || stale.length > 0) {
+        logger.info({ timedOut, stalePending: stale.length, resent }, 'sweep finished');
+      }
+      return { timedOut, resent };
     },
 
     /** Safety net for a job that ended without marking its source: fail it generically. */

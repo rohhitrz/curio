@@ -11,7 +11,9 @@ import {
 } from './config/index.js';
 import { createApp } from './create-app.js';
 import { createDb } from './db/client.js';
+import { createCleanupNotebookFilesFunction } from './inngest/cleanup-notebook-files.js';
 import { createProcessSourceFunction } from './inngest/process-source.js';
+import { createSweepStuckSourcesFunction } from './inngest/sweep-stuck-sources.js';
 import { createClerkAuthProvider } from './lib/auth/index.js';
 import { createOpenAiEmbeddings } from './lib/embeddings/index.js';
 import {
@@ -26,7 +28,9 @@ import { createSupadataTranscriptProvider } from './lib/transcript/index.js';
 import { createLogger } from './logger.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createIngestionRepository } from './repositories/ingestion.repository.js';
+import { createNotebooksRepository } from './repositories/notebooks.repository.js';
 import { createIngestionService } from './services/ingestion.service.js';
+import { createNotebooksService } from './services/notebooks.service.js';
 
 let env: Env;
 try {
@@ -58,6 +62,7 @@ const inngest = createInngestClient({
   signingKey: env.INNGEST_SIGNING_KEY,
   logger,
 });
+const jobs = createInngestJobsProvider(inngest);
 
 const ingestionService = createIngestionService({
   repository: createIngestionRepository(db, ingestion.chunkInsertBatchSize),
@@ -80,9 +85,22 @@ const ingestionService = createIngestionService({
     batchSize: embeddingRequests.batchSize,
     timeoutMs: embeddingRequests.timeoutMs,
   }),
+  jobs,
   logger,
   chunking: { ...chunking, countTokens },
+  sweep: {
+    processingTimeoutMinutes: ingestion.processingTimeoutMinutes,
+    pendingResendMinutes: ingestion.pendingResendMinutes,
+    batchSize: ingestion.sweepBatchSize,
+  },
 });
+// The cleanup job only needs the service's file deletion; the app builds its own for requests.
+const notebooksService = createNotebooksService(
+  createNotebooksRepository(db),
+  storage,
+  jobs,
+  logger,
+);
 
 const app: Express = createApp({
   logger,
@@ -90,9 +108,11 @@ const app: Express = createApp({
   db,
   auth,
   storage,
-  jobs: createInngestJobsProvider(inngest),
+  jobs,
   jobsHandler: createInngestHandler(inngest, [
     createProcessSourceFunction(inngest, ingestionService),
+    createSweepStuckSourcesFunction(inngest, ingestionService),
+    createCleanupNotebookFilesFunction(inngest, notebooksService),
   ]),
 });
 

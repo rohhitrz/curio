@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { sourceChunks, sources, type NewSourceChunk } from '../db/schema/index.js';
 
@@ -124,6 +124,53 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
           .where(eq(sources.id, ref.sourceId));
         return true;
       });
+    },
+
+    /**
+     * Sweeper, across all users: fails every source that has been `PROCESSING` for longer than
+     * the timeout (its job died or hung). Returns how many.
+     */
+    async failStuckProcessing(
+      timeoutMinutes: number,
+      code: string,
+      message: string,
+    ): Promise<number> {
+      const rows = await db
+        .update(sources)
+        .set({ status: 'FAILED', errorCode: code, errorMessage: message })
+        .where(
+          and(
+            eq(sources.status, 'PROCESSING'),
+            lt(sources.processingStartedAt, sql`now() - make_interval(mins => ${timeoutMinutes})`),
+          ),
+        )
+        .returning({ id: sources.id });
+      return rows.length;
+    },
+
+    /**
+     * Sweeper, across all users: sources that have sat in `PENDING` for too long, oldest first.
+     * Touching `updated_at` claims them, so the next sweep waits the full interval again before
+     * re-sending the same source.
+     */
+    async claimStalePending(staleMinutes: number, limit: number): Promise<SourceRef[]> {
+      const stale = db
+        .select({ id: sources.id })
+        .from(sources)
+        .where(
+          and(
+            eq(sources.status, 'PENDING'),
+            lt(sources.updatedAt, sql`now() - make_interval(mins => ${staleMinutes})`),
+          ),
+        )
+        .orderBy(sources.updatedAt)
+        .limit(limit)
+        .for('update', { skipLocked: true });
+      return db
+        .update(sources)
+        .set({ updatedAt: sql`now()` })
+        .where(inArray(sources.id, stale))
+        .returning({ sourceId: sources.id, userId: sources.userId });
     },
 
     /** Marks a processing source `FAILED` with the reason. False when there was nothing to fail. */

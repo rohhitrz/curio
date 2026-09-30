@@ -1,4 +1,9 @@
-import { createSourceSchema, createUploadSchema, updateSourceSchema } from '@curio/shared';
+import {
+  createSourceSchema,
+  createUploadSchema,
+  paginationQuerySchema,
+  updateSourceSchema,
+} from '@curio/shared';
 import type { RequestHandler } from 'express';
 import { getUserId } from '../middleware/auth.js';
 import type { SourcesService } from '../services/sources.service.js';
@@ -40,5 +45,19 @@ export function createSourcesController(service: SourcesService) {
     res.json(await service.fileUrl(getUserId(req), sourceIdParam(req)));
   };
 
-  return { createUpload, create, list, get, update, remove, fileUrl };
+  const content: RequestHandler = async (req, res) => {
+    res.json(await service.content(getUserId(req), sourceIdParam(req)));
+  };
+
+  const chunks: RequestHandler = async (req, res) => {
+    const sourceId = sourceIdParam(req);
+    const { limit, cursor } = paginationQuerySchema.parse(req.query);
+    res.json(await service.chunks(getUserId(req), sourceId, limit, cursor));
+  };
+
+  const reprocess: RequestHandler = async (req, res) => {
+    res.status(202).json(await service.reprocess(getUserId(req), sourceIdParam(req)));
+  };
+
+  return { createUpload, create, list, get, update, remove, fileUrl, content, chunks, reprocess };
 }

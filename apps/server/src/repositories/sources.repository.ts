@@ -1,6 +1,6 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { notebooks, sources } from '../db/schema/index.js';
+import { notebooks, sourceChunks, sources } from '../db/schema/index.js';
 
 const columns = {
   id: sources.id,
@@ -30,6 +30,23 @@ export interface NewSource {
 }
 
 export type SourceRow = Pick<typeof sources.$inferSelect, keyof typeof columns>;
+
+export type ReprocessResult =
+  { kind: 'queued'; row: SourceRow } | { kind: 'already_processing' } | { kind: 'not_found' };
+
+const chunkColumns = {
+  id: sourceChunks.id,
+  chunkIndex: sourceChunks.chunkIndex,
+  content: sourceChunks.content,
+  contextHeader: sourceChunks.contextHeader,
+  tokenCount: sourceChunks.tokenCount,
+  pageNumber: sourceChunks.pageNumber,
+  startSeconds: sourceChunks.startSeconds,
+  endSeconds: sourceChunks.endSeconds,
+  headingPath: sourceChunks.headingPath,
+  charStart: sourceChunks.charStart,
+  charEnd: sourceChunks.charEnd,
+};
 
 export type CreateSourceResult =
   | { kind: 'created'; row: SourceRow }
@@ -88,6 +105,58 @@ export function createSourcesRepository(db: Db) {
         .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
         .returning(columns);
       return row;
+    },
+
+    /** The extracted text. Undefined when the source isn't the user's. */
+    async findContent(userId: string, sourceId: string) {
+      const [row] = await db
+        .select({ extractedText: sources.extractedText })
+        .from(sources)
+        .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
+        .limit(1);
+      return row;
+    },
+
+    /**
+     * Chunks in document order, after `afterIndex` when given. Fetches `limit + 1` rows so the
+     * caller can tell if there's a next page. Undefined when the source isn't the user's.
+     */
+    async listChunks(userId: string, sourceId: string, limit: number, afterIndex?: number) {
+      const [source] = await db
+        .select({ id: sources.id })
+        .from(sources)
+        .where(and(eq(sources.id, sourceId), eq(sources.userId, userId)))
+        .limit(1);
+      if (!source) return undefined;
+
+      return db
+        .select(chunkColumns)
+        .from(sourceChunks)
+        .where(
+          and(
+            eq(sourceChunks.sourceId, sourceId),
+            afterIndex === undefined ? undefined : gt(sourceChunks.chunkIndex, afterIndex),
+          ),
+        )
+        .orderBy(asc(sourceChunks.chunkIndex))
+        .limit(limit + 1);
+    },
+
+    /**
+     * Puts a finished source (`READY` or `FAILED`) back to `PENDING`. One statement, so two
+     * requests at once can't both queue it. The old chunks stay until the new ones are committed.
+     */
+    async requestReprocess(userId: string, sourceId: string): Promise<ReprocessResult> {
+      const owned = and(eq(sources.id, sourceId), eq(sources.userId, userId));
+      const [row] = await db
+        .update(sources)
+        .set({ status: 'PENDING', errorCode: null, errorMessage: null })
+        .where(and(owned, inArray(sources.status, ['READY', 'FAILED'])))
+        .returning(columns);
+      if (row) return { kind: 'queued', row };
+
+      const [existing] = await db.select({ id: sources.id }).from(sources).where(owned).limit(1);
+      return existing ? { kind: 'already_processing' } : { kind: 'not_found' };
     },
 
     /** Deletes the row (chunks cascade). Returns the R2 key to clean up, or undefined if nothing was deleted. */

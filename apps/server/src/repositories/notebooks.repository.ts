@@ -1,4 +1,4 @@
-import { and, count, desc, eq, sql } from 'drizzle-orm';
+import { and, count, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { notebooks, sources } from '../db/schema/index.js';
 import type { Cursor } from '../pagination/cursor.js';
@@ -84,12 +84,31 @@ export function createNotebooksRepository(db: Db) {
     },
 
     /** Returns true if a row was deleted. */
-    async delete(userId: string, notebookId: string) {
-      const rows = await db
-        .delete(notebooks)
-        .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, userId)))
-        .returning({ id: notebooks.id });
-      return rows.length > 0;
+    /**
+     * Deletes the notebook; its sources and chunks cascade. Returns the R2 keys of its uploaded
+     * files, read in the same transaction because the rows are gone afterwards. Undefined when
+     * the notebook isn't the user's.
+     */
+    async delete(
+      userId: string,
+      notebookId: string,
+    ): Promise<{ storageKeys: string[] } | undefined> {
+      return db.transaction(async (tx) => {
+        const [notebook] = await tx
+          .select({ id: notebooks.id })
+          .from(notebooks)
+          .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, userId)))
+          .for('update');
+        if (!notebook) return undefined;
+
+        const files = await tx
+          .select({ storageKey: sources.storageKey })
+          .from(sources)
+          .where(and(eq(sources.notebookId, notebookId), isNotNull(sources.storageKey)));
+        await tx.delete(notebooks).where(eq(notebooks.id, notebookId));
+
+        return { storageKeys: files.flatMap((file) => file.storageKey ?? []) };
+      });
     },
   };
 }

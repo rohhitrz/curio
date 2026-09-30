@@ -1,8 +1,12 @@
 import type { Notebook, NotebookDetail, Paginated } from '@curio/shared';
+import type { Logger } from 'pino';
 import { quotas } from '../config/index.js';
 import { AppError, NotFoundError } from '../errors/app-error.js';
+import type { JobsProvider } from '../lib/jobs/index.js';
+import type { StorageProvider } from '../lib/storage/index.js';
 import { decodeCursor, toPage } from '../pagination/cursor.js';
 import type { NotebookRow, NotebooksRepository } from '../repositories/notebooks.repository.js';
+import { isOwnUploadKey } from './upload-rules.js';
 
 function toNotebook(row: NotebookRow): Notebook {
   return {
@@ -16,7 +20,12 @@ function toNotebook(row: NotebookRow): Notebook {
 
 const notFound = () => new NotFoundError('Notebook not found.');
 
-export function createNotebooksService(repository: NotebooksRepository) {
+export function createNotebooksService(
+  repository: NotebooksRepository,
+  storage: StorageProvider,
+  jobs: JobsProvider,
+  logger: Logger,
+) {
   return {
     async list(userId: string, limit: number, rawCursor?: string): Promise<Paginated<Notebook>> {
       const cursor = rawCursor === undefined ? undefined : decodeCursor(rawCursor);
@@ -54,9 +63,47 @@ export function createNotebooksService(repository: NotebooksRepository) {
       return toNotebook(row);
     },
 
+    /**
+     * Deletes the notebook and everything in it right away. Its uploaded files are removed from
+     * R2 afterwards by the `notebook/deleted` job; if that can't be queued the files are orphans,
+     * logged for the cleanup job (post-launch).
+     */
     async delete(userId: string, notebookId: string): Promise<void> {
       const deleted = await repository.delete(userId, notebookId);
       if (!deleted) throw notFound();
+      const { storageKeys } = deleted;
+      if (storageKeys.length === 0) return;
+      try {
+        await jobs.send('notebook/deleted', { notebookId, userId, storageKeys });
+      } catch (err) {
+        logger.warn(
+          { err, notebookId, storageKeys },
+          'orphaned uploads: notebook/deleted not sent',
+        );
+      }
+    },
+
+    /**
+     * Removes a deleted notebook's files from R2 (the `notebook/deleted` job). Deleting is
+     * repeatable, so a failure is thrown and the whole batch is simply tried again.
+     */
+    async deleteFiles(userId: string, storageKeys: string[]): Promise<{ deleted: number }> {
+      // The keys come from an event; never delete outside the user's own upload folder.
+      const keys = storageKeys.filter((key) => isOwnUploadKey(userId, key));
+      if (keys.length < storageKeys.length) {
+        logger.error(
+          { userId, storageKeys },
+          'notebook/deleted carried keys outside the user folder',
+        );
+      }
+      const results = await Promise.allSettled(keys.map((key) => storage.delete(key)));
+      const failed = results.filter((result) => result.status === 'rejected');
+      if (failed.length > 0) {
+        throw new Error(`${failed.length} of ${keys.length} files could not be deleted`, {
+          cause: failed[0]?.reason,
+        });
+      }
+      return { deleted: keys.length };
     },
   };
 }

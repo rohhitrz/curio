@@ -171,7 +171,7 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 4. **Atomic commit**: all or nothing, so half-indexed is impossible
 5. **Idempotent**: re-running gives the same result
 6. **Transient vs permanent errors**: retry with backoff (3×) vs fail fast with a reason
-7. **Stuck-job sweeper**: scheduled job fails anything in `PROCESSING` too long
+7. **Stuck-job sweeper**: scheduled job fails anything in `PROCESSING` too long, and sends the job event again for anything left in `PENDING` too long (an event that was never sent or never picked up)
 8. **Dedupe**: normalized URL / file content hash per notebook
 9. **Concurrency + throttle** per user and per external API
 10. **Clean delete**: source row + chunks (same DB) + R2 file
@@ -294,8 +294,9 @@ open module → saved? show it
 
 | Job | Trigger | Purpose |
 |---|---|---|
-| `processSource` | `source/created`, reprocess | Ingestion pipeline |
-| `sweepStuckSources` | Schedule (cron) | Fail sources stuck in `PROCESSING` |
+| `processSource` | `source/created`, `source/reprocess` | Ingestion pipeline |
+| `sweepStuckSources` | Schedule (cron, every 5 min) | Fail sources stuck in `PROCESSING`; re-send sources stuck in `PENDING` |
+| `cleanupNotebookFiles` | `notebook/deleted` | Delete a deleted notebook's files from R2 |
 | `generateLearningPath` | `path/requested` | Learning path pipeline (with pause for advanced) |
 | `summarizeConversation` | `conversation/summarize` | Rolling summary |
 | `extractMemories` | `memory/extract` | Learner facts from chat |

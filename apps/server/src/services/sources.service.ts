@@ -3,6 +3,8 @@ import type {
   CreateUploadInput,
   FileUrlResponse,
   Source,
+  SourceChunkList,
+  SourceContent,
   SourceList,
   UploadResponse,
 } from '@curio/shared';
@@ -17,6 +19,7 @@ import {
 } from '../errors/app-error.js';
 import type { JobsProvider } from '../lib/jobs/index.js';
 import type { StorageProvider } from '../lib/storage/index.js';
+import { decodeIndexCursor, encodeIndexCursor } from '../pagination/cursor.js';
 import type {
   NewSource,
   SourceRow,
@@ -149,6 +152,53 @@ export function createSourcesService(
       return toSource(row);
     },
 
+    /** The extracted text, for the viewer. Null until the source has been read. */
+    async content(userId: string, sourceId: string): Promise<SourceContent> {
+      const row = await repository.findContent(userId, sourceId);
+      if (!row) throw sourceNotFound();
+      return { content: row.extractedText };
+    },
+
+    async chunks(
+      userId: string,
+      sourceId: string,
+      limit: number,
+      rawCursor?: string,
+    ): Promise<SourceChunkList> {
+      const afterIndex = rawCursor === undefined ? undefined : decodeIndexCursor(rawCursor);
+      const rows = await repository.listChunks(userId, sourceId, limit, afterIndex);
+      if (!rows) throw sourceNotFound();
+
+      const items = rows.slice(0, limit);
+      const last = items.at(-1);
+      return {
+        items,
+        nextCursor: rows.length > limit && last ? encodeIndexCursor(last.chunkIndex) : null,
+      };
+    },
+
+    /**
+     * Queues a `READY` or `FAILED` source for processing again. As with `create`, a failed send
+     * still returns the source: it is `PENDING`, and the sweeper sends the event again.
+     */
+    async reprocess(userId: string, sourceId: string): Promise<Source> {
+      const result = await repository.requestReprocess(userId, sourceId);
+      switch (result.kind) {
+        case 'not_found':
+          throw sourceNotFound();
+        case 'already_processing':
+          throw new AppError('ALREADY_PROCESSING', 'This source is already being processed.');
+        case 'queued': {
+          try {
+            await jobs.send('source/reprocess', { sourceId, userId });
+          } catch (err) {
+            logger.warn({ err, sourceId }, 'source/reprocess not sent: source left PENDING');
+          }
+          return toSource(result.row);
+        }
+      }
+    },
+
     async rename(userId: string, sourceId: string, title: string): Promise<Source> {
       const row = await repository.updateTitle(userId, sourceId, title);
       if (!row) throw sourceNotFound();
@@ -213,7 +263,8 @@ export function createSourcesService(
     /**
      * Saves the source as `PENDING`, then sends `source/created` to start processing. The row is
      * already committed by then, so a failed send still returns the source: failing the request
-     * would make a retry hit `DUPLICATE_SOURCE`. It stays `PENDING` until it is picked up again.
+     * would make a retry hit `DUPLICATE_SOURCE`. It stays `PENDING` until the sweeper sends the
+     * event again.
      */
     async create(userId: string, notebookId: string, input: CreateSourceInput): Promise<Source> {
       // Ownership first, so another user's notebook is a 404 before any upload-key checks.

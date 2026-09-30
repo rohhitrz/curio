@@ -69,6 +69,14 @@ export const ingestion = {
   throttle: { limit: 30, period: '1m' },
   /** Chunk rows per INSERT inside the commit transaction. */
   chunkInsertBatchSize: 100,
+  /** How often the sweeper runs. */
+  sweepCron: '*/5 * * * *',
+  /** A source still `PROCESSING` after this long is failed with `TIMEOUT`. */
+  processingTimeoutMinutes: 15,
+  /** A source still `PENDING` after this long never got a job run: its event is sent again. */
+  pendingResendMinutes: 10,
+  /** Stale `PENDING` sources re-sent per sweep. */
+  sweepBatchSize: 100,
 } as const;
 
 export const embeddingRequests = {

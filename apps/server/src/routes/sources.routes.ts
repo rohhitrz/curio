@@ -13,6 +13,9 @@ export function createSourcesRouter(service: SourcesService): Router {
   router.patch('/sources/:sourceId', controller.update);
   router.delete('/sources/:sourceId', controller.remove);
   router.get('/sources/:sourceId/file-url', controller.fileUrl);
+  router.get('/sources/:sourceId/content', controller.content);
+  router.get('/sources/:sourceId/chunks', controller.chunks);
+  router.post('/sources/:sourceId/reprocess', controller.reprocess);
 
   return router;
 }

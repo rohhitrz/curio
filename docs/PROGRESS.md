@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 3 (Ingestion pipeline), in progress
-- **Current step:** 3.6 (sweeper, reprocess, content + chunks endpoints, notebook cleanup job)
-- **Blocked on:** nothing for building 3.6. The live pipeline is unverified until the owner syncs the app in Inngest and adds real sources (see "Pending on owner")
-- **Next step:** 3.6
+- **Current step:** 3.7 (frontend: failure reason + retry, text viewer, chunk viewer)
+- **Blocked on:** nothing
+- **Next step:** 3.7
 
 ## Phases
 | # | Phase | Status |
@@ -33,17 +33,16 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.3 Chunking module (pure): `pipelines/ingestion/chunk.ts`, tokens counted with `gpt-tokenizer`
 - [x] 3.4 Migration `0005_source_chunks` (applied on `dev` and `test`; **not on `main` yet**); OpenAI embeddings provider (batched)
 - [x] 3.5 `processSource` job: 4 Inngest steps (mark processing → extract → chunk → embed + atomic commit), idempotent, classified failures, stops when the source is gone (live)
-- [ ] 3.6 Sweeper cron · `reprocess` · `content` + `chunks` endpoints · `notebook/deleted` R2 cleanup job
+- [x] 3.6 Sweeper cron (every 5 min) · `POST /sources/:id/reprocess` · `GET /sources/:id/content` + `/chunks` · `notebook/deleted` R2 cleanup job
 - [ ] 3.7 Frontend: failure reason + retry, text source viewer, chunk viewer
 
 ## Resume here: Phase 3
-1. 3.5 is deployed (2026-09-30). The owner syncs the app in Inngest (see "Pending on owner") and adds one source of each type on the live app. This is the **first real run** of the OpenAI embeddings call and of the whole pipeline; watch the Vercel logs for `source failed`.
-2. Build 3.6 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches.
+1. 3.1–3.6 are deployed. The pipeline is verified live for a **text** source (owner, 2026-09-30: Pending → Processing → Ready); PDF, website and YouTube are still to be tried on the live app.
+2. Build 3.7. Read `docs/05-build-plan.md` §6 and the docs it touches. Also clear the add-source dialog's title when switching tabs (a PDF file name carried over to the Text tab and confused the owner).
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- **Now:** Inngest dashboard (Production environment) → Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. It should now show the `process-source` function. If it reports a signature error, the signing key on Vercel doesn't match that environment's key.
-- **Then verify live:** add a PDF, a website, a YouTube video and a text note; each should reach `READY`.
+- **Verify live:** add a PDF, a website and a YouTube video; each should reach `READY` (text already does). Try **deleting a notebook** that has a PDF and check the file leaves `curio-prod`.
 - **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
@@ -60,8 +59,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
 | Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
-| Inngest | 3 | 🔶 Keys in local `.env` and on Vercel (Production only); app sync waits for 3.5 (Inngest rejects an app with 0 functions) |
-| OpenAI | 3 | 🔶 Key in local `.env` and on Vercel (Production); never called for real yet |
+| Inngest | 3 | ✅ Keys in local `.env` and on Vercel (Production only); app `curio` synced in the Production environment (owner, 2026-09-30) |
+| OpenAI | 3 | ✅ Key in local `.env` and on Vercel (Production); embeddings work live (first real run 2026-09-30) |
 | Firecrawl | 3 | ✅ Key in local `.env` (works, smoke-tested) and on Vercel (Production) |
 | Supadata (transcripts) | 3 | ✅ Key in local `.env` (`TRANSCRIPT_API_KEY`, works, smoke-tested) and on Vercel (Production) |
 | Langfuse | 5 | ⬜ Not set up |
@@ -139,7 +138,7 @@ API and server:
   - `inngest` 4.x, behind `JobsProvider` in `lib/jobs` (`send(name, data)`, typed by `JobEvents`). Client ID `curio`. pnpm `allowBuilds` declines `protobufjs` (its install script only prints a version warning).
   - **Env:** `INNGEST_DEV` is `1`/`true`/`0`/`false` (unset = off). Without dev mode, `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` are required and the server refuses to boot. The client always gets `isDev` from our config, so the SDK never decides the mode from the environment itself.
   - **Endpoint:** `/api/inngest` is mounted before the general JSON parser with its own 4 MB limit (`requests.inngestBodyLimit`), outside `/api/v1` and user auth. In cloud mode the SDK answers unsigned or forged `GET`/`POST` with 401. An unsigned `PUT` only makes the SDK re-register this app with Inngest using our signing key (standard Inngest behavior). No functions are registered until 3.5.
-  - **`source/created`** = `{ sourceId, userId }`, sent after the insert transaction commits. If the send fails, the request still returns 202 and the source stays `PENDING` (warn log `source/created not sent`); failing the request would make a retry hit 409. **Open for 3.6:** the sweeper must also pick up stale `PENDING` rows; `02-system-design.md` only mentions `PROCESSING`, so propose that doc change then.
+  - **`source/created`** = `{ sourceId, userId }`, sent after the insert transaction commits. If the send fails, the request still returns 202 and the source stays `PENDING` (warn log `source/created not sent`); failing the request would make a retry hit 409. The 3.6 sweeper sends the event again.
   - Verified locally: the dev server synced the app (`PUT` 200) and received a `source/created` sent through the provider.
 - **Extraction (3.2):**
   - **Layout:** providers in `lib/scraper` (Firecrawl), `lib/transcript` (Supadata), `lib/pdf` (`unpdf`); `StorageProvider.download(key)` returns the bytes or null. `pipelines/ingestion/extract.ts` `extractSource(source, deps)` picks by type and returns `{ title, content, metadata }`.
@@ -185,7 +184,16 @@ API and server:
   - **Embedding input** = context header + blank line + chunk content; the stored `content` is the chunk alone.
   - **Env:** `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` are now required at boot.
   - **Tests:** the service runs against Neon `test` with fake providers (and the real `unpdf`); the Inngest function runs through `@inngest/test` (dev dependency, named in the test plan). Locally the Inngest dev server registered `curio-process-source` and completed a run for a non-existent source. **Not run for real:** a full pipeline run with OpenAI, since only `pnpm eval` may call it.
-  - **Known gap until 3.6:** sources added in production between the 3.1 deploy and the Inngest app sync have no job run and stay `PENDING` (the API doc forbids reprocessing a `PENDING` source). The 3.6 sweeper should pick up stale `PENDING` rows; that needs a doc change, to be proposed then.
+
+- **Sweeper, reprocess, reading, cleanup (3.6):**
+  - **After a deploy that adds or changes job functions, Inngest must be synced again:** `curl -X PUT https://curio-server-ten.vercel.app/api/inngest` (the SDK registers itself using the signing key), or "Resync" in the Inngest dashboard. Without it Inngest doesn't know the new functions or triggers.
+  - **Sweeper** (`sweep-stuck-sources`, cron `*/5 * * * *`, no retries; values in `config.ingestion`): `PROCESSING` for more than 15 min → `FAILED` / `TIMEOUT`. `PENDING` for more than 10 min → `source/reprocess` is sent again (owner-approved; docs 02 and 03 updated), at most 100 per sweep, oldest first. Touching `updated_at` claims a source so it isn't re-sent for another 10 min. It is the only code not scoped by `userId`: it is a system job across all users. There is no cap on how long a source may wait in `PENDING`.
+  - **Events:** `source/reprocess` `{ sourceId, userId }` (second trigger of `processSource`; used by the endpoint and the sweeper) and `notebook/deleted` `{ notebookId, userId, storageKeys }`.
+  - **`POST /sources/:id/reprocess`** → 202 with the source in `PENDING`, error cleared. One `UPDATE … WHERE status IN ('READY','FAILED')`, so a double click gives one 202 and one 409 `ALREADY_PROCESSING`. A failed send still returns 202 (the sweeper re-sends). The old chunks stay until the new commit.
+  - **`GET /sources/:id/content`** → `{ content: string | null }` (`sourceContentSchema`).
+  - **`GET /sources/:id/chunks`** → `{ items, nextCursor }` in `chunk_index` order (`sourceChunkListSchema`), default 20 / max 100. The cursor is the last chunk index (base64url `{ n }`); a tampered one → 400. Embeddings and the search vector are never returned.
+  - **Notebook delete:** one transaction locks the notebook, reads its sources' R2 keys, deletes it (cascade). Then `notebook/deleted` is sent with the keys; nothing is sent when there are no files. A failed send still returns 204 and logs `orphaned uploads` at warn.
+  - **`cleanup-notebook-files`** deletes the keys from R2 (repeatable, so a failure retries the whole batch, `ingestion.retries` times). Keys outside `users/{userId}/uploads/` are refused and logged at error.
 
 
 ## Eval results so far
@@ -198,6 +206,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (3.6)
+- Done: 3.6 (sweeper, reprocess, content + chunks endpoints, notebook cleanup job). Owner synced the Inngest app and saw a text source go Pending → Processing → Ready on the live app
+- Notes: 419 tests passing (385 server, 34 web)
 
 ### 2026-09-30 (3.5)
 - Done: 3.5 (`processSource` job, migration `0006` on `dev` + `test`, provider keys required at boot, decision I-13, docs 02/03 updated)

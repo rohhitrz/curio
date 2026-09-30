@@ -803,7 +803,7 @@ describe('file-url', () => {
 });
 
 describe("another user's source", () => {
-  it('get, patch, delete, file-url, list → 404, and nothing changes', async () => {
+  it('get, patch, delete, file-url, content, chunks, reprocess, list → 404, and nothing changes', async () => {
     const notebookId = await createNotebook(BOB);
     const storageKey = await uploadPdf(BOB, notebookId);
     const created = await addSource(BOB, notebookId, {
@@ -819,6 +819,9 @@ describe("another user's source", () => {
       request(app).patch(`/api/v1/sources/${id}`).set('authorization', ALICE).send({ title: 'x' }),
       request(app).delete(`/api/v1/sources/${id}`).set('authorization', ALICE),
       request(app).get(`/api/v1/sources/${id}/file-url`).set('authorization', ALICE),
+      request(app).get(`/api/v1/sources/${id}/content`).set('authorization', ALICE),
+      request(app).get(`/api/v1/sources/${id}/chunks`).set('authorization', ALICE),
+      request(app).post(`/api/v1/sources/${id}/reprocess`).set('authorization', ALICE),
       request(app).get(`/api/v1/notebooks/${notebookId}/sources`).set('authorization', ALICE),
     ];
 
@@ -828,7 +831,10 @@ describe("another user's source", () => {
     }
     const [row] = await getTestDb().select().from(sources).where(eq(sources.id, id));
     expect(row?.title).toBe("Bob's");
+    expect(row?.status).toBe('PENDING');
     expect(storage.deleted).toEqual([]);
+    // Only Bob's own add sent an event.
+    expect(jobs.sent).toHaveLength(1);
   });
 
   it('malformed source ID → 404', async () => {

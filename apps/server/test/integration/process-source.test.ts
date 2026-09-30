@@ -13,6 +13,7 @@ import { createIngestionRepository } from '../../src/repositories/ingestion.repo
 import { createIngestionService } from '../../src/services/ingestion.service.js';
 import { createFakeEmbeddings } from '../fakes/embeddings.js';
 import { createFakeScraper, createFakeTranscript } from '../fakes/extraction.js';
+import { createFakeJobs } from '../fakes/jobs.js';
 import { createFakeStorage } from '../fakes/storage.js';
 import { getTestDb, truncateAllTables } from '../helpers/db.js';
 
@@ -50,8 +51,10 @@ beforeEach(async () => {
     scraper: scraper.provider,
     transcript: createFakeTranscript().provider,
     embeddings: createFakeEmbeddings().provider,
+    jobs: createFakeJobs().provider,
     logger,
     chunking: { ...chunking, countTokens },
+    sweep: { processingTimeoutMinutes: 15, pendingResendMinutes: 10, batchSize: 100 },
   });
   // Dev mode with a fetch that always fails: the client can never reach Inngest from a test.
   const client = createInngestClient({
@@ -163,6 +166,6 @@ describe('processSource function', () => {
       ],
       throttle: ingestion.throttle,
     });
-    expect(fn.opts.triggers).toEqual([{ event: 'source/created' }]);
+    expect(fn.opts.triggers).toEqual([{ event: 'source/created' }, { event: 'source/reprocess' }]);
   });
 });

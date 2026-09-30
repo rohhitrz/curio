@@ -383,6 +383,15 @@ UPDATE sources
  WHERE status = 'PROCESSING' AND processing_started_at < now() - interval '15 minutes';
 ```
 
+A source still `PENDING` after 10 minutes never got a job run. The sweeper sends its event again and touches `updated_at`, so the same source isn't re-sent until another 10 minutes pass:
+```sql
+UPDATE sources SET updated_at = now()
+ WHERE id IN (SELECT id FROM sources
+               WHERE status = 'PENDING' AND updated_at < now() - interval '10 minutes'
+               ORDER BY updated_at LIMIT 100 FOR UPDATE SKIP LOCKED)
+RETURNING id, user_id;
+```
+
 ---
 
 ## 9. Deletion behavior

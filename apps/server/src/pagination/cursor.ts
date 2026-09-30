@@ -25,6 +25,22 @@ export function decodeCursor(raw: string): Cursor {
   }
 }
 
+/** Cursor for lists in a fixed numbered order (chunks): the last row's index. */
+const indexCursorSchema = z.object({ n: z.number().int().nonnegative() });
+
+export function encodeIndexCursor(index: number): string {
+  return Buffer.from(JSON.stringify({ n: index })).toString('base64url');
+}
+
+/** Decodes a client index cursor; anything tampered or malformed → 400. */
+export function decodeIndexCursor(raw: string): number {
+  try {
+    return indexCursorSchema.parse(JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'))).n;
+  } catch {
+    throw new ValidationError({ cursor: 'Invalid cursor' });
+  }
+}
+
 /** Given `limit + 1` rows, returns the page and the cursor for the next one. */
 export function toPage<T>(rows: T[], limit: number, cursorOf: (row: T) => Cursor) {
   const items = rows.slice(0, limit);

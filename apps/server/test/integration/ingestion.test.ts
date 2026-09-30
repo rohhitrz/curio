@@ -19,6 +19,7 @@ import {
 } from '../../src/services/ingestion.service.js';
 import { createFakeEmbeddings, fakeVector, type FakeEmbeddings } from '../fakes/embeddings.js';
 import { createFakeScraper, createFakeTranscript } from '../fakes/extraction.js';
+import { createFakeJobs, type FakeJobs } from '../fakes/jobs.js';
 import { createFakeStorage, type FakeStorage } from '../fakes/storage.js';
 import { getTestDb, truncateAllTables } from '../helpers/db.js';
 import { buildPdf } from '../helpers/pdf.js';
@@ -32,6 +33,7 @@ let storage: FakeStorage;
 let scraper: ReturnType<typeof createFakeScraper>;
 let transcript: ReturnType<typeof createFakeTranscript>;
 let embeddings: FakeEmbeddings;
+let jobs: FakeJobs;
 let service: IngestionService;
 let userId: string;
 let notebookId: string;
@@ -45,8 +47,10 @@ function createService(overrides: Partial<IngestionDeps> = {}) {
     scraper: scraper.provider,
     transcript: transcript.provider,
     embeddings: embeddings.provider,
+    jobs: jobs.provider,
     logger: pino({ level: 'silent' }),
     chunking: { ...chunking, countTokens },
+    sweep: { processingTimeoutMinutes: 15, pendingResendMinutes: 10, batchSize: 100 },
     ...overrides,
   });
 }
@@ -133,6 +137,7 @@ beforeEach(async () => {
   });
   transcript = createFakeTranscript();
   embeddings = createFakeEmbeddings();
+  jobs = createFakeJobs();
   service = createService();
 
   const [user] = await db.insert(users).values({ clerkUserId: 'user_ingest' }).returning();

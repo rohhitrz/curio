@@ -16,7 +16,7 @@ export function createFakeJobs() {
         failNext = null;
         return Promise.reject(error);
       }
-      sent.push({ name, data });
+      sent.push({ name, data } as SentJobEvent);
     },
   };
 

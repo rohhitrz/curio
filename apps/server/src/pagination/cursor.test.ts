@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ValidationError } from '../errors/app-error.js';
-import { decodeCursor, encodeCursor, toPage } from './cursor.js';
+import {
+  decodeCursor,
+  decodeIndexCursor,
+  encodeCursor,
+  encodeIndexCursor,
+  toPage,
+} from './cursor.js';
 
 const cursor = { t: '2026-09-28T14:21:49.123456Z', i: '6f1d1c2e-4b8a-4e6b-9b1e-2f0c5d8a7e11' };
 
@@ -31,5 +37,21 @@ describe('cursor', () => {
 
     const last = toPage(rows, 3, (r) => r.c);
     expect(last.nextCursor).toBeNull();
+  });
+});
+
+describe('index cursor', () => {
+  it('round-trips and is opaque', () => {
+    expect(decodeIndexCursor(encodeIndexCursor(41))).toBe(41);
+    expect(encodeIndexCursor(41)).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it.each([
+    ['garbage', 'not-a-cursor'],
+    ['negative', Buffer.from(JSON.stringify({ n: -1 })).toString('base64url')],
+    ['not a whole number', Buffer.from(JSON.stringify({ n: 1.5 })).toString('base64url')],
+    ['a timestamp cursor', encodeCursor(cursor)],
+  ])('tampered cursor (%s) → 400', (_label, raw) => {
+    expect(() => decodeIndexCursor(raw)).toThrow(ValidationError);
   });
 });

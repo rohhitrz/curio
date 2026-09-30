@@ -29,7 +29,7 @@ export function createProcessSourceFunction(client: Inngest, service: IngestionS
     {
       id: 'process-source',
       name: 'Process source',
-      triggers: [{ event: 'source/created' }],
+      triggers: [{ event: 'source/created' }, { event: 'source/reprocess' }],
       retries: ingestion.retries,
       concurrency: [
         { limit: ingestion.concurrency },

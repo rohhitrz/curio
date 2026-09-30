@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paginatedResponseSchema } from './pagination.js';
 
 export const SOURCE_TITLE_MAX = 200;
 
@@ -83,3 +84,33 @@ export const fileUrlResponseSchema = z.object({
   expiresAt: z.iso.datetime(),
 });
 export type FileUrlResponse = z.infer<typeof fileUrlResponseSchema>;
+
+/** `GET /sources/:sourceId/content`. The extracted text, or null until the source has been read. */
+export const sourceContentSchema = z.object({
+  content: z.string().nullable(),
+});
+export type SourceContent = z.infer<typeof sourceContentSchema>;
+
+/** One indexed passage of a source, with where it sits in the original. */
+export const sourceChunkSchema = z.object({
+  id: z.uuid(),
+  chunkIndex: z.number().int().nonnegative(),
+  content: z.string(),
+  contextHeader: z.string(),
+  tokenCount: z.number().int().nonnegative(),
+  /** PDF. */
+  pageNumber: z.number().int().nullable(),
+  /** YouTube, whole seconds. */
+  startSeconds: z.number().int().nullable(),
+  endSeconds: z.number().int().nullable(),
+  /** Website / text. */
+  headingPath: z.string().nullable(),
+  /** Offsets into the source's content, for highlighting. */
+  charStart: z.number().int().nullable(),
+  charEnd: z.number().int().nullable(),
+});
+export type SourceChunk = z.infer<typeof sourceChunkSchema>;
+
+/** `GET /sources/:sourceId/chunks`, in document order, cursor-paginated. */
+export const sourceChunkListSchema = paginatedResponseSchema(sourceChunkSchema);
+export type SourceChunkList = z.infer<typeof sourceChunkListSchema>;
