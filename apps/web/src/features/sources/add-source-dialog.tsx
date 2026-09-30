@@ -78,7 +78,11 @@ const stageLabels: Record<PdfUploadStage, string> = {
 
 function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialogProps) {
   const [type, setType] = useState<SourceType>('PDF');
-  const [url, setUrl] = useState('');
+  /** Each URL tab keeps its own value, so a link typed on one never shows up on the other. */
+  const [urls, setUrls] = useState<Record<'WEBSITE' | 'YOUTUBE', string>>({
+    WEBSITE: '',
+    YOUTUBE: '',
+  });
   /** The PDF's title. The text note has its own, so a file name never shows up on the Text tab. */
   const [title, setTitle] = useState('');
   /** The title we filled in from the file name; replaced when the file changes unless edited. */
@@ -124,7 +128,7 @@ function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialo
     const body =
       type === 'TEXT'
         ? { type, title: textTitle, content }
-        : { type: type as 'WEBSITE' | 'YOUTUBE', url };
+        : { type: type as 'WEBSITE' | 'YOUTUBE', url: urls[type as 'WEBSITE' | 'YOUTUBE'] };
     const parsed = createSourceSchema.safeParse(body);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -258,11 +262,16 @@ function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialo
           error={fieldError('url')}
         >
           <Input
+            // A separate input per tab, so autoFocus and browser autofill apply to each tab
+            key={type}
             id="source-url"
             type="url"
             inputMode="url"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
+            value={urls[type]}
+            onChange={(event) => {
+              const value = event.target.value;
+              setUrls((prev) => ({ ...prev, [type]: value }));
+            }}
             placeholder={
               type === 'WEBSITE'
                 ? 'https://example.com/article'

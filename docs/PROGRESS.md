@@ -31,7 +31,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (live, `d53cff3`)
 - [x] 3.2 Extractors behind providers: `unpdf`, Firecrawl, Supadata, text; each failure classified transient or permanent with a user-facing message. Not wired into the app yet (that is 3.5)
 - [x] 3.3 Chunking module (pure): `pipelines/ingestion/chunk.ts`, tokens counted with `gpt-tokenizer`
-- [x] 3.4 Migration `0005_source_chunks` (applied on `dev` and `test`; **not on `main` yet**); OpenAI embeddings provider (batched)
+- [x] 3.4 Migration `0005_source_chunks` (applied on all three branches); OpenAI embeddings provider (batched)
 - [x] 3.5 `processSource` job: 4 Inngest steps (mark processing → extract → chunk → embed + atomic commit), idempotent, classified failures, stops when the source is gone (live)
 - [x] 3.6 Sweeper cron (every 5 min) · `POST /sources/:id/reprocess` · `GET /sources/:id/content` + `/chunks` · `notebook/deleted` R2 cleanup job
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
@@ -42,12 +42,9 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- **Resync Inngest** if not done since 3.6: dashboard → Apps → `curio` → Resync (should list 4 functions).
-- **Verify Phase 3 live, then approve it:**
-  - Add a PDF, a website and a YouTube video; each should reach `READY` (a text note already does).
-  - Add something that must fail (a scanned PDF, or a YouTube video without captions) → `FAILED` with a clear reason and a **Retry** button.
-  - On a `READY` source: ⋯ → **View text and chunks** (Text tab, Chunks tab, "Show in text"), and ⋯ → **Process again**.
-  - Delete a notebook that has a PDF and check the file leaves `curio-prod`.
+- **Live checks (2026-09-30, owner):** Inngest resynced. Text and YouTube reached `READY`; a scanned PDF → `FAILED` with the `NO_TEXT` message and Retry; deleting a notebook removed its PDF from `curio-prod`. Found: the Website and YouTube tabs shared one URL (fixed).
+- **Still to confirm:** a website source reaching `READY`, and the source error-code list in `04-api-design.md` §4.
+- **Then approve Phase 3.**
 - **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
@@ -204,7 +201,7 @@ API and server:
   - **Failed sources** show the reason and a **Retry** button on the row; the ⋯ menu has **Retry** (failed) or **Process again** (ready). Both call `POST /sources/:id/reprocess`; the list then polls again because the source is `PENDING`.
   - **Viewer** (`source-viewer-dialog.tsx`, ⋯ → **View text and chunks**, `READY` sources only): a Text tab (`GET /content`) and a Chunks tab (`GET /chunks`, 20 per page, "Load more"). Each chunk shows its number, location (page, time range or heading path) and token count; **Show in text** switches to the Text tab with that passage highlighted and scrolled into view (`charStart`/`charEnd`).
   - Pure helpers and their tests are in `features/sources/viewer.ts` (web tests run in Node, so only logic is unit-tested).
-  - **Add-source dialog:** the PDF and Text tabs now keep separate titles, so a chosen file's name no longer appears on the Text tab (owner-reported).
+  - **Add-source dialog:** the PDF and Text tabs now keep separate titles, so a chosen file's name no longer appears on the Text tab (owner-reported). The Website and YouTube tabs likewise keep separate URLs (owner-reported in the live Phase 3 check; checked in the browser).
   - **Checked in the browser** against the local API: failed row with Retry → Pending, the viewer's two tabs, "Show in text" highlight, and the phone layout (375 px, no sideways scroll). The dev rows used for this were restored afterwards. Not clicked: choosing a PDF file (needs a file picker).
 
 - **Code review fixes (2026-09-30, 4 findings from the owner's review of Phase 3):**
@@ -224,6 +221,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (live Phase 3 check)
+- Done: fixed the owner-reported shared URL between the Website and YouTube tabs of the add dialog
+- Notes: web typecheck, lint and 54 web tests pass; checked in the browser against the local API. Phase 3 still awaits approval
 
 ### 2026-09-30 (review fixes 3)
 - Done: 4 owner-reported fixes from the Phase 3 code review (duplicate runs, NUL characters, sweeper clock, `INNGEST_DEV` in production)
