@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 3 (Ingestion pipeline), in progress
-- **Current step:** 3.3 (chunking module)
+- **Current step:** 3.4 (`source_chunks` migration + embeddings provider)
 - **Blocked on:** nothing
-- **Next step:** 3.3
+- **Next step:** 3.4
 
 ## Phases
 | # | Phase | Status |
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 3
 - [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (live, `d53cff3`)
 - [x] 3.2 Extractors behind providers: `unpdf`, Firecrawl, Supadata, text; each failure classified transient or permanent with a user-facing message. Not wired into the app yet (that is 3.5)
-- [ ] 3.3 Chunking module (pure)
+- [x] 3.3 Chunking module (pure): `pipelines/ingestion/chunk.ts`, tokens counted with `gpt-tokenizer`
 - [ ] 3.4 Migration: `source_chunks`; embeddings provider (batched)
 - [ ] 3.5 `processSource` job
 - [ ] 3.6 Sweeper cron · `reprocess` · `content` + `chunks` endpoints · `notebook/deleted` R2 cleanup job
@@ -38,7 +38,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Resume here: Phase 3
 1. 3.1 is deployed and checked (2026-09-30): `/health` 200; unsigned `GET` and `POST /api/inngest` → 401.
-2. Build 3.3 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. All Phase 3 key names are in local `.env` (checked by name, 2026-09-30). `FIRECRAWL_API_KEY` and `TRANSCRIPT_API_KEY` are **not** in `config/env.ts` yet: add them as required in 3.5, when the providers are wired into the app, and only after they are on Vercel.
+2. Build 3.4 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. All Phase 3 key names are in local `.env` (checked by name, 2026-09-30). `FIRECRAWL_API_KEY` and `TRANSCRIPT_API_KEY` are **not** in `config/env.ts` yet: add them as required in 3.5, when the providers are wired into the app, and only after they are on Vercel.
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
@@ -80,6 +80,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Vercel env values are stored literally.** Paste without the quotes used in `.env`; quoted values broke `DATABASE_URL` once.
 
 ## Environments & runbook
+- **Formatting:** run Prettier from the **repo root** (`pnpm format`, or `npx prettier --write <path>` there). Run from `apps/server` it ignores the root `.prettierignore` and reformats the Drizzle migration snapshots. After a failed `pnpm --filter @curio/server build`, check `git status` for stray `.js` files under `apps/server/test` before `git add`.
 - **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
@@ -150,7 +151,19 @@ API and server:
   - **Firecrawl** `POST /v2/scrape` (markdown, main content only). It reports a failed scrape as **HTTP 200 with `success: false`** and a `code` (seen live for a DNS failure), and reports the target page's own status in `metadata.statusCode` (404/410 → `PAGE_NOT_FOUND`, 401/403 → `PAGE_BLOCKED`).
   - **Supadata** `GET /v1/metadata` (title, length) then `GET /v1/transcript?mode=native`. No captions comes back as **HTTP 206** with `error: transcript-unavailable`. A 202 means a background job, polled up to 10 × 3 s. The 3-hour limit is checked before the transcript is fetched.
   - **PDF:** type checked by content (`%PDF-` in the first 1024 bytes); no text on any page → `NO_TEXT` (scanned); unreadable or password-protected → `INVALID_FILE`.
+  - **Tests that need fakes or helpers live in `test/unit/`**, not next to the source: `tsconfig.build.json` compiles `src/**` with `rootDir: src`, so a `src` test importing from `test/` breaks the build.
   - **Real smoke test (one scratch script, since deleted):** Firecrawl scraped a page, mapped a 404 page and a dead domain; Supadata returned a video's details and 61 caption segments and mapped a missing video; R2 `download` of a missing key returned null. Not exercised live: a video without captions, a password-protected PDF, R2 `download` of an existing file.
+- **Chunking (3.3):**
+  - `chunkContent(content, { title, targetTokens, overlapRatio, countTokens })` → `{ text, chunks }`. Pure; the job passes `config.chunking` (500 / 0.15) and `countTokens` from `pipelines/ingestion/tokens.ts` (`gpt-tokenizer`, `cl100k_base`, the encoding of `text-embedding-3-small`; owner-approved dependency).
+  - **`text` is the source's full text** (what 3.5 stores in `extracted_text`): markdown as is, PDF pages joined by a blank line, caption segments joined by a space. Every chunk's `content` is an exact slice of it (`charStart`/`charEnd`), so the viewer can highlight it.
+  - **Hard boundaries:** a chunk never crosses a PDF page or a markdown heading (`#`–`######`; fenced code is skipped). A transcript has none. Overlap is only applied inside a boundary.
+  - **Packing:** units are sentences and lines (one caption segment for YouTube). They are packed up to the target; the chunk ends early at a paragraph break when it is at least half full and the next paragraph would not fit whole. A unit over the target is cut into word runs, and an unbroken string by length.
+  - **Overlap:** the next chunk starts with the previous chunk's trailing units, up to `target × ratio` tokens (75). If the last unit alone is bigger, there is no overlap.
+  - **Sizes:** the units of a chunk never add up to more than the target; `tokenCount` is measured on the final text, so it can be a few tokens higher (separators).
+  - **Context header:** website/text = `Title › Heading › Subheading` (a first heading equal to the title is not repeated); PDF and YouTube = the title only (page numbers and timestamps would be noise in the embedding).
+  - **Locations:** `pageNumber` (PDF), `startSeconds`/`endSeconds` floored/ceiled to whole seconds (YouTube), `headingPath` (website/text; null before the first heading).
+  - **Tuning points for Phase 6:** small sections each become their own small chunk (no merging across headings); only ATX headings count.
+
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -162,6 +175,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (3.3)
+- Done: 3.3 (chunking module)
+- Notes: 315 tests passing (281 server, 34 web)
 
 ### 2026-09-30 (3.2)
 - Done: 3.2 (extractors for all 4 types behind providers, classified errors, decision I-12 = Supadata)
