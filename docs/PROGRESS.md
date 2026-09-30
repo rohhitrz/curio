@@ -6,7 +6,7 @@
 ## Current status
 - **Phase:** 5 (Basic RAG chat), not started
 - **Current step:** none (Phase 4 approved 2026-10-01)
-- **Blocked on:** Upstash Redis keys in `.env` (Langfuse keys are in)
+- **Blocked on:** nothing (Langfuse and Upstash keys are in `.env`)
 - **Next step:** 5.1 migration `conversations`, `messages`
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
@@ -45,14 +45,13 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 4
-0. **Phase 4 approved (2026-10-01). Phase 5 can start once `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are in `.env`.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+0. **Phase 4 approved (2026-10-01). All Phase 5 keys are in `.env`; start with 5.1.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
 1. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
 2. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
 3. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
 4. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Before Phase 5:** add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (Upstash console → your Redis database → REST API) to `.env`. Langfuse keys are already in.
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
@@ -77,7 +76,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Firecrawl | 3 | ✅ Key in local `.env` (works, smoke-tested) and on Vercel (Production) |
 | Supadata (transcripts) | 3 | ✅ Key in local `.env` (`TRANSCRIPT_API_KEY`, works, smoke-tested) and on Vercel (Production) |
 | Langfuse | 5 | 🔶 Keys in local `.env` (`LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_BASE_URL`); not on Vercel yet |
-| Upstash | 5 | ⬜ Not in `.env` yet (`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`) |
+| Upstash | 5 | 🔶 Redis database `curio` (AWS us-west-2, free plan, eviction off); `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` in local `.env` (PING works, 2026-10-01); not on Vercel yet |
 | Cohere / Jina | 6 | ⬜ Not set up |
 | Tavily | 8 | 🔶 Key already in local `.env` (`TAVILY_API_KEY`); unused until Phase 8 |
 
@@ -281,7 +280,8 @@ What it says for Phase 6:
 -->
 
 ### 2026-10-01 (Phase 4 approved)
-- Owner approved Phase 4. Langfuse keys are in `.env`; Upstash keys still to add before Phase 5
+- Owner approved Phase 4. Langfuse and Upstash keys are in `.env` (Upstash PING checked). Phase 5 is ready to start
+- Notes: Neon is in AWS us-west-2 (Oregon); the Vercel function region wasn't confirmed (Vercel's default is Washington D.C.). Check and align it in Phase 6's latency work
 
 ### 2026-10-01 (review fixes 4)
 - Done: run ownership for job runs (`processing_run_id`, migration `0007` on `dev` + `test`); queue-wait limit of the sweeper documented, full fix in `todo-v2.md`
