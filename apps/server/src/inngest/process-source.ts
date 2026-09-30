@@ -1,9 +1,24 @@
 import type { Inngest } from 'inngest';
 import { z } from 'zod';
 import { ingestion } from '../config/index.js';
+import { SourceErrorCode } from '../errors/ingestion-error.js';
 import type { IngestionService, StepResult } from '../services/ingestion.service.js';
 
 const eventData = z.object({ sourceId: z.uuid(), userId: z.uuid() });
+
+/**
+ * A step's result as it comes back from Inngest, which stores step output as JSON. Parsing it
+ * keeps the types honest whichever TypeScript settings the host builds with.
+ */
+const stepResult: z.ZodType<StepResult> = z.union([
+  z.object({ status: z.literal('ok'), chunkCount: z.number().optional() }),
+  z.object({ status: z.literal('stopped'), reason: z.literal('not_found') }),
+  z.object({
+    status: z.literal('stopped'),
+    reason: z.literal('failed'),
+    code: z.enum(SourceErrorCode),
+  }),
+]);
 
 /**
  * Turns a `PENDING` source into `READY` or `FAILED`. Steps pass only the source ID; everything
@@ -32,16 +47,21 @@ export function createProcessSourceFunction(client: Inngest, service: IngestionS
       // `attempt` counts the tries of the step that is about to run, starting at 0.
       const stepAttempt = { isLastAttempt: attempt >= ingestion.retries };
 
-      const started = await step.run('mark-processing', () => service.start(ref));
+      const run = async (id: string, work: () => Promise<StepResult>): Promise<StepResult> => {
+        const result: unknown = await step.run(id, work);
+        return stepResult.parse(result);
+      };
+
+      const started = await run('mark-processing', () => service.start(ref));
       if (started.status !== 'ok') return started;
 
-      const extracted = await step.run('extract', () => service.extract(ref, stepAttempt));
+      const extracted = await run('extract', () => service.extract(ref, stepAttempt));
       if (extracted.status !== 'ok') return extracted;
 
-      const chunked = await step.run('chunk', () => service.chunk(ref, stepAttempt));
+      const chunked = await run('chunk', () => service.chunk(ref, stepAttempt));
       if (chunked.status !== 'ok') return chunked;
 
-      return step.run('embed-and-commit', () => service.embedAndCommit(ref, stepAttempt));
+      return run('embed-and-commit', () => service.embedAndCommit(ref, stepAttempt));
     },
   );
 }
