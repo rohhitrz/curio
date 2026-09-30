@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 5 (Basic RAG chat), not started
-- **Current step:** none (Phase 4 approved 2026-10-01)
+- **Phase:** 5 (Basic RAG chat), in progress
+- **Current step:** 5.1 done
 - **Blocked on:** nothing (Langfuse and Upstash keys are in `.env`)
-- **Next step:** 5.1 migration `conversations`, `messages`
+- **Next step:** 5.2 LLM provider (Luna, per-task config, static prompt prefix first) + Langfuse tracing wrapper
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -18,7 +18,7 @@
 | 2 | Sources (no processing) | ✅ Done (owner approved) |
 | 3 | Ingestion pipeline | ✅ Done (owner approved) |
 | 4 | Eval foundation | ✅ Done (owner approved) |
-| 5 | Basic RAG chat | ⏳ Not started |
+| 5 | Basic RAG chat | 🔨 In progress |
 | 6 | Advanced retrieval | ⏳ Not started |
 | 7 | Memory | ⏳ Not started |
 | 8 | Learning paths | ⏳ Not started |
@@ -28,7 +28,15 @@
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 4
+## Current phase steps: Phase 5
+- [x] 5.1 Migration `0008_conversations_messages` (on all three branches; prod run by the owner, 2026-10-01) · shared chat enums + `citationSnapshotSchema` in `packages/shared/src/chat.ts`
+- [ ] 5.2 LLM provider (Luna, per-task config, static prompt prefix first) + Langfuse tracing wrapper
+- [ ] 5.3 Generation: grounded prompt, context building, `[n]` citations → citation snapshots
+- [ ] 5.4 Chat API: conversations CRUD, messages (newest first), streaming send, Redis busy lock, continue on disconnect, retry, feedback → Langfuse
+- [ ] 5.5 Frontend: chat UI, streaming, status events, citations open the exact spot, 👍 / 👎
+- [ ] 5.6 Eval runner: answer metrics (faithfulness, correctness, citation accuracy, refusal accuracy) with Sol as judge → full baseline
+
+## Phase 4 steps (done)
 - [x] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
 - [x] 4.2 Golden dataset: 7 documents (all types), 60 answerable questions + 10 unanswerable in `evals/dataset/`
 - [x] 🛑 Owner reviews and fixes the dataset (owner spot-checked a sample and approved it as is, 2026-09-30)
@@ -44,12 +52,14 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.6 Sweeper cron (every 5 min) · `POST /sources/:id/reprocess` · `GET /sources/:id/content` + `/chunks` · `notebook/deleted` R2 cleanup job
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
-## Resume here: Phase 4
-0. **Phase 4 approved (2026-10-01). All Phase 5 keys are in `.env`; start with 5.1.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
-1. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
-2. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
-3. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
-4. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
+## Resume here: Phase 5
+0. **5.1 done; next is 5.2.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
+2. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
+3. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
+4. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
+5. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
+6. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
@@ -96,7 +106,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
-- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30); `0007_sources_processing_run_id` on all three (prod run by the owner, 2026-10-01). The agent can't verify production; prod runs are as reported by the owner.
+- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30); `0007_sources_processing_run_id` on all three (prod run by the owner, 2026-10-01); `0008_conversations_messages` on all three (prod run by the owner, 2026-10-01). The agent can't verify production; prod runs are as reported by the owner.
 - **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + `OPENAI_API_KEY` + `FIRECRAWL_API_KEY` + `TRANSCRIPT_API_KEY` (Secret, Production only; all five are required at boot), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
@@ -278,6 +288,10 @@ What it says for Phase 6:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (5.1)
+- Done: 5.1 migration `0008_conversations_messages` (`conversations`, `messages`, enums `message_role` / `generation_status` / `feedback`), applied on `dev` + `test`; shared chat enums and citation snapshot schema
+- Notes: `lesson_id` FK deferred to Phase 9 (see Resume here). Owner ran `0008` on production
 
 ### 2026-10-01 (Phase 4 approved)
 - Owner approved Phase 4. Langfuse and Upstash keys are in `.env` (Upstash PING checked). Phase 5 is ready to start

@@ -213,7 +213,7 @@
 
 | Step | Work |
 |---|---|
-| 9.1 | Migration: `lessons`; lesson pipeline (retrieval per concept → structured lesson → stream), versions, Redis lock |
+| 9.1 | Migration: `lessons` (also adds the FK `conversations.lesson_id → lessons.id`, ON DELETE SET NULL; the column exists since 5.1); lesson pipeline (retrieval per concept → structured lesson → stream), versions, Redis lock |
 | 9.2 | Lesson API: get latest, generate (stream), get version |
 | 9.3 | `PUT /completion` + `UNDERSTOOD` memories (added and removed) |
 | 9.4 | "Ask about this": chat filtered by the lesson's cited sources |
