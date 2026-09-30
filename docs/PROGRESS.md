@@ -6,8 +6,8 @@
 ## Current status
 - **Phase:** 3 (Ingestion pipeline), in progress
 - **Current step:** 3.2 (extractors behind providers)
-- **Blocked on:** the 3.1 commit is **not pushed yet**. Vercel `curio-server` has no `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY`, and the server now refuses to boot without them, so pushing first would take production down. Owner adds both (Production + Preview, no quotes), then the agent pushes.
-- **Next step:** push 3.1 and check the deployment, then 3.2
+- **Blocked on:** nothing. 3.1 is live (`d53cff3`)
+- **Next step:** 3.2
 
 ## Phases
 | # | Phase | Status |
@@ -28,7 +28,7 @@
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 3
-- [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (committed, push waits on the Vercel keys)
+- [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (live, `d53cff3`)
 - [ ] 3.2 Extractors behind providers: `unpdf`, Firecrawl, transcript API, text; transient vs permanent errors
 - [ ] 3.3 Chunking module (pure)
 - [ ] 3.4 Migration: `source_chunks`; embeddings provider (batched)
@@ -37,14 +37,14 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [ ] 3.7 Frontend: failure reason + retry, text source viewer, chunk viewer
 
 ## Resume here: Phase 3
-1. If the 3.1 commit is still unpushed: check by name that Vercel `curio-server` has `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`, push, and check both deployments are healthy (`/health` 200; unsigned `GET /api/inngest` → 401).
+1. 3.1 is deployed and checked (2026-09-30): `/health` 200; unsigned `GET` and `POST /api/inngest` → 401.
 2. Build 3.2 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. `unpdf`, the OpenAI SDK and the Firecrawl SDK are already named in `02-system-design.md`; the transcript vendor is decision I-12 (record it in `07-decisions.md` in 3.2). All Phase 3 key names are in local `.env` (checked by name, 2026-09-30).
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- **Vercel `curio-server`:** add `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` (Production + Preview, no quotes). Do **not** set `INNGEST_DEV` there. Needed before 3.1 is pushed.
-- **Inngest dashboard, after that deploy:** Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. It will show 0 functions until 3.5.
-- **Before 3.5 deploys:** add `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` to Vercel `curio-server` too.
+- **Inngest dashboard:** Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. It will show 0 functions until 3.5.
+- **Before 3.5 deploys:** add `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` to Vercel `curio-server` too (type Secret).
+- **Optional:** the two Inngest keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
 - Private buckets `curio-dev` (local, `.env`) and `curio-prod` (Vercel `curio-server`, Production + Preview). One Object Read & Write token per bucket, each scoped to its own bucket. Local `.env` also keeps the prod keys as `R2_ACCESS_KEY_ID_PROD` / `R2_SECRET_ACCESS_KEY_PROD`; the app ignores those names.
@@ -60,7 +60,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
 | Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
-| Inngest | 3 | 🔶 Keys in local `.env`; not on Vercel yet; app not synced yet |
+| Inngest | 3 | 🔶 Keys in local `.env` and on Vercel (Production only); app not synced in the dashboard yet |
 | OpenAI | 3 | 🔶 Key in local `.env`; not on Vercel yet |
 | Firecrawl | 3 | 🔶 Key in local `.env`; not on Vercel yet |
 | Transcript API | 3 | 🔶 Key in local `.env` (`TRANSCRIPT_API_KEY`; vendor = decision I-12); not on Vercel yet |
@@ -84,7 +84,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
 - **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30).
-- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
+- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (Secret, Production only), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
 
@@ -153,7 +153,8 @@ API and server:
 
 ### 2026-09-30 (Phase 3 start)
 - Done: 3.1 (Inngest client, signed `/api/inngest`, `dev:inngest`, `source/created` on source creation)
-- Notes: 218 tests passing (184 server, 34 web). The commit is held back from `origin` until the owner adds the two Inngest keys to Vercel `curio-server` (see "Current status")
+- Notes: 218 tests passing (184 server, 34 web). Held back until the owner added the two Inngest keys to Vercel, then pushed; both deployments `READY`, `/health` 200, unsigned `/api/inngest` → 401
+- Commits: `d53cff3`
 
 ### 2026-09-30 (Phase 2 approved)
 - Owner approved Phase 2. `.env.example` lists the Phase 3 key names; Phase 3 starts in a new session once the keys are in `.env`
