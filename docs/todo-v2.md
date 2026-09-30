@@ -4,17 +4,27 @@
 > Come back to this once Phase 11 is done. Add an entry whenever something is deferred.
 
 ## Sources
-- [ ] **YouTube link on the Website tab:** today it is accepted and read as a web page (poor text). Show "This is a YouTube video, use the YouTube tab" instead. The reverse (a web link on the YouTube tab) is already rejected. _(Owner, Phase 3 live check, 2026-09-30)_
-- [ ] **Orphaned PDF uploads in R2:** a duplicate PDF is only detected after its upload, which leaves the file in R2 with no source. Add a cleanup job for uploads that never became a source. _(2.5)_
-- [ ] **Scanned PDFs:** `NO_TEXT` today; OCR would make them usable. _(3.2)_
+
+- [ ] **YouTube link on the Website tab:** today it is accepted and read as a web page (poor text). Show "This is a YouTube video, use the YouTube tab" instead. The reverse (a web link on the YouTube tab) is already rejected. *(Owner, Phase 3 live check, 2026-09-30)*
+- [ ] **Orphaned PDF uploads in R2:** a duplicate PDF is only detected after its upload, which leaves the file in R2 with no source. Add a cleanup job for uploads that never became a source. *(2.5)*
+- [ ] **Scanned PDFs:** `NO_TEXT` today; OCR would make them usable. *(3.2)*
+
+
 
 ## Accounts and deploys
-- [ ] **Clerk production instance:** still on dev keys, because a production instance needs a custom domain. _(1.x)_
-- [ ] **Vercel Preview env:** the Inngest, OpenAI, Firecrawl and transcript keys are Production only, so `curio-server` preview deployments won't boot. _(3.x)_
-- [ ] **Leftover dev upload:** a 12.7 MB file in `curio-dev` from 2026-09-29 under user `7226501d…`, likely an orphan from manual testing. _(2026-09-30)_
+
+- [ ] **Clerk production instance:** still on dev keys, because a production instance needs a custom domain. *(1.x)*
+- [ ] **Vercel Preview env:** the Inngest, OpenAI, Firecrawl and transcript keys are Production only, so `curio-server` preview deployments won't boot. *(3.x)*
+- [ ] **Leftover dev upload:** a 12.7 MB file in `curio-dev` from 2026-09-29 under user `7226501d…`, likely an orphan from manual testing. *(2026-09-30)*
+
+
 
 ## Tooling
-- [ ] **TypeScript 7:** pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7. Revisit when it does. _(0.1)_
+
+- [ ] **TypeScript 7:** pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7. Revisit when it does. *(0.1)*
+
+
 
 ## Not yet exercised live
-- [ ] A password-protected PDF, and a YouTube video without captions (both covered by tests with fakes only). _(3.2)_
+
+- [ ] A password-protected PDF, and a YouTube video without captions (both covered by tests with fakes only). *(3.2)*

@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 4 (Eval foundation), in progress
-- **Current step:** 🛑 STOP after 4.2: the golden dataset is drafted and waits for the owner's review
-- **Blocked on:** owner reviewing `evals/dataset/` (see "Pending on owner")
-- **Next step:** apply the owner's dataset fixes, then 4.3 eval runner
+- **Current step:** 4.3 eval runner
+- **Blocked on:** nothing
+- **Next step:** 4.4 run and commit the baseline
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -31,7 +31,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 4
 - [x] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
 - [x] 4.2 Golden dataset: 7 documents (all types), 60 answerable questions + 10 unanswerable in `evals/dataset/`
-- [ ] 🛑 Owner reviews and fixes the dataset (current)
+- [x] 🛑 Owner reviews and fixes the dataset (owner spot-checked a sample and approved it as is, 2026-09-30)
 - [ ] 4.3 Eval runner (`pnpm eval`): hit rate@k + MRR, JSON to `evals/results/`
 - [ ] 4.4 Run and commit the baseline
 
@@ -45,13 +45,13 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 4
-1. **Do not start 4.3 until the owner has reviewed the dataset.** Apply their fixes to `evals/dataset/questions.jsonl`, then run `pnpm --filter @curio/evals check`.
+1. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
 2. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
 3. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
 4. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **🛑 Review the golden dataset** (4.2). Run `pnpm --filter @curio/evals review`, then read `evals/.cache/review.md`: every question with its expected answer and the source text at its expected location. Check that each answer is right, that the location is where it's said, and that the unanswerable ones really aren't in the documents. Edit `evals/dataset/questions.jsonl` directly or tell the agent what to change.
+- Nothing. The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
 - **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
