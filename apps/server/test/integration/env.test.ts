@@ -14,6 +14,8 @@ const validEnv = {
   R2_SECRET_ACCESS_KEY: 'secret',
   R2_BUCKET: 'curio-test',
   CORS_ORIGINS: 'http://localhost:3000',
+  INNGEST_EVENT_KEY: 'event-key',
+  INNGEST_SIGNING_KEY: 'signkey-test-abc',
 };
 
 describe('env validation', () => {
@@ -25,6 +27,29 @@ describe('env validation', () => {
     expect(() => loadEnv({})).toThrow('R2_SECRET_ACCESS_KEY is required');
     expect(() => loadEnv({})).toThrow('R2_BUCKET is required');
     expect(() => loadEnv({})).toThrow('CORS_ORIGINS is required');
+    expect(() => loadEnv({})).toThrow('INNGEST_EVENT_KEY is required');
+    expect(() => loadEnv({})).toThrow('INNGEST_SIGNING_KEY is required');
+  });
+
+  it.each(['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY'])(
+    '%s missing outside dev mode → refuses to start',
+    (name) => {
+      for (const dev of [undefined, '0', 'false']) {
+        expect(() => loadEnv({ ...validEnv, INNGEST_DEV: dev, [name]: '' })).toThrow(
+          `${name} is required (or set INNGEST_DEV=1 to use the local Inngest dev server)`,
+        );
+      }
+    },
+  );
+
+  it('INNGEST_DEV=1 → starts without Inngest keys', () => {
+    const { INNGEST_EVENT_KEY: _event, INNGEST_SIGNING_KEY: _signing, ...withoutKeys } = validEnv;
+    expect(loadEnv({ ...withoutKeys, INNGEST_DEV: '1' })).toMatchObject({ INNGEST_DEV: true });
+    expect(loadEnv({ ...withoutKeys, INNGEST_DEV: 'true' })).toMatchObject({ INNGEST_DEV: true });
+  });
+
+  it('INNGEST_DEV with an unknown value → refuses to start', () => {
+    expect(() => loadEnv({ ...validEnv, INNGEST_DEV: 'yes' })).toThrow('INNGEST_DEV: ');
   });
 
   it.each([
@@ -59,6 +84,7 @@ describe('env validation', () => {
       NODE_ENV: 'production',
       PORT: 4000,
       CORS_ORIGINS: ['http://a.test', 'http://b.test'],
+      INNGEST_DEV: false,
     });
   });
 

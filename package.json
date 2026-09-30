@@ -9,6 +9,7 @@
   "scripts": {
     "build:shared": "pnpm --filter @curio/shared build",
     "dev": "pnpm build:shared && pnpm -r --parallel --if-present dev",
+    "dev:inngest": "npx --yes inngest-cli@latest dev --no-discovery -u http://localhost:4000/api/inngest",
     "build": "pnpm -r --if-present build",
     "test": "pnpm build:shared && pnpm -r --if-present test",
     "typecheck": "pnpm build:shared && pnpm -r --if-present typecheck",

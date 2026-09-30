@@ -21,6 +21,12 @@ const corsOrigins = z
   )
   .pipe(z.array(origin).min(1, 'must list at least one origin'));
 
+/** `1`/`true` turns a flag on; unset is off. */
+const flag = z
+  .enum(['0', '1', 'true', 'false'])
+  .default('0')
+  .transform((value) => value === '1' || value === 'true');
+
 const envSchema = z.object({
   // Unset means production: `development` turns on `pino-pretty`, a devDependency that isn't
   // installed in production builds, so defaulting to it crashes any non-Vercel deploy on boot.
@@ -35,7 +41,23 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET: z.string().min(1),
+  // Dev mode uses the local Inngest dev server: no keys, and requests to `/api/inngest` aren't
+  // signed. Everywhere else both keys are required (checked in `loadEnv`).
+  INNGEST_DEV: flag,
+  INNGEST_EVENT_KEY: z.string().min(1).optional(),
+  INNGEST_SIGNING_KEY: z.string().min(1).optional(),
 });
+
+const INNGEST_KEYS = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY'] as const;
+
+/** Without dev mode, a missing key would leave `/api/inngest` unable to verify or send anything. */
+function missingInngestKeys(source: NodeJS.ProcessEnv): string[] {
+  const dev = flag.safeParse(source.INNGEST_DEV);
+  if (dev.success && dev.data) return [];
+  return INNGEST_KEYS.filter((name) => !source[name]).map(
+    (name) => `${name} is required (or set INNGEST_DEV=1 to use the local Inngest dev server)`,
+  );
+}
 
 export type Env = z.infer<typeof envSchema>;
 
@@ -49,16 +71,16 @@ export class EnvError extends Error {
 /** Validates env vars. Throws `EnvError` listing every missing or invalid var. */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const result = envSchema.safeParse(source);
-  if (!result.success) {
-    throw new EnvError(
-      result.error.issues.map((issue) => {
+  const problems = result.success
+    ? []
+    : result.error.issues.map((issue) => {
         const name = issue.path.join('.');
         const raw = source[String(issue.path[0])];
         return raw === undefined || raw === ''
           ? `${name} is required`
           : `${name}: ${issue.message}`;
-      }),
-    );
-  }
+      });
+  problems.push(...missingInngestKeys(source));
+  if (!result.success || problems.length > 0) throw new EnvError(problems);
   return result.data;
 }

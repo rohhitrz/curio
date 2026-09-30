@@ -15,6 +15,7 @@ import {
   ServiceUnavailableError,
   ValidationError,
 } from '../errors/app-error.js';
+import type { JobsProvider } from '../lib/jobs/index.js';
 import type { StorageProvider } from '../lib/storage/index.js';
 import type {
   NewSource,
@@ -81,6 +82,7 @@ function titleFromUrl(normalized: string): string {
 export function createSourcesService(
   repository: SourcesRepository,
   storage: StorageProvider,
+  jobs: JobsProvider,
   logger: Logger,
 ) {
   async function toNewSource(userId: string, input: CreateSourceInput): Promise<NewSource> {
@@ -211,7 +213,11 @@ export function createSourcesService(
       return { uploadUrl, storageKey, expiresAt };
     },
 
-    /** Saves the source as `PENDING`. Processing starts in Phase 3 (`source/created`). */
+    /**
+     * Saves the source as `PENDING`, then sends `source/created` to start processing. The row is
+     * already committed by then, so a failed send still returns the source: failing the request
+     * would make a retry hit `DUPLICATE_SOURCE`. It stays `PENDING` until it is picked up again.
+     */
     async create(userId: string, notebookId: string, input: CreateSourceInput): Promise<Source> {
       // Ownership first, so another user's notebook is a 404 before any upload-key checks.
       if (!(await repository.ownsNotebook(userId, notebookId))) throw notebookNotFound();
@@ -224,8 +230,15 @@ export function createSourcesService(
       );
 
       switch (result.kind) {
-        case 'created':
+        case 'created': {
+          const sourceId = result.row.id;
+          try {
+            await jobs.send('source/created', { sourceId, userId });
+          } catch (err) {
+            logger.warn({ err, sourceId }, 'source/created not sent: source left PENDING');
+          }
           return toSource(result.row);
+        }
         case 'duplicate':
           throw new AppError('DUPLICATE_SOURCE', 'This source is already in the notebook.', {
             existingSourceId: result.existingId,

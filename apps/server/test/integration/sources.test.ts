@@ -12,6 +12,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { quotas, uploads } from '../../src/config/index.js';
 import { sources, users } from '../../src/db/schema/index.js';
+import { createFakeJobs, type FakeJobs } from '../fakes/jobs.js';
 import { createFakeStorage, type FakeStorage } from '../fakes/storage.js';
 import { bearer, createTestApp } from '../helpers/app.js';
 import { getTestDb, truncateAllTables } from '../helpers/db.js';
@@ -22,6 +23,7 @@ const PDF_HASH = 'a'.repeat(64);
 const VIDEO_ID = 'dQw4w9WgXcQ';
 
 let storage: FakeStorage;
+let jobs: FakeJobs;
 let app: ReturnType<typeof createTestApp>;
 
 async function createNotebook(auth: string, title = 'Notebook'): Promise<string> {
@@ -71,7 +73,8 @@ async function userIdOf(clerkUserId: string): Promise<string> {
 beforeEach(async () => {
   await truncateAllTables();
   storage = createFakeStorage();
-  app = createTestApp(storage);
+  jobs = createFakeJobs();
+  app = createTestApp({ storage, jobs });
 });
 
 describe('add each source type', () => {
@@ -152,6 +155,67 @@ describe('add each source type', () => {
     expect(storageKey.startsWith(`users/${aliceId}/uploads/`)).toBe(true);
     const [row] = await getTestDb().select().from(sources).where(eq(sources.id, source.id));
     expect(row).toMatchObject({ userId: aliceId, storageKey, contentHash: PDF_HASH });
+  });
+});
+
+describe('source/created event', () => {
+  it('each source type sends exactly one event with the source and user IDs', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const storageKey = await uploadPdf(ALICE, notebookId);
+    const bodies = [
+      { type: 'WEBSITE', url: 'https://example.com/a' },
+      { type: 'YOUTUBE', url: `https://youtu.be/${VIDEO_ID}` },
+      { type: 'TEXT', title: 'Notes', content: 'Some text.' },
+      { type: 'PDF', title: 'Lecture', storageKey, contentHash: PDF_HASH },
+    ];
+
+    const sourceIds: string[] = [];
+    for (const body of bodies) {
+      const res = await addSource(ALICE, notebookId, body);
+      expect(res.status).toBe(202);
+      sourceIds.push(sourceSchema.parse(res.body).id);
+    }
+
+    const userId = await userIdOf('user_alice');
+    expect(jobs.sent).toEqual(
+      sourceIds.map((sourceId) => ({ name: 'source/created', data: { sourceId, userId } })),
+    );
+  });
+
+  it('a duplicate → 409 and no second event', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const body = { type: 'WEBSITE', url: 'https://example.com/a' };
+    await addSource(ALICE, notebookId, body);
+
+    const res = await addSource(ALICE, notebookId, body);
+
+    expect(res.status).toBe(409);
+    expect(jobs.sent).toHaveLength(1);
+  });
+
+  it('a rejected source (validation, not found) sends nothing', async () => {
+    const notebookId = await createNotebook(ALICE);
+
+    const invalid = await addSource(ALICE, notebookId, { type: 'YOUTUBE', url: 'https://x.test' });
+    const notOwned = await addSource(BOB, notebookId, { type: 'WEBSITE', url: 'https://x.test' });
+
+    expect(invalid.status).toBe(400);
+    expect(notOwned.status).toBe(404);
+    expect(jobs.sent).toEqual([]);
+  });
+
+  it('the job service is down → still 202; the source is saved and stays PENDING', async () => {
+    const notebookId = await createNotebook(ALICE);
+    jobs.failNextSend(new Error('inngest down'));
+
+    const res = await addSource(ALICE, notebookId, { type: 'WEBSITE', url: 'https://x.test/a' });
+
+    expect(res.status).toBe(202);
+    const source = sourceSchema.parse(res.body);
+    expect(source.status).toBe('PENDING');
+    expect(jobs.sent).toEqual([]);
+    const [row] = await getTestDb().select().from(sources).where(eq(sources.id, source.id));
+    expect(row?.status).toBe('PENDING');
   });
 });
 

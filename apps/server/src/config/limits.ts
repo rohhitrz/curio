@@ -50,4 +50,6 @@ export const uploads = {
 export const requests = {
   /** JSON body cap. Pasted text can be 100k chars, which is up to ~400 KB of UTF-8. */
   jsonBodyLimit: '1mb',
+  /** Inngest sends a run's step results back with each call, so its endpoint gets more room. */
+  inngestBodyLimit: '4mb',
 } as const;

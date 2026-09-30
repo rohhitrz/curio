@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 3 (Ingestion pipeline), not started
-- **Current step:** 3.1 (Inngest client + signed endpoint)
-- **Blocked on:** owner adding the Phase 3 keys to `.env` (names are in `.env.example`)
-- **Next step:** 3.1, once the keys are in (see "Resume here")
+- **Phase:** 3 (Ingestion pipeline), in progress
+- **Current step:** 3.2 (extractors behind providers)
+- **Blocked on:** the 3.1 commit is **not pushed yet**. Vercel `curio-server` has no `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY`, and the server now refuses to boot without them, so pushing first would take production down. Owner adds both (Production + Preview, no quotes), then the agent pushes.
+- **Next step:** push 3.1 and check the deployment, then 3.2
 
 ## Phases
 | # | Phase | Status |
@@ -15,7 +15,7 @@
 | 0 | Foundation | ✅ Done (owner approved) |
 | 1 | Auth + notebooks + first deploy | ✅ Done (owner approved) |
 | 2 | Sources (no processing) | ✅ Done (owner approved) |
-| 3 | Ingestion pipeline | ⏳ Not started |
+| 3 | Ingestion pipeline | 🔨 In progress |
 | 4 | Eval foundation | ⏳ Not started |
 | 5 | Basic RAG chat | ⏳ Not started |
 | 6 | Advanced retrieval | ⏳ Not started |
@@ -27,21 +27,24 @@
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 2
-- [x] 2.1 Migration: `sources` (applied on `dev`, `test`, and `main`)
-- [x] 2.2 R2 provider: signed PUT/GET URLs, existence check, delete. Smoke-tested on both real buckets; required `R2_*` env vars; provider passed into `createApp`
-- [x] 2.3 `POST /notebooks/:id/uploads` + `POST /notebooks/:id/sources` (discriminated union), URL normalization, YouTube parsing, `content_hash` dedupe, quotas
-- [x] 2.4 List, get, patch, delete (+ R2 delete), `file-url`
-- [x] 2.5 Frontend: sources panel, 4 add dialogs, browser SHA-256, direct upload + progress, status badges, polling
+## Current phase steps: Phase 3
+- [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (committed, push waits on the Vercel keys)
+- [ ] 3.2 Extractors behind providers: `unpdf`, Firecrawl, transcript API, text; transient vs permanent errors
+- [ ] 3.3 Chunking module (pure)
+- [ ] 3.4 Migration: `source_chunks`; embeddings provider (batched)
+- [ ] 3.5 `processSource` job
+- [ ] 3.6 Sweeper cron · `reprocess` · `content` + `chunks` endpoints · `notebook/deleted` R2 cleanup job
+- [ ] 3.7 Frontend: failure reason + retry, text source viewer, chunk viewer
 
 ## Resume here: Phase 3
-Phase 2 approved by the owner on 2026-09-30 (browser-verified; see the session log).
-1. Check the Phase 3 names exist in `.env` by name only (never read values): `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY`; `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` are needed for Vercel (locally `INNGEST_DEV=1` + the Inngest dev server). Any missing → stop and ask.
-2. Read `docs/05-build-plan.md` §6 and the docs each step touches. Inngest, `unpdf`, the OpenAI SDK and the Firecrawl SDK are already named in `02-system-design.md`; the transcript vendor is decision I-12 (record it in `07-decisions.md` in 3.2).
-3. Build 3.1 → 3.7. Tests use fake providers only; no real API calls outside `pnpm eval`.
+1. If the 3.1 commit is still unpushed: check by name that Vercel `curio-server` has `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`, push, and check both deployments are healthy (`/health` 200; unsigned `GET /api/inngest` → 401).
+2. Build 3.2 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. `unpdf`, the OpenAI SDK and the Firecrawl SDK are already named in `02-system-design.md`; the transcript vendor is decision I-12 (record it in `07-decisions.md` in 3.2). All Phase 3 key names are in local `.env` (checked by name, 2026-09-30).
+3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- **Phase 3 accounts + keys:** Inngest, OpenAI, Firecrawl, a YouTube transcript API. Put them in root `.env` (names in `.env.example`), no quotes.
+- **Vercel `curio-server`:** add `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` (Production + Preview, no quotes). Do **not** set `INNGEST_DEV` there. Needed before 3.1 is pushed.
+- **Inngest dashboard, after that deploy:** Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. It will show 0 functions until 3.5.
+- **Before 3.5 deploys:** add `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` to Vercel `curio-server` too.
 
 ## R2 setup (done 2026-09-29)
 - Private buckets `curio-dev` (local, `.env`) and `curio-prod` (Vercel `curio-server`, Production + Preview). One Object Read & Write token per bucket, each scoped to its own bucket. Local `.env` also keeps the prod keys as `R2_ACCESS_KEY_ID_PROD` / `R2_SECRET_ACCESS_KEY_PROD`; the app ignores those names.
@@ -57,14 +60,14 @@ Phase 2 approved by the owner on 2026-09-30 (browser-verified; see the session l
 | Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
 | Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
-| Inngest | 3 | ⬜ Owner getting keys (`INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`) |
-| OpenAI | 3 | ⬜ Owner getting key (`OPENAI_API_KEY`) |
-| Firecrawl | 3 | ⬜ Owner getting key (`FIRECRAWL_API_KEY`) |
-| Transcript API | 3 | ⬜ Owner getting key (`TRANSCRIPT_API_KEY`; vendor = decision I-12) |
+| Inngest | 3 | 🔶 Keys in local `.env`; not on Vercel yet; app not synced yet |
+| OpenAI | 3 | 🔶 Key in local `.env`; not on Vercel yet |
+| Firecrawl | 3 | 🔶 Key in local `.env`; not on Vercel yet |
+| Transcript API | 3 | 🔶 Key in local `.env` (`TRANSCRIPT_API_KEY`; vendor = decision I-12); not on Vercel yet |
 | Langfuse | 5 | ⬜ Not set up |
 | Upstash | 5 | ⬜ Not set up |
 | Cohere / Jina | 6 | ⬜ Not set up |
-| Tavily | 8 | ⬜ Not set up |
+| Tavily | 8 | 🔶 Key already in local `.env` (`TAVILY_API_KEY`); unused until Phase 8 |
 
 ## Blockers
 - None
@@ -77,6 +80,7 @@ Phase 2 approved by the owner on 2026-09-30 (browser-verified; see the session l
 - **Vercel env values are stored literally.** Paste without the quotes used in `.env`; quoted values broke `DATABASE_URL` once.
 
 ## Environments & runbook
+- **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
 - **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30).
@@ -128,7 +132,13 @@ API and server:
   - **One upload → one source:** `UNIQUE (storage_key)` plus an in-transaction check. Reusing a key (same or other notebook) → 400 `UPLOAD_NOT_FOUND` "already added as a source" (no new error code). The insert uses a bare `ON CONFLICT DO NOTHING`, then works out which constraint won (duplicate hash → 409 first).
   - **`NODE_ENV` defaults to `production`**, not `development` (which enables the dev-only `pino-pretty` and crashed non-Vercel deploys on boot).
   - **Frontend (2.5):** `features/sources/`. One add dialog with 4 tabs; PDF = SHA-256 in the browser (Web Crypto) → `POST uploads` → XHR PUT with progress (`application/pdf`, exact file) → `POST sources`. Closing the dialog aborts only hashing/upload; once the file is in R2 the source is always registered, and the list refreshes on settle (hook-level `onSettled` runs after unmount). The PDF title follows the chosen file until the user types their own (`titleAfterFileChange`). A 409 offers "Show it", which scrolls to and highlights the existing row. "Open PDF" opens the tab during the click, then sets the signed URL (avoids pop-up blocking). Polling stops when nothing is `PENDING`/`PROCESSING`. A duplicate PDF is only detected after its upload, which leaves an orphan in R2 (post-launch cleanup job). Lucide 1.x has no brand icons, so YouTube uses `SquarePlay`.
-  - **Not yet:** the `POST /sources` rate limit (50/day) needs Upstash (Phase 5). No `source/created` event until Phase 3.
+  - **Not yet:** the `POST /sources` rate limit (50/day) needs Upstash (Phase 5).
+- **Jobs (3.1):**
+  - `inngest` 4.x, behind `JobsProvider` in `lib/jobs` (`send(name, data)`, typed by `JobEvents`). Client ID `curio`. pnpm `allowBuilds` declines `protobufjs` (its install script only prints a version warning).
+  - **Env:** `INNGEST_DEV` is `1`/`true`/`0`/`false` (unset = off). Without dev mode, `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` are required and the server refuses to boot. The client always gets `isDev` from our config, so the SDK never decides the mode from the environment itself.
+  - **Endpoint:** `/api/inngest` is mounted before the general JSON parser with its own 4 MB limit (`requests.inngestBodyLimit`), outside `/api/v1` and user auth. In cloud mode the SDK answers unsigned or forged `GET`/`POST` with 401. An unsigned `PUT` only makes the SDK re-register this app with Inngest using our signing key (standard Inngest behavior). No functions are registered until 3.5.
+  - **`source/created`** = `{ sourceId, userId }`, sent after the insert transaction commits. If the send fails, the request still returns 202 and the source stays `PENDING` (warn log `source/created not sent`); failing the request would make a retry hit 409. **Open for 3.6:** the sweeper must also pick up stale `PENDING` rows; `02-system-design.md` only mentions `PROCESSING`, so propose that doc change then.
+  - Verified locally: the dev server synced the app (`PUT` 200) and received a `source/created` sent through the provider.
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -140,6 +150,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (Phase 3 start)
+- Done: 3.1 (Inngest client, signed `/api/inngest`, `dev:inngest`, `source/created` on source creation)
+- Notes: 218 tests passing (184 server, 34 web). The commit is held back from `origin` until the owner adds the two Inngest keys to Vercel `curio-server` (see "Current status")
 
 ### 2026-09-30 (Phase 2 approved)
 - Owner approved Phase 2. `.env.example` lists the Phase 3 key names; Phase 3 starts in a new session once the keys are in `.env`
