@@ -5,7 +5,7 @@
 
 ## Current status
 - **Phase:** 4 (Eval foundation), in progress
-- **Current step:** 4.3 eval runner
+- **Current step:** 4.4 baseline (4.3 done)
 - **Blocked on:** nothing
 - **Next step:** 4.4 run and commit the baseline
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
@@ -32,7 +32,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
 - [x] 4.2 Golden dataset: 7 documents (all types), 60 answerable questions + 10 unanswerable in `evals/dataset/`
 - [x] 🛑 Owner reviews and fixes the dataset (owner spot-checked a sample and approved it as is, 2026-09-30)
-- [ ] 4.3 Eval runner (`pnpm eval`): hit rate@k + MRR, JSON to `evals/results/`
+- [x] 4.3 Eval runner (`pnpm eval`): hit rate@k + MRR, JSON to `evals/results/`
 - [ ] 4.4 Run and commit the baseline
 
 ## Phase 3 steps (done)
@@ -237,6 +237,16 @@ API and server:
   - **`check`** validates both files and confirms every expected location matches at least one chunk ingestion produces; it passes. **`review`** writes `.cache/review.md` for the owner.
   - **Found in passing:** ~20 of Wikipedia's 49 chunks are the page's navigation boxes (link tables under "External links"), and scraped markdown keeps every link URL. Realistic noise for the baseline; stripping link URLs or navboxes is a Phase 6 candidate (chunk quality).
 
+- **Eval runner (4.3):**
+  - `pnpm eval` (root) → `evals/scripts/run-eval.ts`. Runs on Neon **`dev`** (`DATABASE_URL`); refuses when that is the production or test database. Each run deletes the eval user's (`eval_runner`) notebook and ingests the dataset fresh, so runs are independent.
+  - **Ingests through the real `IngestionService`** (`start` → `extract` → `chunk` → `embedAndCommit`, as the job would) with R2, Firecrawl and Supadata replaced by cache-backed providers (`evals/src/cached-providers.ts`); embeddings are real OpenAI calls. Queries go through the real `retrieve()` with the retrieval repository.
+  - **Metrics** (`evals/src/metrics.ts`, unit-tested): hit rate@5/@10 and MRR over the answerable questions (MRR cut off at the top 10, which is all that is retrieved), overall and per category. Unanswerable questions don't count (they are for refusal accuracy in Phase 5), but their top score is recorded for tuning the relevance gate.
+  - **Results file** (`evals/results/<date>-<config>.json`, test plan §6.6): date, git commit + dirty flag, config label (`vector` + each flag that is on) and flags, embedding model, chunking settings, dataset size, metrics, per-category metrics, cost (tokens counted with the app tokenizer × `evalConfig.embeddingUsdPerMillionTokens`), duration, and every question's top 10 with location, score and relevance.
+  - **Eval-only settings** (k values, eval user, price) are in `evals/src/config.ts`; app limits/models/flags are read from `apps/server/src/config/`, so the eval measures the real pipeline.
+  - **Reproducible:** two back-to-back runs gave identical metrics and identical first-relevant ranks for every question. Deeper in the top 10, 8 questions swapped neighbouring chunks because OpenAI embeddings vary slightly between calls (similarity differs by ≤ 0.004).
+  - `evals` depends on `drizzle-orm` (already used by the server) for the eval notebook's rows.
+  - **Dataset fix:** q-006 (big Transformer training time) also has its answer on page 8, so page 8 was added as an expected location (the first run marked that correct chunk as a miss).
+
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
 
@@ -247,6 +257,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (4.3)
+- Done: 4.3 (`pnpm eval`: real ingestion + retrieval on `dev`, hit rate@k + MRR, results JSON). Owner approved the dataset after a spot check
+- Notes: 491 tests passing (418 server, 54 web, 19 evals). Two trial runs cost ~$0.002 each
 
 ### 2026-09-30 (4.2, 🛑 dataset review)
 - Done: 4.2 (`@curio/evals` package, 7 documents fetched into the local cache, 70 questions, relevance rule, `check`/`review`/`preview` scripts)

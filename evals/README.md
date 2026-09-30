@@ -31,10 +31,30 @@ PDFs, scraped pages and transcripts are fetched into `.cache/` (gitignored). `do
 records each one's URL and the SHA-256 of what was fetched, so a changed upstream page is noticed
 instead of silently shifting the numbers.
 
-## Commands
+## Running the eval
 
-All run from the repo root. Only `fetch-docs` uses the network (Firecrawl, Supadata, direct PDF
-downloads); nothing here calls an LLM.
+```bash
+pnpm eval
+```
+
+1. Replaces the eval notebook (owner `eval_runner`) in the Neon `dev` database; refuses to run if
+   `DATABASE_URL` is the production or test database.
+2. Ingests every document through the real ingestion service (extract → chunk → embed → commit),
+   with R2, Firecrawl and Supadata replaced by the local cache. Embeddings are real OpenAI calls.
+3. Asks every question through the real retrieval module (top 10) and marks each retrieved chunk
+   relevant or not by location.
+4. Writes `results/<date>-<config>.json`: hit rate@5 and @10 and MRR (over the top 10) for the
+   answerable questions, overall and per category, the git commit, the models, the cost, and
+   every question's retrieved chunks with their scores.
+
+`<config>` is `vector` plus each retrieval flag that is on (`apps/server/src/config/flags.ts`).
+Follow-up questions are searched as asked (their `history` is ignored) until query rewrite exists.
+A run costs well under a cent and takes about 3 minutes.
+
+## Other commands
+
+All run from the repo root. Only `fetch-docs` and `eval` use the network; nothing here calls an LLM
+for text generation yet.
 
 ```bash
 pnpm --filter @curio/evals fetch-docs   # fetch missing documents into .cache/, check hashes

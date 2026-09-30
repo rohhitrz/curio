@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "eval": "tsx --env-file-if-exists=../.env scripts/run-eval.ts",
     "fetch-docs": "tsx --env-file-if-exists=../.env scripts/fetch-documents.ts",
     "preview": "tsx scripts/preview-chunks.ts",
     "check": "tsx scripts/check-dataset.ts",
@@ -12,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
