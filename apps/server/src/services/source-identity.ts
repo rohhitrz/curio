@@ -76,7 +76,6 @@ export function canonicalYouTubeUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
-/** Line endings normalized, so the same text pasted on Windows and macOS dedupes. */
 /** Titles given to URL sources until the ingestion job reads the real one. */
 export function websitePlaceholderTitle(url: string, maxLength: number): string {
   return normalizeUrl(url)
@@ -88,6 +87,7 @@ export function youtubePlaceholderTitle(videoId: string): string {
   return `YouTube video ${videoId}`;
 }
 
+/** Line endings normalized, so the same text pasted on Windows and macOS dedupes. */
 export function normalizeText(content: string): string {
   return content.replace(/\r\n?/g, '\n').trim();
 }

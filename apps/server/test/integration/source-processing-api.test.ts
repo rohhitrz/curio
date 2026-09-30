@@ -151,6 +151,49 @@ describe('reprocess', () => {
   });
 });
 
+describe('NUL characters in input', () => {
+  it('are removed from a text source’s title and content instead of failing the request', async () => {
+    const res = await request(app)
+      .post(`/api/v1/notebooks/${notebookId}/sources`)
+      .set('authorization', ALICE)
+      .send({ type: 'TEXT', title: 'My\u0000 notes', content: 'Gradient\u0000 descent.' });
+
+    expect(res.status).toBe(202);
+    const source = sourceSchema.parse(res.body);
+    expect(source.title).toBe('My notes');
+    const content = await get(`/sources/${source.id}/content`);
+    expect(sourceContentSchema.parse(content.body)).toEqual({ content: 'Gradient descent.' });
+  });
+
+  it('content that is only NUL characters → 400, like empty content', async () => {
+    const res = await request(app)
+      .post(`/api/v1/notebooks/${notebookId}/sources`)
+      .set('authorization', ALICE)
+      .send({ type: 'TEXT', title: 'Notes', content: '\u0000\u0000' });
+
+    expect(res.status).toBe(400);
+    expect(errorCode(res.body)).toBe('VALIDATION_ERROR');
+  });
+
+  it('are removed when renaming a source or creating a notebook', async () => {
+    const sourceId = await addTextSource();
+
+    const renamed = await request(app)
+      .patch(`/api/v1/sources/${sourceId}`)
+      .set('authorization', ALICE)
+      .send({ title: 'New\u0000 name' });
+    const notebook = await request(app)
+      .post('/api/v1/notebooks')
+      .set('authorization', ALICE)
+      .send({ title: 'Phys\u0000ics' });
+
+    expect(renamed.status).toBe(200);
+    expect(sourceSchema.parse(renamed.body).title).toBe('New name');
+    expect(notebook.status).toBe(201);
+    expect(notebookSchema.parse(notebook.body).title).toBe('Physics');
+  });
+});
+
 describe('content', () => {
   it('returns the extracted text', async () => {
     const sourceId = await addTextSource('# Notes\n\nGradient descent.');

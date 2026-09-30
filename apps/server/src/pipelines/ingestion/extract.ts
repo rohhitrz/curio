@@ -1,3 +1,4 @@
+import { stripNul } from '@curio/shared';
 import { createHash } from 'node:crypto';
 import { quotas } from '../../config/index.js';
 import { IngestionError } from '../../errors/ingestion-error.js';
@@ -124,6 +125,35 @@ function extractText(source: ExtractableSource): Extraction {
   return { title: null, content: { kind: 'markdown', markdown }, metadata: {} };
 }
 
+/** Text from PDFs and web pages can contain NUL characters, which Postgres refuses to store. */
+function withoutNul(extraction: Extraction): Extraction {
+  const { content } = extraction;
+  return {
+    title: extraction.title === null ? null : stripNul(extraction.title),
+    content:
+      content.kind === 'markdown'
+        ? { kind: 'markdown', markdown: stripNul(content.markdown) }
+        : content.kind === 'pages'
+          ? {
+              kind: 'pages',
+              pages: content.pages.map((page) => ({ ...page, text: stripNul(page.text) })),
+            }
+          : {
+              kind: 'transcript',
+              segments: content.segments.map((segment) => ({
+                ...segment,
+                text: stripNul(segment.text),
+              })),
+            },
+    metadata: Object.fromEntries(
+      Object.entries(extraction.metadata).map(([key, value]) => [
+        key,
+        typeof value === 'string' ? stripNul(value) : value,
+      ]),
+    ),
+  };
+}
+
 /**
  * Reads a source into text plus the locations its citations need. Throws `IngestionError`:
  * `retryable` ones are worth another attempt, the rest fail the source with their message.
@@ -132,6 +162,10 @@ export async function extractSource(
   source: ExtractableSource,
   deps: ExtractionDeps,
 ): Promise<Extraction> {
+  return withoutNul(await read(source, deps));
+}
+
+async function read(source: ExtractableSource, deps: ExtractionDeps): Promise<Extraction> {
   switch (source.type) {
     case 'PDF':
       return extractPdf(source, deps);

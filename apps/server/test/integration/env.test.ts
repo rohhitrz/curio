@@ -50,9 +50,21 @@ describe('env validation', () => {
 
   it('INNGEST_DEV=1 → starts without Inngest keys', () => {
     const { INNGEST_EVENT_KEY: _event, INNGEST_SIGNING_KEY: _signing, ...withoutKeys } = validEnv;
-    expect(loadEnv({ ...withoutKeys, INNGEST_DEV: '1' })).toMatchObject({ INNGEST_DEV: true });
-    expect(loadEnv({ ...withoutKeys, INNGEST_DEV: 'true' })).toMatchObject({ INNGEST_DEV: true });
+    const local = { ...withoutKeys, NODE_ENV: 'development' };
+    expect(loadEnv({ ...local, INNGEST_DEV: '1' })).toMatchObject({ INNGEST_DEV: true });
+    expect(loadEnv({ ...local, INNGEST_DEV: 'true' })).toMatchObject({ INNGEST_DEV: true });
   });
+
+  it.each([undefined, 'production'])(
+    'INNGEST_DEV=1 with NODE_ENV=%s (production) → refuses to start, even with the keys',
+    (nodeEnv) => {
+      // Dev mode would turn off the signature check on /api/inngest.
+      expect(() => loadEnv({ ...validEnv, NODE_ENV: nodeEnv, INNGEST_DEV: '1' })).toThrow(
+        'INNGEST_DEV must not be set in production',
+      );
+      expect(loadEnv({ ...validEnv, NODE_ENV: nodeEnv, INNGEST_DEV: '0' }).INNGEST_DEV).toBe(false);
+    },
+  );
 
   it('INNGEST_DEV with an unknown value → refuses to start', () => {
     expect(() => loadEnv({ ...validEnv, INNGEST_DEV: 'yes' })).toThrow('INNGEST_DEV: ');

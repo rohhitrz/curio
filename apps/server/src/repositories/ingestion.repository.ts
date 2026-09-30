@@ -26,8 +26,12 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
   const processing = (ref: SourceRef) => and(owned(ref), eq(sources.status, 'PROCESSING'));
 
   return {
-    /** Claims the source for processing. False when it no longer exists. */
-    async markProcessing(ref: SourceRef): Promise<boolean> {
+    /**
+     * Claims a `PENDING` source for processing. Only one run can win: a duplicate run (the
+     * sweeper re-sends events for sources that wait a long time) finds the source already taken
+     * and stops, instead of processing a finished source all over again.
+     */
+    async markProcessing(ref: SourceRef): Promise<'claimed' | 'not_pending' | 'not_found'> {
       const rows = await db
         .update(sources)
         .set({
@@ -36,15 +40,30 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
           errorCode: null,
           errorMessage: null,
         })
-        .where(owned(ref))
+        .where(and(owned(ref), eq(sources.status, 'PENDING')))
         .returning({ id: sources.id });
-      return rows.length > 0;
+      if (rows.length > 0) return 'claimed';
+
+      const [existing] = await db
+        .select({ id: sources.id })
+        .from(sources)
+        .where(owned(ref))
+        .limit(1);
+      return existing ? 'not_pending' : 'not_found';
     },
 
-    /** What extraction needs. Undefined when the source is gone or no longer processing. */
+    /**
+     * What extraction needs. Undefined when the source is gone or no longer processing.
+     *
+     * Reading at the start of a step also restarts the sweeper's clock (`processing_started_at`):
+     * steps can wait in the job queue, and only a source that makes no progress should time out.
+     */
     async findForExtraction(ref: SourceRef) {
       const [row] = await db
-        .select({
+        .update(sources)
+        .set({ processingStartedAt: sql`now()` })
+        .where(processing(ref))
+        .returning({
           type: sources.type,
           title: sources.title,
           url: sources.url,
@@ -52,10 +71,7 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
           contentHash: sources.contentHash,
           extractedText: sources.extractedText,
           metadata: sources.metadata,
-        })
-        .from(sources)
-        .where(processing(ref))
-        .limit(1);
+        });
       return row;
     },
 
@@ -68,17 +84,20 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
       return rows.length > 0;
     },
 
-    /** The saved extraction. Undefined when the source is gone or no longer processing. */
+    /**
+     * The saved extraction. Undefined when the source is gone or no longer processing. Restarts
+     * the sweeper's clock, like `findForExtraction`.
+     */
     async findExtracted(ref: SourceRef) {
       const [row] = await db
-        .select({
+        .update(sources)
+        .set({ processingStartedAt: sql`now()` })
+        .where(processing(ref))
+        .returning({
           title: sources.title,
           extractedText: sources.extractedText,
           extractedLocations: sources.extractedLocations,
-        })
-        .from(sources)
-        .where(processing(ref))
-        .limit(1);
+        });
       return row;
     },
 
@@ -127,8 +146,8 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
     },
 
     /**
-     * Sweeper, across all users: fails every source that has been `PROCESSING` for longer than
-     * the timeout (its job died or hung). Returns how many.
+     * Sweeper, across all users: fails every source that is `PROCESSING` and hasn't started a
+     * step for longer than the timeout (its job died or hung). Returns how many.
      */
     async failStuckProcessing(
       timeoutMinutes: number,

@@ -1,15 +1,18 @@
 import { z } from 'zod';
+import { cleanString } from './text.js';
 
 export const NOTEBOOK_TITLE_MAX = 200;
 
 export const notebookKindSchema = z.enum(['SOURCE', 'LEARNING']);
 export type NotebookKind = z.infer<typeof notebookKindSchema>;
 
-const titleSchema = z
-  .string()
-  .trim()
-  .min(1, 'Title is required')
-  .max(NOTEBOOK_TITLE_MAX, `Title must be at most ${NOTEBOOK_TITLE_MAX} characters`);
+const titleSchema = cleanString.pipe(
+  z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(NOTEBOOK_TITLE_MAX, `Title must be at most ${NOTEBOOK_TITLE_MAX} characters`),
+);
 
 /** `POST /notebooks`. Only `SOURCE` notebooks; learning notebooks come from `POST /learning-paths`. */
 export const createNotebookSchema = z.strictObject({ title: titleSchema });

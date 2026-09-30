@@ -145,7 +145,7 @@ curio/
 API: validate → dedupe → save PENDING → send "source/created" → respond instantly
         ↓
 Inngest job: processSource
-  step 1  mark PROCESSING
+  step 1  mark PROCESSING   (only a PENDING source can be claimed, so a duplicate run stops here)
   step 2  extract   → text + locations, saved to DB
   step 3  chunk     → structure-first, ~500 tokens, ~15% overlap (checks there is something to index)
   step 4  embed     → batched, with "Title › Section" header prepended

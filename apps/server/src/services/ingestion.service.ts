@@ -20,6 +20,8 @@ import { websitePlaceholderTitle, youtubePlaceholderTitle } from './source-ident
 export type StepResult =
   | { status: 'ok'; chunkCount?: number }
   | { status: 'stopped'; reason: 'not_found' }
+  /** Another run already took (or finished) this source. */
+  | { status: 'stopped'; reason: 'not_pending' }
   | { status: 'stopped'; reason: 'failed'; code: SourceErrorCode };
 
 export interface StepAttempt {
@@ -120,9 +122,10 @@ export function createIngestionService(deps: IngestionDeps) {
   }
 
   return {
-    /** Step 1: claim the source (`PROCESSING`). */
+    /** Step 1: claim the source (`PENDING` → `PROCESSING`). */
     async start(ref: SourceRef): Promise<StepResult> {
-      return (await repository.markProcessing(ref)) ? { status: 'ok' } : NOT_FOUND;
+      const claim = await repository.markProcessing(ref);
+      return claim === 'claimed' ? { status: 'ok' } : { status: 'stopped', reason: claim };
     },
 
     /** Step 2: read the source and save its text and locations. */

@@ -42,7 +42,8 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET: z.string().min(1),
   // Dev mode uses the local Inngest dev server: no keys, and requests to `/api/inngest` aren't
-  // signed. Everywhere else both keys are required (checked in `loadEnv`).
+  // signed. Everywhere else both keys are required, and production refuses dev mode outright
+  // (both checked in `loadEnv`).
   INNGEST_DEV: flag,
   INNGEST_EVENT_KEY: z.string().min(1).optional(),
   INNGEST_SIGNING_KEY: z.string().min(1).optional(),
@@ -85,6 +86,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
           : `${name}: ${issue.message}`;
       });
   problems.push(...missingInngestKeys(source));
+  if (result.success && result.data.NODE_ENV === 'production' && result.data.INNGEST_DEV) {
+    problems.push(
+      'INNGEST_DEV must not be set in production: it turns off the signature check on ' +
+        '/api/inngest and sends events to a local dev server',
+    );
+  }
   if (!result.success || problems.length > 0) throw new EnvError(problems);
   return result.data;
 }

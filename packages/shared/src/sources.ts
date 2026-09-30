@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { paginatedResponseSchema } from './pagination.js';
+import { cleanString } from './text.js';
 
 export const SOURCE_TITLE_MAX = 200;
 
@@ -12,11 +13,13 @@ export type SourceOrigin = z.infer<typeof sourceOriginSchema>;
 export const sourceStatusSchema = z.enum(['PENDING', 'PROCESSING', 'READY', 'FAILED']);
 export type SourceStatus = z.infer<typeof sourceStatusSchema>;
 
-const titleSchema = z
-  .string()
-  .trim()
-  .min(1, 'Title is required')
-  .max(SOURCE_TITLE_MAX, `Title must be at most ${SOURCE_TITLE_MAX} characters`);
+const titleSchema = cleanString.pipe(
+  z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(SOURCE_TITLE_MAX, `Title must be at most ${SOURCE_TITLE_MAX} characters`),
+);
 
 const urlSchema = z
   .string()
@@ -33,7 +36,7 @@ export const createSourceSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('TEXT'),
     title: titleSchema,
-    content: z.string().trim().min(1, 'Content is required'),
+    content: cleanString.pipe(z.string().trim().min(1, 'Content is required')),
   }),
   z.strictObject({
     type: z.literal('PDF'),

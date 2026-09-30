@@ -110,7 +110,7 @@ users 1──* notebooks 1──* sources 1──* source_chunks
 | `metadata` | jsonb | NOT NULL, default `{}` |
 | `chunk_count` | int | NOT NULL, default 0 |
 | `embedding_model` | text | nullable |
-| `processing_started_at` | timestamptz | nullable |
+| `processing_started_at` | timestamptz | nullable (the sweeper's clock: set when a job claims the source and again at the start of every step) |
 | `processed_at` | timestamptz | nullable |
 | `created_at`, `updated_at` | timestamptz | NOT NULL |
 
@@ -382,6 +382,8 @@ UPDATE sources
    SET status = 'FAILED', error_code = 'TIMEOUT', error_message = 'Processing timed out, please retry.'
  WHERE status = 'PROCESSING' AND processing_started_at < now() - interval '15 minutes';
 ```
+
+The clock restarts at every job step, so only a source that makes no progress for 15 minutes times out; one that is just waiting in the job queue does not.
 
 A source still `PENDING` after 10 minutes never got a job run. The sweeper sends its event again and touches `updated_at`, so the same source isn't re-sent until another 10 minutes pass:
 ```sql

@@ -207,6 +207,12 @@ API and server:
   - **Add-source dialog:** the PDF and Text tabs now keep separate titles, so a chosen file's name no longer appears on the Text tab (owner-reported).
   - **Checked in the browser** against the local API: failed row with Retry → Pending, the viewer's two tabs, "Show in text" highlight, and the phone layout (375 px, no sideways scroll). The dev rows used for this were restored afterwards. Not clicked: choosing a PDF file (needs a file picker).
 
+- **Code review fixes (2026-09-30, 4 findings from the owner's review of Phase 3):**
+  - **Duplicate runs:** `markProcessing` now claims only a `PENDING` source. A second run for the same source (the sweeper re-sends events for sources that wait more than 10 min) ends with `{ stopped, not_pending }` and redoes nothing. Trade-off: if step 1 succeeds but its result never reaches Inngest, the retried step finds the source already `PROCESSING` and stops; the sweeper then fails it with `TIMEOUT` after 15 min and the user retries.
+  - **NUL characters:** Postgres can't store `\u0000` in text or jsonb. Input schemas in `packages/shared` strip it (`cleanString`: notebook and source titles, pasted text), so such input is a normal 2xx, or a 400 when nothing is left. Extraction strips it from everything it reads (text, titles, string metadata) before anything is saved.
+  - **Sweeper clock:** `processing_started_at` is now set again at the start of every step (the step's first read is an `UPDATE … RETURNING`), so the 15-minute timeout measures time without progress, not time since step 1. A run waiting in the queue between steps is no longer timed out.
+  - **`INNGEST_DEV` in production:** `loadEnv` refuses to start when `INNGEST_DEV` is on and `NODE_ENV` is production (the default). Local `.env` has `NODE_ENV=development`.
+
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -218,6 +224,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (review fixes 3)
+- Done: 4 owner-reported fixes from the Phase 3 code review (duplicate runs, NUL characters, sweeper clock, `INNGEST_DEV` in production)
+- Notes: 449 tests passing (395 server, 54 web)
 
 ### 2026-09-30 (3.7, Phase 3 built)
 - Done: 3.7 (Retry / Process again, text and chunk viewer, separate titles in the add dialog, failure codes listed in the API doc)

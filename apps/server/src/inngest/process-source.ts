@@ -12,7 +12,7 @@ const eventData = z.object({ sourceId: z.uuid(), userId: z.uuid() });
  */
 const stepResult: z.ZodType<StepResult> = z.union([
   z.object({ status: z.literal('ok'), chunkCount: z.number().optional() }),
-  z.object({ status: z.literal('stopped'), reason: z.literal('not_found') }),
+  z.object({ status: z.literal('stopped'), reason: z.enum(['not_found', 'not_pending']) }),
   z.object({
     status: z.literal('stopped'),
     reason: z.literal('failed'),

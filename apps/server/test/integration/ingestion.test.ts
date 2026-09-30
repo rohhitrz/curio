@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import pino from 'pino';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { chunking } from '../../src/config/index.js';
@@ -113,6 +113,11 @@ async function runJob(ref: SourceRef, run: IngestionService = service) {
     results.push(await step());
   }
   return results.at(-1);
+}
+
+/** What `POST /sources/:id/reprocess` does before it sends the event. */
+async function queueAgain(ref: SourceRef) {
+  await db.update(sources).set({ status: 'PENDING' }).where(eq(sources.id, ref.sourceId));
 }
 
 async function sourceRow(ref: SourceRef) {
@@ -254,6 +259,7 @@ describe('idempotency', () => {
 
     await runJob(ref);
     const first = await chunksOf(ref);
+    await queueAgain(ref);
     expect(await runJob(ref)).toEqual({ status: 'ok', chunkCount: 2 });
     const second = await chunksOf(ref);
 
@@ -264,11 +270,34 @@ describe('idempotency', () => {
     expect(await sourceRow(ref)).toMatchObject({ status: 'READY', chunkCount: 2 });
   });
 
+  it('a duplicate run for a finished source stops at once and redoes nothing', async () => {
+    const ref = await websiteSource();
+    await runJob(ref);
+    const before = await chunksOf(ref);
+
+    // e.g. the sweeper re-sent the event while the first run was still waiting in the queue.
+    expect(await runJob(ref)).toEqual({ status: 'stopped', reason: 'not_pending' });
+
+    expect(await sourceRow(ref)).toMatchObject({ status: 'READY', chunkCount: 2 });
+    expect((await chunksOf(ref)).map((c) => c.id)).toEqual(before.map((c) => c.id));
+    expect(scraper.calls).toHaveLength(1);
+    expect(embeddings.calls).toHaveLength(1);
+  });
+
+  it('a duplicate run while the first is still processing does not take over', async () => {
+    const ref = await websiteSource();
+    await service.start(ref);
+
+    expect(await service.start(ref)).toEqual({ status: 'stopped', reason: 'not_pending' });
+    expect(await sourceRow(ref)).toMatchObject({ status: 'PROCESSING' });
+  });
+
   it('reprocessing replaces the old chunks with the new content', async () => {
     const ref = await websiteSource();
     await runJob(ref);
 
     scraper = createFakeScraper({ title: 'RAG explained', markdown: 'The page changed.' });
+    await queueAgain(ref);
     const result = await runJob(ref, createService());
 
     expect(result).toEqual({ status: 'ok', chunkCount: 1 });
@@ -404,6 +433,7 @@ describe('permanent errors', () => {
     await runJob(ref);
     scraper.failNext(IngestionError.permanent('PAGE_NOT_FOUND', "This page doesn't exist."));
 
+    await queueAgain(ref);
     await runJob(ref);
 
     expect(await sourceRow(ref)).toMatchObject({ status: 'FAILED', errorCode: 'PAGE_NOT_FOUND' });
@@ -466,6 +496,7 @@ describe('atomic commit', () => {
     expect(before).toHaveLength(5);
 
     const broken = createService({ embeddings: brokenEmbeddings });
+    await queueAgain(ref);
     await broken.start(ref);
     await broken.extract(ref, RETRY);
     await expect(broken.embedAndCommit(ref, RETRY)).rejects.toThrow();
@@ -478,6 +509,59 @@ describe('atomic commit', () => {
 
     expect(await runJob(ref)).toEqual({ status: 'ok', chunkCount: 5 });
     expect((await chunksOf(ref)).map((c) => c.chunkIndex)).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
+describe('text that Postgres cannot store', () => {
+  it('NUL characters in extracted text and titles are removed, and the source is READY', async () => {
+    const ref = await websiteSource();
+    scraper = createFakeScraper({
+      title: 'RAG\u0000 explained',
+      markdown: '# Intro\n\nRetrieval\u0000 first.\u0000',
+    });
+
+    expect(await runJob(ref, createService())).toEqual({ status: 'ok', chunkCount: 1 });
+
+    const source = await sourceRow(ref);
+    expect(source).toMatchObject({
+      status: 'READY',
+      title: 'RAG explained',
+      extractedText: '# Intro\n\nRetrieval first.',
+    });
+    expect((await chunksOf(ref))[0]?.content).toBe('Retrieval first.');
+  });
+
+  it('a PDF page with NUL characters is stored without them', async () => {
+    const ref = await pdfSource(['Some text.']);
+    const run = createService({
+      pdf: {
+        parse: () => Promise.resolve({ pages: [{ pageNumber: 1, text: 'Page\u0000 one.' }] }),
+      },
+    });
+
+    await run.start(ref);
+    // The hash check needs the real file's hash in the metadata, which the fake parser keeps.
+    expect(await run.extract(ref, RETRY)).toEqual({ status: 'ok' });
+    expect((await sourceRow(ref))?.extractedText).toBe('Page one.');
+  });
+});
+
+describe('sweeper clock', () => {
+  it('each step restarts it, so a source waiting between steps is not timed out', async () => {
+    const ref = await textSource();
+    await service.start(ref);
+    await service.extract(ref, RETRY);
+    // The run then waited 20 minutes in the job queue before its next step started.
+    await db.execute(
+      sql`update sources set processing_started_at = now() - interval '20 minutes' where id = ${ref.sourceId}`,
+    );
+
+    await service.chunk(ref, RETRY);
+
+    const started = (await sourceRow(ref))?.processingStartedAt?.getTime() ?? 0;
+    expect(Date.now() - started).toBeLessThan(60_000);
+    expect(await service.sweep()).toEqual({ timedOut: 0, resent: 0 });
+    expect(await service.embedAndCommit(ref, RETRY)).toEqual({ status: 'ok', chunkCount: 2 });
   });
 });
 
