@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 3 (Ingestion pipeline), in progress
-- **Current step:** 3.5 (`processSource` job)
-- **Blocked on:** nothing for building 3.5. Before 3.5 is **pushed**, the owner must run migration `0005` on production and add three keys to Vercel (see "Pending on owner")
-- **Next step:** 3.5
+- **Current step:** 3.6 (sweeper, reprocess, content + chunks endpoints, notebook cleanup job)
+- **Blocked on:** nothing for building 3.6. The live pipeline is unverified until the owner syncs the app in Inngest and adds real sources (see "Pending on owner")
+- **Next step:** 3.6
 
 ## Phases
 | # | Phase | Status |
@@ -32,21 +32,19 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.2 Extractors behind providers: `unpdf`, Firecrawl, Supadata, text; each failure classified transient or permanent with a user-facing message. Not wired into the app yet (that is 3.5)
 - [x] 3.3 Chunking module (pure): `pipelines/ingestion/chunk.ts`, tokens counted with `gpt-tokenizer`
 - [x] 3.4 Migration `0005_source_chunks` (applied on `dev` and `test`; **not on `main` yet**); OpenAI embeddings provider (batched)
-- [ ] 3.5 `processSource` job
+- [x] 3.5 `processSource` job: 4 Inngest steps (mark processing → extract → chunk → embed + atomic commit), idempotent, classified failures, stops when the source is gone (live)
 - [ ] 3.6 Sweeper cron · `reprocess` · `content` + `chunks` endpoints · `notebook/deleted` R2 cleanup job
 - [ ] 3.7 Frontend: failure reason + retry, text source viewer, chunk viewer
 
 ## Resume here: Phase 3
-1. 3.1 is deployed and checked (2026-09-30): `/health` 200; unsigned `GET` and `POST /api/inngest` → 401.
-2. Build 3.5 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. All Phase 3 key names are in local `.env` (checked by name, 2026-09-30). `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` and `OPENAI_API_KEY` are **not** in `config/env.ts` yet: add them as required in 3.5, when the providers are wired into the app, and push only after they are on Vercel and migration `0005` is on `main`.
+1. 3.5 is deployed (2026-09-30). The owner syncs the app in Inngest (see "Pending on owner") and adds one source of each type on the live app. This is the **first real run** of the OpenAI embeddings call and of the whole pipeline; watch the Vercel logs for `source failed`.
+2. Build 3.6 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches.
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- **Inngest dashboard, after 3.5 deploys:** Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. Inngest Cloud refuses to sync an app with no functions ("No functions registered within your app", seen 2026-09-30), so this waits for `processSource`. That error also means Inngest reached the endpoint in the Production environment.
-- **Before 3.5 deploys (both needed):**
-  - Run migration `0005_source_chunks` on production: `cd apps/server && pnpm db:migrate:prod`.
-  - Add `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` to Vercel `curio-server` (type Secret, Production).
-- **Optional:** the two Inngest keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
+- **Now:** Inngest dashboard (Production environment) → Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. It should now show the `process-source` function. If it reports a signature error, the signing key on Vercel doesn't match that environment's key.
+- **Then verify live:** add a PDF, a website, a YouTube video and a text note; each should reach `READY`.
+- **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
 - Private buckets `curio-dev` (local, `.env`) and `curio-prod` (Vercel `curio-server`, Production + Preview). One Object Read & Write token per bucket, each scoped to its own bucket. Local `.env` also keeps the prod keys as `R2_ACCESS_KEY_ID_PROD` / `R2_SECRET_ACCESS_KEY_PROD`; the app ignores those names.
@@ -63,9 +61,9 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
 | Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
 | Inngest | 3 | 🔶 Keys in local `.env` and on Vercel (Production only); app sync waits for 3.5 (Inngest rejects an app with 0 functions) |
-| OpenAI | 3 | 🔶 Key in local `.env`; not on Vercel yet |
-| Firecrawl | 3 | 🔶 Key in local `.env` (works, smoke-tested); not on Vercel yet |
-| Supadata (transcripts) | 3 | 🔶 Key in local `.env` (`TRANSCRIPT_API_KEY`, works, smoke-tested); not on Vercel yet |
+| OpenAI | 3 | 🔶 Key in local `.env` and on Vercel (Production); never called for real yet |
+| Firecrawl | 3 | ✅ Key in local `.env` (works, smoke-tested) and on Vercel (Production) |
+| Supadata (transcripts) | 3 | ✅ Key in local `.env` (`TRANSCRIPT_API_KEY`, works, smoke-tested) and on Vercel (Production) |
 | Langfuse | 5 | ⬜ Not set up |
 | Upstash | 5 | ⬜ Not set up |
 | Cohere / Jina | 6 | ⬜ Not set up |
@@ -86,8 +84,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
-- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on `dev` and `test` only (prod pending on the owner).
-- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (Secret, Production only), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
+- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30). The agent can't verify production; both prod runs are as reported by the owner.
+- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + `OPENAI_API_KEY` + `FIRECRAWL_API_KEY` + `TRANSCRIPT_API_KEY` (Secret, Production only; all five are required at boot), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
 
@@ -172,6 +170,22 @@ API and server:
   - **Not called for real:** only `pnpm eval` may call OpenAI, so the provider is covered by stubbed-`fetch` tests only. Its first real call will be the 3.5 end-to-end check.
   - Test fake: `test/fakes/embeddings.ts` gives each text a stable unit vector.
 
+- **`processSource` job (3.5):**
+  - **Layers:** `inngest/process-source.ts` (the Inngest function, thin) → `services/ingestion.service.ts` (one method per step) → `repositories/ingestion.repository.ts`. Everything is scoped by `userId` + `sourceId` from the event; a job for someone else's source finds nothing.
+  - **Steps:** `mark-processing` → `extract` → `chunk` → `embed-and-commit` (decision I-13; `02-system-design.md` §6 updated). Steps return only a small status; text and locations are read from and written to the database.
+  - **Between steps:** `extracted_text` holds the full text and the new `sources.extracted_locations` (jsonb, migration `0006`) holds page / caption-segment lengths (`pipelines/ingestion/stored-content.ts`). Together they rebuild the extracted content exactly.
+  - **Commit:** one transaction locks the source row (`FOR UPDATE`, only while `PROCESSING`), deletes its chunks, inserts the new ones in batches of `ingestion.chunkInsertBatchSize`, and sets `READY`, `chunk_count`, `embedding_model`, `processed_at`. A failure rolls everything back; a deleted source means nothing is written.
+  - **Failures:** a permanent `IngestionError` marks the source `FAILED` with its code and message and ends the job without an error. A transient or unexpected error is thrown so Inngest retries the step (`ingestion.retries` = 3, with backoff); on the last attempt it marks the source `FAILED` instead (`SERVICE_UNAVAILABLE`, or `PROCESSING_FAILED` with a generic message for unexpected errors). `onFailure` is a last safety net. `PROCESSING_FAILED` is logged at error level, other failures at warn.
+  - **Writes only land while the source is `PROCESSING`**, so a finished or deleted source is never touched by a late step.
+  - **Titles:** a website or YouTube source gets its real title only if it still has the placeholder from when it was added; a title the user typed is kept. PDFs and text keep their title.
+  - **PDF hash:** if the file's real SHA-256 differs from the registered `content_hash` → `FAILED` / `INVALID_FILE`.
+  - **Failed reprocess** leaves the previous chunks in place (status `FAILED`); search must filter on `READY` sources (4.1).
+  - **Limits** (`config.ingestion`): 5 runs at once in total, 2 per user, 30 run starts per minute.
+  - **Embedding input** = context header + blank line + chunk content; the stored `content` is the chunk alone.
+  - **Env:** `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` are now required at boot.
+  - **Tests:** the service runs against Neon `test` with fake providers (and the real `unpdf`); the Inngest function runs through `@inngest/test` (dev dependency, named in the test plan). Locally the Inngest dev server registered `curio-process-source` and completed a run for a non-existent source. **Not run for real:** a full pipeline run with OpenAI, since only `pnpm eval` may call it.
+  - **Known gap until 3.6:** sources added in production between the 3.1 deploy and the Inngest app sync have no job run and stay `PENDING` (the API doc forbids reprocessing a `PENDING` source). The 3.6 sweeper should pick up stale `PENDING` rows; that needs a doc change, to be proposed then.
+
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -183,6 +197,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (3.5)
+- Done: 3.5 (`processSource` job, migration `0006` on `dev` + `test`, provider keys required at boot, decision I-13, docs 02/03 updated)
+- Notes: 378 tests passing (344 server, 34 web). Pushed after the owner ran `0006` on production
 
 ### 2026-09-30 (3.4)
 - Done: 3.4 (`source_chunks` migration on `dev` + `test`, OpenAI embeddings provider). `ExtractionError` renamed `IngestionError`; code `EXTRACTION_FAILED` renamed `PROCESSING_FAILED`

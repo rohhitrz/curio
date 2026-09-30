@@ -58,6 +58,19 @@ export const extraction = {
   transcriptJobPollAttempts: 10,
 } as const;
 
+/** The `processSource` job (docs/02-system-design.md §6). */
+export const ingestion = {
+  /** Retries of a step after its first attempt, with Inngest's backoff. */
+  retries: 3,
+  /** Sources processed at the same time: in total, and for one user. */
+  concurrency: 5,
+  concurrencyPerUser: 2,
+  /** Runs started per minute in total, which keeps us under the vendors' rate limits. */
+  throttle: { limit: 30, period: '1m' },
+  /** Chunk rows per INSERT inside the commit transaction. */
+  chunkInsertBatchSize: 100,
+} as const;
+
 export const embeddingRequests = {
   /** Texts per embeddings call (the API allows far more; smaller calls retry cheaply). */
   batchSize: 100,

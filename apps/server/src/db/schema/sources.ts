@@ -39,6 +39,8 @@ export const sources = pgTable(
     /** File hash (PDF) · normalized URL hash (website/YouTube) · content hash (text). */
     contentHash: text('content_hash').notNull(),
     extractedText: text('extracted_text'),
+    /** Where pages / caption segments sit in `extracted_text` (see `stored-content.ts`). */
+    extractedLocations: jsonb('extracted_locations'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     chunkCount: integer('chunk_count').notNull().default(0),
     embeddingModel: text('embedding_model'),

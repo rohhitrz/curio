@@ -28,6 +28,8 @@ import {
   normalizeUrl,
   parseYouTubeVideoId,
   sha256Hex,
+  websitePlaceholderTitle,
+  youtubePlaceholderTitle,
 } from './source-identity.js';
 import { assertUploadAllowed, isOwnUploadKey, newUploadKey } from './upload-rules.js';
 
@@ -74,11 +76,6 @@ async function callStorage<T>(call: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Until the ingestion job reads the real title, a URL source is titled by its address. */
-function titleFromUrl(normalized: string): string {
-  return normalized.replace(/^https?:\/\//, '').slice(0, SOURCE_TITLE_MAX);
-}
-
 export function createSourcesService(
   repository: SourcesRepository,
   storage: StorageProvider,
@@ -91,7 +88,7 @@ export function createSourcesService(
         const normalized = normalizeUrl(input.url);
         return {
           type: 'WEBSITE',
-          title: titleFromUrl(normalized),
+          title: websitePlaceholderTitle(input.url, SOURCE_TITLE_MAX),
           url: input.url,
           contentHash: sha256Hex(normalized),
         };
@@ -102,7 +99,7 @@ export function createSourcesService(
         const url = canonicalYouTubeUrl(videoId);
         return {
           type: 'YOUTUBE',
-          title: `YouTube video ${videoId}`,
+          title: youtubePlaceholderTitle(videoId),
           url,
           contentHash: sha256Hex(url),
           metadata: { videoId },

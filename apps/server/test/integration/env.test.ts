@@ -16,6 +16,9 @@ const validEnv = {
   CORS_ORIGINS: 'http://localhost:3000',
   INNGEST_EVENT_KEY: 'event-key',
   INNGEST_SIGNING_KEY: 'signkey-test-abc',
+  OPENAI_API_KEY: 'sk-test',
+  FIRECRAWL_API_KEY: 'fc-test',
+  TRANSCRIPT_API_KEY: 'sd-test',
 };
 
 describe('env validation', () => {
@@ -29,6 +32,9 @@ describe('env validation', () => {
     expect(() => loadEnv({})).toThrow('CORS_ORIGINS is required');
     expect(() => loadEnv({})).toThrow('INNGEST_EVENT_KEY is required');
     expect(() => loadEnv({})).toThrow('INNGEST_SIGNING_KEY is required');
+    expect(() => loadEnv({})).toThrow('OPENAI_API_KEY is required');
+    expect(() => loadEnv({})).toThrow('FIRECRAWL_API_KEY is required');
+    expect(() => loadEnv({})).toThrow('TRANSCRIPT_API_KEY is required');
   });
 
   it.each(['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY'])(

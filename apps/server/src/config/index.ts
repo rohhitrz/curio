@@ -5,6 +5,7 @@ export {
   conversation,
   embeddingRequests,
   extraction,
+  ingestion,
   locks,
   quotas,
   rateLimits,

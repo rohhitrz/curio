@@ -43,6 +43,13 @@
       "when": 1790770779790,
       "tag": "0005_source_chunks",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790774514857,
+      "tag": "0006_sources_extracted_locations",
+      "breakpoints": true
     }
   ]
 }

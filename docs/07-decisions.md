@@ -134,6 +134,11 @@
 - **Why:** one HTTP API gives timestamped caption segments plus the video's title and length, and works from cloud servers (I-07). `mode=native` keeps cost and latency predictable
 - **Trade-off:** a video without captions fails with a clear reason instead of being transcribed
 
+**I-13 · Embed and commit in one job step; locations kept in `sources.extracted_locations`**
+- **Alternatives:** five separate steps with a staging table for embedded chunks; locations hidden inside `sources.metadata`
+- **Why:** steps pass only IDs (I-03), but vectors are too big for step output and `source_chunks.embedding` is `NOT NULL`, so there is nowhere to keep them between an "embed" and a "commit" step. One step keeps the commit a single transaction (I-02). A dedicated column keeps page and timestamp boundaries out of `metadata`, which the API returns
+- **Trade-off:** a failed commit re-runs the embedding call (a fraction of a cent)
+
 ---
 
 ## 4. Retrieval decisions
@@ -322,6 +327,6 @@
 | 3 | Transcript API vendor → **Supadata** (decided 2026-09-30) | I-12 |
 | 6 | Reranker: Cohere vs Jina | R-09 |
 | 6 | HyDE: kept or dropped (with numbers) | R-10 |
-| 6 | Chunk size after tuning | I-13 |
+| 6 | Chunk size after tuning | I-14 |
 | 6 | Relevance gate threshold | R-11 |
 | 9 | Lessons: Luna enough, or upgrade to Sol? | A-10 |

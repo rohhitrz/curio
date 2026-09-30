@@ -1,15 +1,32 @@
 import type { Express } from 'express';
-import { EnvError, loadEnv, type Env } from './config/index.js';
+import {
+  chunking,
+  embeddingRequests,
+  embeddings as embeddingModel,
+  EnvError,
+  extraction,
+  ingestion,
+  loadEnv,
+  type Env,
+} from './config/index.js';
 import { createApp } from './create-app.js';
 import { createDb } from './db/client.js';
+import { createProcessSourceFunction } from './inngest/process-source.js';
 import { createClerkAuthProvider } from './lib/auth/index.js';
+import { createOpenAiEmbeddings } from './lib/embeddings/index.js';
 import {
   createInngestClient,
   createInngestHandler,
   createInngestJobsProvider,
 } from './lib/jobs/index.js';
+import { createUnpdfParser } from './lib/pdf/index.js';
+import { createFirecrawlScraper } from './lib/scraper/index.js';
 import { createR2StorageProvider } from './lib/storage/index.js';
+import { createSupadataTranscriptProvider } from './lib/transcript/index.js';
 import { createLogger } from './logger.js';
+import { countTokens } from './pipelines/ingestion/tokens.js';
+import { createIngestionRepository } from './repositories/ingestion.repository.js';
+import { createIngestionService } from './services/ingestion.service.js';
 
 let env: Env;
 try {
@@ -42,6 +59,31 @@ const inngest = createInngestClient({
   logger,
 });
 
+const ingestionService = createIngestionService({
+  repository: createIngestionRepository(db, ingestion.chunkInsertBatchSize),
+  storage,
+  pdf: createUnpdfParser(),
+  scraper: createFirecrawlScraper({
+    apiKey: env.FIRECRAWL_API_KEY,
+    timeoutMs: extraction.scrapeTimeoutMs,
+  }),
+  transcript: createSupadataTranscriptProvider({
+    apiKey: env.TRANSCRIPT_API_KEY,
+    timeoutMs: extraction.transcriptTimeoutMs,
+    jobPollAttempts: extraction.transcriptJobPollAttempts,
+    jobPollIntervalMs: extraction.transcriptJobPollIntervalMs,
+  }),
+  embeddings: createOpenAiEmbeddings({
+    apiKey: env.OPENAI_API_KEY,
+    model: embeddingModel.model,
+    dimensions: embeddingModel.dimensions,
+    batchSize: embeddingRequests.batchSize,
+    timeoutMs: embeddingRequests.timeoutMs,
+  }),
+  logger,
+  chunking: { ...chunking, countTokens },
+});
+
 const app: Express = createApp({
   logger,
   corsOrigins: env.CORS_ORIGINS,
@@ -49,8 +91,9 @@ const app: Express = createApp({
   auth,
   storage,
   jobs: createInngestJobsProvider(inngest),
-  // Job functions are added from step 3.5 (`processSource`).
-  jobsHandler: createInngestHandler(inngest, []),
+  jobsHandler: createInngestHandler(inngest, [
+    createProcessSourceFunction(inngest, ingestionService),
+  ]),
 });
 
 // On Vercel the app runs as a function (default export); locally we listen.

@@ -147,19 +147,21 @@ API: validate → dedupe → save PENDING → send "source/created" → respond 
 Inngest job: processSource
   step 1  mark PROCESSING
   step 2  extract   → text + locations, saved to DB
-  step 3  chunk     → structure-first, ~500 tokens, ~15% overlap
+  step 3  chunk     → structure-first, ~500 tokens, ~15% overlap (checks there is something to index)
   step 4  embed     → batched, with "Title › Section" header prepended
-  step 5  commit    → ONE transaction: replace chunks + set READY
+          + commit  → ONE transaction: replace chunks + set READY
         ↓
 permanent failure → FAILED + human-readable reason
 ```
+
+Embed and commit share one job step: vectors are too big to pass between steps, and the chunks table can't hold a chunk without its vector. The commit is still a single transaction.
 
 ### Extraction per type
 | Type | Tool | Location kept |
 |---|---|---|
 | PDF | `unpdf` (from R2) | Page number |
 | Website | Firecrawl | Heading path |
-| YouTube | Transcript API | Start timestamp |
+| YouTube | Supadata transcript API | Start timestamp |
 | Text / markdown | none | Heading path / offset |
 
 ### Reliability mechanisms

@@ -35,8 +35,9 @@ export interface ChunkedSource {
 }
 
 const HEADER_SEPARATOR = ' › ';
-const PAGE_SEPARATOR = '\n\n';
-const SEGMENT_SEPARATOR = ' ';
+/** How pages and caption segments are joined into the full text. */
+export const PAGE_SEPARATOR = '\n\n';
+export const SEGMENT_SEPARATOR = ' ';
 
 /** The smallest piece a chunk is built from: a sentence, a line, or one caption segment. */
 interface Unit {

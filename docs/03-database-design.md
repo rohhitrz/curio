@@ -106,6 +106,7 @@ users 1──* notebooks 1──* sources 1──* source_chunks
 | `storage_key` | text | nullable (R2 key, PDF only) |
 | `content_hash` | text | NOT NULL |
 | `extracted_text` | text | nullable |
+| `extracted_locations` | jsonb | nullable (where pages / caption segments sit in `extracted_text`; lets job steps pass only the source ID) |
 | `metadata` | jsonb | NOT NULL, default `{}` |
 | `chunk_count` | int | NOT NULL, default 0 |
 | `embedding_model` | text | nullable |

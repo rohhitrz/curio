@@ -46,6 +46,10 @@ const envSchema = z.object({
   INNGEST_DEV: flag,
   INNGEST_EVENT_KEY: z.string().min(1).optional(),
   INNGEST_SIGNING_KEY: z.string().min(1).optional(),
+  // Used by the ingestion job: embeddings, website scraping, YouTube transcripts.
+  OPENAI_API_KEY: z.string().min(1),
+  FIRECRAWL_API_KEY: z.string().min(1),
+  TRANSCRIPT_API_KEY: z.string().min(1),
 });
 
 const INNGEST_KEYS = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY'] as const;
