@@ -4,10 +4,11 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 3 (Ingestion pipeline), all steps built; **waiting for the owner's approval**
-- **Current step:** none (3.1–3.7 done)
-- **Blocked on:** owner verifying Phase 3 on the live app and approving it (see "Pending on owner")
-- **Next step:** Phase 4 (eval foundation), only after approval
+- **Phase:** 4 (Eval foundation), not started
+- **Current step:** none yet
+- **Blocked on:** nothing
+- **Next step:** 4.1 retrieval module v0
+- **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
 | # | Phase | Status |
@@ -15,7 +16,7 @@
 | 0 | Foundation | ✅ Done (owner approved) |
 | 1 | Auth + notebooks + first deploy | ✅ Done (owner approved) |
 | 2 | Sources (no processing) | ✅ Done (owner approved) |
-| 3 | Ingestion pipeline | 🔨 Built, awaiting owner approval |
+| 3 | Ingestion pipeline | ✅ Done (owner approved) |
 | 4 | Eval foundation | ⏳ Not started |
 | 5 | Basic RAG chat | ⏳ Not started |
 | 6 | Advanced retrieval | ⏳ Not started |
@@ -27,7 +28,14 @@
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 3
+## Current phase steps: Phase 4
+- [ ] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
+- [ ] 4.2 Golden dataset: ~5–8 documents (all types), ~40–60 Q&A + ~10 unanswerable in `evals/dataset/`
+- [ ] 🛑 Owner reviews and fixes the dataset
+- [ ] 4.3 Eval runner (`pnpm eval`): hit rate@k + MRR, JSON to `evals/results/`
+- [ ] 4.4 Run and commit the baseline
+
+## Phase 3 steps (done)
 - [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (live, `d53cff3`)
 - [x] 3.2 Extractors behind providers: `unpdf`, Firecrawl, Supadata, text; each failure classified transient or permanent with a user-facing message. Not wired into the app yet (that is 3.5)
 - [x] 3.3 Chunking module (pure): `pipelines/ingestion/chunk.ts`, tokens counted with `gpt-tokenizer`
@@ -36,15 +44,14 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.6 Sweeper cron (every 5 min) · `POST /sources/:id/reprocess` · `GET /sources/:id/content` + `/chunks` · `notebook/deleted` R2 cleanup job
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
-## Resume here: Phase 3
-1. Phase 3 is fully built and deployed. **Do not start Phase 4 until the owner approves Phase 3.**
-2. If the owner reports a problem from the live checks below, fix it first.
-3. Tests use fake providers only; no real API calls outside `pnpm eval`.
+## Resume here: Phase 4
+1. Start with 4.1. Read `02-system-design.md` (retrieval), `03-database-design.md` (`source_chunks`), `06-test-plan.md` and `07-decisions.md` first.
+2. Search must only return chunks of `READY` sources (a failed reprocess keeps its old chunks).
+3. 4.2 ends at a 🛑 STOP: the owner reviews the dataset before 4.3.
+4. Tests use fake providers only; `pnpm eval` is the only thing that calls real APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Live checks (2026-09-30, owner):** Inngest resynced. Text and YouTube reached `READY`; a scanned PDF → `FAILED` with the `NO_TEXT` message and Retry; deleting a notebook removed its PDF from `curio-prod`. Found: the Website and YouTube tabs shared one URL (fixed).
-- **Still to confirm:** a website source reaching `READY`, and the source error-code list in `04-api-design.md` §4.
-- **Then approve Phase 3.**
+- Nothing. Phase 3 approved on 2026-09-30 after the live checks: Inngest resynced; text, website and YouTube reached `READY`; a scanned PDF → `FAILED` with the `NO_TEXT` message and Retry; deleting a notebook removed its PDF from `curio-prod`; the source error-code list in `04-api-design.md` §4 is confirmed. Found and fixed: the Website and YouTube tabs shared one URL.
 - **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
@@ -221,6 +228,9 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (Phase 3 approved)
+- Owner approved Phase 3 and the source error-code list. Added `docs/todo-v2.md` for deferred work (first entry: block YouTube links on the Website tab)
 
 ### 2026-09-30 (live Phase 3 check)
 - Done: fixed the owner-reported shared URL between the Website and YouTube tabs of the add dialog
