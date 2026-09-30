@@ -42,7 +42,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- **Inngest dashboard:** Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. It will show 0 functions until 3.5.
+- **Inngest dashboard, after 3.5 deploys:** Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. Inngest Cloud refuses to sync an app with no functions ("No functions registered within your app", seen 2026-09-30), so this waits for `processSource`. That error also means Inngest reached the endpoint in the Production environment.
 - **Before 3.5 deploys:** add `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` to Vercel `curio-server` too (type Secret).
 - **Optional:** the two Inngest keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
@@ -60,7 +60,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Clerk | 1 | ✅ App `curio` (**development** instance, used locally and in production) |
 | Vercel | 1 | ✅ Team `rohits-projects-f028bcc9` (`team_mJhVwylbdaoL6ox7AYfde7uf`): `curio-web` → https://curio-web-theta.vercel.app · `curio-server` → https://curio-server-ten.vercel.app |
 | Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
-| Inngest | 3 | 🔶 Keys in local `.env` and on Vercel (Production only); app not synced in the dashboard yet |
+| Inngest | 3 | 🔶 Keys in local `.env` and on Vercel (Production only); app sync waits for 3.5 (Inngest rejects an app with 0 functions) |
 | OpenAI | 3 | 🔶 Key in local `.env`; not on Vercel yet |
 | Firecrawl | 3 | 🔶 Key in local `.env`; not on Vercel yet |
 | Transcript API | 3 | 🔶 Key in local `.env` (`TRANSCRIPT_API_KEY`; vendor = decision I-12); not on Vercel yet |
