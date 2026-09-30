@@ -67,7 +67,7 @@
 | **Reranker** | Cohere or Jina rerank API | Final pick compared in evals |
 | **Web search** | Tavily | Finds resources for learning paths |
 | **Scraping** | Firecrawl | Clean markdown + headings |
-| **YouTube** | Transcript API (e.g. Supadata) | Not blocked on cloud servers |
+| **YouTube** | Supadata transcript API | Not blocked on cloud servers |
 | **PDF parsing** | `unpdf` | Page-by-page text, serverless-friendly |
 | **Observability** | Langfuse + `pino` logs | Per-step traces, cost, latency |
 | **Evals** | TypeScript eval runner | One language; standard metrics |

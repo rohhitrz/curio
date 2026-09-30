@@ -129,6 +129,11 @@
 **I-11 · `text-embedding-3-small`, model name stored per chunk**
 - **Why:** cheap and strong; storing the model shows which sources need re-embedding after a switch
 
+**I-12 · Supadata as the transcript API, native captions only**
+- **Alternatives:** other hosted transcript APIs; letting the vendor generate a transcript with AI when a video has no captions
+- **Why:** one HTTP API gives timestamped caption segments plus the video's title and length, and works from cloud servers (I-07). `mode=native` keeps cost and latency predictable
+- **Trade-off:** a video without captions fails with a clear reason instead of being transcribed
+
 ---
 
 ## 4. Retrieval decisions
@@ -314,7 +319,7 @@
 
 | Phase | Decision | Recorded as |
 |---|---|---|
-| 3 | Transcript API vendor (e.g. Supadata) | I-12 |
+| 3 | Transcript API vendor → **Supadata** (decided 2026-09-30) | I-12 |
 | 6 | Reranker: Cohere vs Jina | R-09 |
 | 6 | HyDE: kept or dropped (with numbers) | R-10 |
 | 6 | Chunk size after tuning | I-13 |

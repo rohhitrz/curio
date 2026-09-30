@@ -47,6 +47,17 @@ export const uploads = {
   downloadUrlTtlSeconds: 5 * 60,
 } as const;
 
+/** Timeouts for the services that read sources (docs/02-system-design.md §6). */
+export const extraction = {
+  /** Whole Firecrawl call; slow sites are retried by the job rather than waited on. */
+  scrapeTimeoutMs: 60_000,
+  /** Each transcript-service call. */
+  transcriptTimeoutMs: 30_000,
+  /** A transcript the vendor prepares in the background is polled this often, this many times. */
+  transcriptJobPollIntervalMs: 3_000,
+  transcriptJobPollAttempts: 10,
+} as const;
+
 export const requests = {
   /** JSON body cap. Pasted text can be 100k chars, which is up to ~400 KB of UTF-8. */
   jsonBodyLimit: '1mb',

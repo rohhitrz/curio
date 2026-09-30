@@ -83,12 +83,8 @@
           "name": "notebooks_user_id_users_id_fk",
           "tableFrom": "notebooks",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -96,12 +92,8 @@
           "name": "notebooks_topic_id_topics_id_fk",
           "tableFrom": "notebooks",
           "tableTo": "topics",
-          "columnsFrom": [
-            "topic_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["topic_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -173,9 +165,7 @@
         "topics_normalized_name_unique": {
           "name": "topics_normalized_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "normalized_name"
-          ]
+          "columns": ["normalized_name"]
         }
       },
       "policies": {},
@@ -221,9 +211,7 @@
         "users_clerk_user_id_unique": {
           "name": "users_clerk_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "clerk_user_id"
-          ]
+          "columns": ["clerk_user_id"]
         }
       },
       "policies": {},
@@ -235,10 +223,7 @@
     "public.notebook_kind": {
       "name": "notebook_kind",
       "schema": "public",
-      "values": [
-        "SOURCE",
-        "LEARNING"
-      ]
+      "values": ["SOURCE", "LEARNING"]
     }
   },
   "schemas": {},

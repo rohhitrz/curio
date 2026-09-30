@@ -3,6 +3,7 @@ import type { StorageProvider, StoredObject } from '../../src/lib/storage/index.
 /** In-memory storage for tests. `put` simulates the browser upload; calls are recorded. */
 export function createFakeStorage() {
   const objects = new Map<string, StoredObject>();
+  const contents = new Map<string, Uint8Array>();
   const deleted: string[] = [];
   let failNext: Error | null = null;
 
@@ -34,9 +35,15 @@ export function createFakeStorage() {
       await maybeFail();
       return objects.get(key) ?? null;
     },
+    async download(key) {
+      await maybeFail();
+      if (!objects.has(key)) return null;
+      return contents.get(key) ?? new Uint8Array();
+    },
     async delete(key) {
       await maybeFail();
       objects.delete(key);
+      contents.delete(key);
       deleted.push(key);
     },
   };
@@ -46,6 +53,11 @@ export function createFakeStorage() {
     deleted,
     put(key: string, size = 1024, contentType = 'application/pdf') {
       objects.set(key, { size, contentType });
+    },
+    /** Like `put`, with the file's bytes, for code that downloads it. */
+    putFile(key: string, bytes: Uint8Array, contentType = 'application/pdf') {
+      objects.set(key, { size: bytes.length, contentType });
+      contents.set(key, bytes);
     },
     has: (key: string) => objects.has(key),
     /** The next call rejects with this error (e.g. to simulate R2 being down). */

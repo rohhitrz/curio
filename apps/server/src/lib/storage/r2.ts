@@ -17,7 +17,7 @@ export interface R2Config {
 
 function isNotFound(error: unknown): boolean {
   const e = error as { name?: string; $metadata?: { httpStatusCode?: number } };
-  return e.name === 'NotFound' || e.$metadata?.httpStatusCode === 404;
+  return e.name === 'NotFound' || e.name === 'NoSuchKey' || e.$metadata?.httpStatusCode === 404;
 }
 
 export function createR2StorageProvider(config: R2Config): StorageProvider {
@@ -56,6 +56,16 @@ export function createR2StorageProvider(config: R2Config): StorageProvider {
       try {
         const result = await client.send(new HeadObjectCommand({ Bucket, Key: key }));
         return { size: result.ContentLength ?? 0, contentType: result.ContentType };
+      } catch (error) {
+        if (isNotFound(error)) return null;
+        throw error;
+      }
+    },
+
+    async download(key) {
+      try {
+        const result = await client.send(new GetObjectCommand({ Bucket, Key: key }));
+        return (await result.Body?.transformToByteArray()) ?? null;
       } catch (error) {
         if (isNotFound(error)) return null;
         throw error;

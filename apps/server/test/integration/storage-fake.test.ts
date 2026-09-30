@@ -13,6 +13,17 @@ describe('fake storage provider', () => {
     });
   });
 
+  it('download is null for a missing key and returns the bytes of a stored file', async () => {
+    const storage = createFakeStorage();
+    const bytes = new Uint8Array([1, 2, 3]);
+
+    expect(await storage.provider.download('k.pdf')).toBeNull();
+    storage.putFile('k.pdf', bytes);
+
+    expect(await storage.provider.download('k.pdf')).toEqual(bytes);
+    expect(await storage.provider.head('k.pdf')).toMatchObject({ size: 3 });
+  });
+
   it('delete removes the object and records the call', async () => {
     const storage = createFakeStorage();
     storage.put('k.pdf');

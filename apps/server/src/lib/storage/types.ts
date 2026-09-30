@@ -19,6 +19,8 @@ export interface StorageProvider {
   createDownloadUrl(input: { key: string; expiresInSeconds: number }): Promise<string>;
   /** Object metadata, or null when the key doesn't exist. */
   head(key: string): Promise<StoredObject | null>;
+  /** The object's bytes, or null when the key doesn't exist. */
+  download(key: string): Promise<Uint8Array | null>;
   /** Deletes the object; deleting a missing key is not an error. */
   delete(key: string): Promise<void>;
 }

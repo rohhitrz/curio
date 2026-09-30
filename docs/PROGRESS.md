@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 3 (Ingestion pipeline), in progress
-- **Current step:** 3.2 (extractors behind providers)
-- **Blocked on:** nothing. 3.1 is live (`d53cff3`)
-- **Next step:** 3.2
+- **Current step:** 3.3 (chunking module)
+- **Blocked on:** nothing
+- **Next step:** 3.3
 
 ## Phases
 | # | Phase | Status |
@@ -29,7 +29,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 3
 - [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (live, `d53cff3`)
-- [ ] 3.2 Extractors behind providers: `unpdf`, Firecrawl, transcript API, text; transient vs permanent errors
+- [x] 3.2 Extractors behind providers: `unpdf`, Firecrawl, Supadata, text; each failure classified transient or permanent with a user-facing message. Not wired into the app yet (that is 3.5)
 - [ ] 3.3 Chunking module (pure)
 - [ ] 3.4 Migration: `source_chunks`; embeddings provider (batched)
 - [ ] 3.5 `processSource` job
@@ -38,7 +38,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Resume here: Phase 3
 1. 3.1 is deployed and checked (2026-09-30): `/health` 200; unsigned `GET` and `POST /api/inngest` → 401.
-2. Build 3.2 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. `unpdf`, the OpenAI SDK and the Firecrawl SDK are already named in `02-system-design.md`; the transcript vendor is decision I-12 (record it in `07-decisions.md` in 3.2). All Phase 3 key names are in local `.env` (checked by name, 2026-09-30).
+2. Build 3.3 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. All Phase 3 key names are in local `.env` (checked by name, 2026-09-30). `FIRECRAWL_API_KEY` and `TRANSCRIPT_API_KEY` are **not** in `config/env.ts` yet: add them as required in 3.5, when the providers are wired into the app, and only after they are on Vercel.
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
@@ -62,8 +62,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Cloudflare R2 | 2 | ✅ `curio-dev` (local) and `curio-prod` (live), one token each (see "R2 setup") |
 | Inngest | 3 | 🔶 Keys in local `.env` and on Vercel (Production only); app sync waits for 3.5 (Inngest rejects an app with 0 functions) |
 | OpenAI | 3 | 🔶 Key in local `.env`; not on Vercel yet |
-| Firecrawl | 3 | 🔶 Key in local `.env`; not on Vercel yet |
-| Transcript API | 3 | 🔶 Key in local `.env` (`TRANSCRIPT_API_KEY`; vendor = decision I-12); not on Vercel yet |
+| Firecrawl | 3 | 🔶 Key in local `.env` (works, smoke-tested); not on Vercel yet |
+| Supadata (transcripts) | 3 | 🔶 Key in local `.env` (`TRANSCRIPT_API_KEY`, works, smoke-tested); not on Vercel yet |
 | Langfuse | 5 | ⬜ Not set up |
 | Upstash | 5 | ⬜ Not set up |
 | Cohere / Jina | 6 | ⬜ Not set up |
@@ -139,6 +139,18 @@ API and server:
   - **Endpoint:** `/api/inngest` is mounted before the general JSON parser with its own 4 MB limit (`requests.inngestBodyLimit`), outside `/api/v1` and user auth. In cloud mode the SDK answers unsigned or forged `GET`/`POST` with 401. An unsigned `PUT` only makes the SDK re-register this app with Inngest using our signing key (standard Inngest behavior). No functions are registered until 3.5.
   - **`source/created`** = `{ sourceId, userId }`, sent after the insert transaction commits. If the send fails, the request still returns 202 and the source stays `PENDING` (warn log `source/created not sent`); failing the request would make a retry hit 409. **Open for 3.6:** the sweeper must also pick up stale `PENDING` rows; `02-system-design.md` only mentions `PROCESSING`, so propose that doc change then.
   - Verified locally: the dev server synced the app (`PUT` 200) and received a `source/created` sent through the provider.
+- **Extraction (3.2):**
+  - **Layout:** providers in `lib/scraper` (Firecrawl), `lib/transcript` (Supadata), `lib/pdf` (`unpdf`); `StorageProvider.download(key)` returns the bytes or null. `pipelines/ingestion/extract.ts` `extractSource(source, deps)` picks by type and returns `{ title, content, metadata }`.
+  - **Content shape** keeps each type's citation location: PDF → `pages[{ pageNumber, text }]` (empty pages kept so numbers stay right), YouTube → `segments[{ text, startSeconds, endSeconds }]`, website/text → `markdown`. How this is stored between job steps is decided in 3.5.
+  - **Titles:** website and YouTube return the real title (replaces the placeholder); PDF and text return `null` and keep the user's title.
+  - **Learned metadata:** PDF `pageCount` + `fileHash` (real SHA-256 of the file; the browser's hash is only a claim, and what to do on a mismatch is a 3.5 decision); YouTube `durationSeconds` + `language`.
+  - **Errors:** everything thrown is an `ExtractionError` (`errors/extraction-error.ts`) with `code`, `retryable` and a user-facing `message`; vendor detail goes in `cause` for the log only. **Source error codes (not in the docs yet):** `NO_TEXT`, `INVALID_FILE`, `FILE_MISSING`, `PAGE_NOT_FOUND`, `PAGE_BLOCKED`, `NO_TRANSCRIPT`, `VIDEO_UNAVAILABLE`, `VIDEO_TOO_LONG`, `SERVICE_UNAVAILABLE` (the only transient one), `EXTRACTION_FAILED`, plus the sweeper's `TIMEOUT`. Propose adding the list to `04-api-design.md` when 3.7 shows them.
+  - **Transient** = network failure, timeout, 429, 5xx, vendor still working. **Permanent** = the rest, including our own bad key or empty credits (401/402 → `EXTRACTION_FAILED` with a generic message; retrying can't fix it).
+  - **No vendor SDKs:** Firecrawl and Supadata are called with plain `fetch` (one endpoint each), so there is no new dependency beyond `unpdf` and tests inject a stub `fetch`. Timeouts and the transcript job polling are in `config/limits.ts` `extraction`.
+  - **Firecrawl** `POST /v2/scrape` (markdown, main content only). It reports a failed scrape as **HTTP 200 with `success: false`** and a `code` (seen live for a DNS failure), and reports the target page's own status in `metadata.statusCode` (404/410 → `PAGE_NOT_FOUND`, 401/403 → `PAGE_BLOCKED`).
+  - **Supadata** `GET /v1/metadata` (title, length) then `GET /v1/transcript?mode=native`. No captions comes back as **HTTP 206** with `error: transcript-unavailable`. A 202 means a background job, polled up to 10 × 3 s. The 3-hour limit is checked before the transcript is fetched.
+  - **PDF:** type checked by content (`%PDF-` in the first 1024 bytes); no text on any page → `NO_TEXT` (scanned); unreadable or password-protected → `INVALID_FILE`.
+  - **Real smoke test (one scratch script, since deleted):** Firecrawl scraped a page, mapped a 404 page and a dead domain; Supadata returned a video's details and 61 caption segments and mapped a missing video; R2 `download` of a missing key returned null. Not exercised live: a video without captions, a password-protected PDF, R2 `download` of an existing file.
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -150,6 +162,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (3.2)
+- Done: 3.2 (extractors for all 4 types behind providers, classified errors, decision I-12 = Supadata)
+- Notes: 289 tests passing (255 server, 34 web). Inngest Cloud would not sync the app yet (0 functions); retry after 3.5
 
 ### 2026-09-30 (Phase 3 start)
 - Done: 3.1 (Inngest client, signed `/api/inngest`, `dev:inngest`, `source/created` on source creation)
