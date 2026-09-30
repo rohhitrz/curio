@@ -175,6 +175,23 @@
 - Allowed for `FAILED` or `READY` → **202** with the source, back in `PENDING`; the old chunks stay until the new ones are committed
 - `PENDING` / `PROCESSING` → **409 `ALREADY_PROCESSING`**
 
+### Failure reasons
+A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
+
+| `errorCode` | Meaning |
+|---|---|
+| `NO_TEXT` | Nothing readable: scanned PDF, empty page, empty text |
+| `INVALID_FILE` | Not a PDF, damaged, password-protected, or not the file that was registered |
+| `FILE_MISSING` | The uploaded file is no longer in storage |
+| `PAGE_NOT_FOUND` | The page or site doesn't exist |
+| `PAGE_BLOCKED` | The site refuses automated reading or needs a login |
+| `NO_TRANSCRIPT` | The video has no captions |
+| `VIDEO_UNAVAILABLE` | The video is private, removed or restricted |
+| `VIDEO_TOO_LONG` | Longer than 3 hours |
+| `SERVICE_UNAVAILABLE` | An outside service kept failing after retries |
+| `PROCESSING_FAILED` | Anything else |
+| `TIMEOUT` | Stuck in `PROCESSING`; failed by the sweeper |
+
 ### Delete during processing
 - The job's commit finds no source → permanent stop, no retries, nothing written
 

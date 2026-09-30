@@ -79,9 +79,11 @@ const stageLabels: Record<PdfUploadStage, string> = {
 function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialogProps) {
   const [type, setType] = useState<SourceType>('PDF');
   const [url, setUrl] = useState('');
+  /** The PDF's title. The text note has its own, so a file name never shows up on the Text tab. */
   const [title, setTitle] = useState('');
   /** The title we filled in from the file name; replaced when the file changes unless edited. */
   const [autoTitle, setAutoTitle] = useState('');
+  const [textTitle, setTextTitle] = useState('');
   const [content, setContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<FormError | null>(null);
@@ -120,7 +122,9 @@ function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialo
 
   async function submitOther() {
     const body =
-      type === 'TEXT' ? { type, title, content } : { type: type as 'WEBSITE' | 'YOUTUBE', url };
+      type === 'TEXT'
+        ? { type, title: textTitle, content }
+        : { type: type as 'WEBSITE' | 'YOUTUBE', url };
     const parsed = createSourceSchema.safeParse(body);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -273,11 +277,11 @@ function AddSourceForm({ notebookId, onOpenChange, onDuplicate }: AddSourceDialo
 
       {type === 'TEXT' && (
         <div className="grid gap-4">
-          <Field id="source-title" label="Title" error={fieldError('title')}>
+          <Field id="source-text-title" label="Title" error={fieldError('title')}>
             <Input
-              id="source-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              id="source-text-title"
+              value={textTitle}
+              onChange={(event) => setTextTitle(event.target.value)}
               maxLength={SOURCE_TITLE_MAX}
               placeholder="e.g. Lecture notes"
               autoFocus

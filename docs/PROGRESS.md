@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 3 (Ingestion pipeline), in progress
-- **Current step:** 3.7 (frontend: failure reason + retry, text viewer, chunk viewer)
-- **Blocked on:** nothing
-- **Next step:** 3.7
+- **Phase:** 3 (Ingestion pipeline), all steps built; **waiting for the owner's approval**
+- **Current step:** none (3.1–3.7 done)
+- **Blocked on:** owner verifying Phase 3 on the live app and approving it (see "Pending on owner")
+- **Next step:** Phase 4 (eval foundation), only after approval
 
 ## Phases
 | # | Phase | Status |
@@ -15,7 +15,7 @@
 | 0 | Foundation | ✅ Done (owner approved) |
 | 1 | Auth + notebooks + first deploy | ✅ Done (owner approved) |
 | 2 | Sources (no processing) | ✅ Done (owner approved) |
-| 3 | Ingestion pipeline | 🔨 In progress |
+| 3 | Ingestion pipeline | 🔨 Built, awaiting owner approval |
 | 4 | Eval foundation | ⏳ Not started |
 | 5 | Basic RAG chat | ⏳ Not started |
 | 6 | Advanced retrieval | ⏳ Not started |
@@ -34,15 +34,20 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.4 Migration `0005_source_chunks` (applied on `dev` and `test`; **not on `main` yet**); OpenAI embeddings provider (batched)
 - [x] 3.5 `processSource` job: 4 Inngest steps (mark processing → extract → chunk → embed + atomic commit), idempotent, classified failures, stops when the source is gone (live)
 - [x] 3.6 Sweeper cron (every 5 min) · `POST /sources/:id/reprocess` · `GET /sources/:id/content` + `/chunks` · `notebook/deleted` R2 cleanup job
-- [ ] 3.7 Frontend: failure reason + retry, text source viewer, chunk viewer
+- [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 3
-1. 3.1–3.6 are deployed. The pipeline is verified live for a **text** source (owner, 2026-09-30: Pending → Processing → Ready); PDF, website and YouTube are still to be tried on the live app.
-2. Build 3.7. Read `docs/05-build-plan.md` §6 and the docs it touches. Also clear the add-source dialog's title when switching tabs (a PDF file name carried over to the Text tab and confused the owner).
+1. Phase 3 is fully built and deployed. **Do not start Phase 4 until the owner approves Phase 3.**
+2. If the owner reports a problem from the live checks below, fix it first.
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
-- **Verify live:** add a PDF, a website and a YouTube video; each should reach `READY` (text already does). Try **deleting a notebook** that has a PDF and check the file leaves `curio-prod`.
+- **Resync Inngest** if not done since 3.6: dashboard → Apps → `curio` → Resync (should list 4 functions).
+- **Verify Phase 3 live, then approve it:**
+  - Add a PDF, a website and a YouTube video; each should reach `READY` (a text note already does).
+  - Add something that must fail (a scanned PDF, or a YouTube video without captions) → `FAILED` with a clear reason and a **Retry** button.
+  - On a `READY` source: ⋯ → **View text and chunks** (Text tab, Chunks tab, "Show in text"), and ⋯ → **Process again**.
+  - Delete a notebook that has a PDF and check the file leaves `curio-prod`.
 - **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
@@ -145,7 +150,7 @@ API and server:
   - **Content shape** keeps each type's citation location: PDF → `pages[{ pageNumber, text }]` (empty pages kept so numbers stay right), YouTube → `segments[{ text, startSeconds, endSeconds }]`, website/text → `markdown`. How this is stored between job steps is decided in 3.5.
   - **Titles:** website and YouTube return the real title (replaces the placeholder); PDF and text return `null` and keep the user's title.
   - **Learned metadata:** PDF `pageCount` + `fileHash` (real SHA-256 of the file; the browser's hash is only a claim, and what to do on a mismatch is a 3.5 decision); YouTube `durationSeconds` + `language`.
-  - **Errors:** everything thrown is an `IngestionError` (`errors/ingestion-error.ts`; renamed from `ExtractionError` in 3.4 because embedding uses it too) with `code`, `retryable` and a user-facing `message`; vendor detail goes in `cause` for the log only. **Source error codes (not in the docs yet):** `NO_TEXT`, `INVALID_FILE`, `FILE_MISSING`, `PAGE_NOT_FOUND`, `PAGE_BLOCKED`, `NO_TRANSCRIPT`, `VIDEO_UNAVAILABLE`, `VIDEO_TOO_LONG`, `SERVICE_UNAVAILABLE` (the only transient one), `PROCESSING_FAILED`, plus the sweeper's `TIMEOUT`. Propose adding the list to `04-api-design.md` when 3.7 shows them.
+  - **Errors:** everything thrown is an `IngestionError` (`errors/ingestion-error.ts`; renamed from `ExtractionError` in 3.4 because embedding uses it too) with `code`, `retryable` and a user-facing `message`; vendor detail goes in `cause` for the log only. **Source error codes:** `NO_TEXT`, `INVALID_FILE`, `FILE_MISSING`, `PAGE_NOT_FOUND`, `PAGE_BLOCKED`, `NO_TRANSCRIPT`, `VIDEO_UNAVAILABLE`, `VIDEO_TOO_LONG`, `SERVICE_UNAVAILABLE` (the only transient one), `PROCESSING_FAILED`, plus the sweeper's `TIMEOUT`. The list was added to `04-api-design.md` §4 in 3.7 (the UI shows the message, not the code); owner to confirm at phase approval.
   - **Transient** = network failure, timeout, 429, 5xx, vendor still working. **Permanent** = the rest, including our own bad key or empty credits (401/402 → `PROCESSING_FAILED` with a generic message; retrying can't fix it).
   - **No vendor SDKs:** Firecrawl and Supadata are called with plain `fetch` (one endpoint each), so there is no new dependency beyond `unpdf` and tests inject a stub `fetch`. Timeouts and the transcript job polling are in `config/limits.ts` `extraction`.
   - **Firecrawl** `POST /v2/scrape` (markdown, main content only). It reports a failed scrape as **HTTP 200 with `success: false`** and a `code` (seen live for a DNS failure), and reports the target page's own status in `metadata.statusCode` (404/410 → `PAGE_NOT_FOUND`, 401/403 → `PAGE_BLOCKED`).
@@ -195,6 +200,13 @@ API and server:
   - **Notebook delete:** one transaction locks the notebook, reads its sources' R2 keys, deletes it (cascade). Then `notebook/deleted` is sent with the keys; nothing is sent when there are no files. A failed send still returns 204 and logs `orphaned uploads` at warn.
   - **`cleanup-notebook-files`** deletes the keys from R2 (repeatable, so a failure retries the whole batch, `ingestion.retries` times). Keys outside `users/{userId}/uploads/` are refused and logged at error.
 
+- **Frontend (3.7):**
+  - **Failed sources** show the reason and a **Retry** button on the row; the ⋯ menu has **Retry** (failed) or **Process again** (ready). Both call `POST /sources/:id/reprocess`; the list then polls again because the source is `PENDING`.
+  - **Viewer** (`source-viewer-dialog.tsx`, ⋯ → **View text and chunks**, `READY` sources only): a Text tab (`GET /content`) and a Chunks tab (`GET /chunks`, 20 per page, "Load more"). Each chunk shows its number, location (page, time range or heading path) and token count; **Show in text** switches to the Text tab with that passage highlighted and scrolled into view (`charStart`/`charEnd`).
+  - Pure helpers and their tests are in `features/sources/viewer.ts` (web tests run in Node, so only logic is unit-tested).
+  - **Add-source dialog:** the PDF and Text tabs now keep separate titles, so a chosen file's name no longer appears on the Text tab (owner-reported).
+  - **Checked in the browser** against the local API: failed row with Retry → Pending, the viewer's two tabs, "Show in text" highlight, and the phone layout (375 px, no sideways scroll). The dev rows used for this were restored afterwards. Not clicked: choosing a PDF file (needs a file picker).
+
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -206,6 +218,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (3.7, Phase 3 built)
+- Done: 3.7 (Retry / Process again, text and chunk viewer, separate titles in the add dialog, failure codes listed in the API doc)
+- Notes: 439 tests passing (385 server, 54 web). Phase 3 is waiting for the owner's live checks and approval
 
 ### 2026-09-30 (3.6)
 - Done: 3.6 (sweeper, reprocess, content + chunks endpoints, notebook cleanup job). Owner synced the Inngest app and saw a text source go Pending → Processing → Ready on the live app

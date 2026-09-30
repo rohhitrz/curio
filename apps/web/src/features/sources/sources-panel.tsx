@@ -6,12 +6,23 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddSourceDialog } from './add-source-dialog';
-import { useDeleteSource, useOpenSourceFile, useRenameSource, useSources } from './queries';
+import {
+  useDeleteSource,
+  useOpenSourceFile,
+  useRenameSource,
+  useReprocessSource,
+  useSources,
+} from './queries';
 import { DeleteSourceDialog, RenameSourceDialog } from './source-dialogs';
 import { SourceRow } from './source-row';
+import { SourceViewerDialog } from './source-viewer-dialog';
 
 type DialogState =
-  { type: 'add' } | { type: 'rename'; source: Source } | { type: 'delete'; source: Source } | null;
+  | { type: 'add' }
+  | { type: 'rename'; source: Source }
+  | { type: 'delete'; source: Source }
+  | { type: 'view'; source: Source }
+  | null;
 
 const HIGHLIGHT_MS = 2_500;
 
@@ -20,6 +31,7 @@ export function SourcesPanel({ notebookId }: { notebookId: string }) {
   const renameSource = useRenameSource(notebookId);
   const deleteSource = useDeleteSource(notebookId);
   const openFile = useOpenSourceFile();
+  const reprocessSource = useReprocessSource(notebookId);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -52,6 +64,15 @@ export function SourcesPanel({ notebookId }: { notebookId: string }) {
     } catch (err) {
       tab?.close();
       setActionError(err instanceof Error ? err.message : 'Couldn’t open the PDF.');
+    }
+  }
+
+  async function reprocess(source: Source) {
+    setActionError(null);
+    try {
+      await reprocessSource.mutateAsync(source.id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Couldn’t retry this source.');
     }
   }
 
@@ -113,7 +134,10 @@ export function SourcesPanel({ notebookId }: { notebookId: string }) {
                 key={source.id}
                 source={source}
                 highlighted={source.id === highlightedId}
+                retrying={reprocessSource.isPending && reprocessSource.variables === source.id}
                 onOpenFile={() => void openPdf(source)}
+                onView={() => setDialog({ type: 'view', source })}
+                onReprocess={() => void reprocess(source)}
                 onRename={() => setDialog({ type: 'rename', source })}
                 onDelete={() => setDialog({ type: 'delete', source })}
               />
@@ -127,6 +151,10 @@ export function SourcesPanel({ notebookId }: { notebookId: string }) {
         open={dialog?.type === 'add'}
         onOpenChange={close}
         onDuplicate={setHighlightedId}
+      />
+      <SourceViewerDialog
+        source={dialog?.type === 'view' ? dialog.source : null}
+        onOpenChange={close}
       />
       <RenameSourceDialog
         open={dialog?.type === 'rename'}

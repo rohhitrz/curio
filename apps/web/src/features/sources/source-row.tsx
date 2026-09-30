@@ -6,11 +6,13 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  Eye,
   FileText,
   Globe,
   Loader2,
   MoreHorizontal,
   Pencil,
+  RefreshCw,
   StickyNote,
   Trash2,
   SquarePlay,
@@ -25,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from 'cn';
+import { canReprocessSource, canViewSource } from './viewer';
 
 const typeIcons: Record<SourceType, ReactNode> = {
   PDF: <FileText />,
@@ -89,12 +92,25 @@ function subtitle(source: Source): string {
 interface SourceRowProps {
   source: Source;
   highlighted: boolean;
+  /** True while this source's retry request is in flight. */
+  retrying: boolean;
   onOpenFile: () => void;
+  onView: () => void;
+  onReprocess: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
 
-export function SourceRow({ source, highlighted, onOpenFile, onRename, onDelete }: SourceRowProps) {
+export function SourceRow({
+  source,
+  highlighted,
+  retrying,
+  onOpenFile,
+  onView,
+  onReprocess,
+  onRename,
+  onDelete,
+}: SourceRowProps) {
   return (
     <li
       id={`source-${source.id}`}
@@ -114,8 +130,16 @@ export function SourceRow({ source, highlighted, onOpenFile, onRename, onDelete 
           <SourceStatusBadge status={source.status} />
         </div>
         <p className="text-muted-foreground truncate text-xs">{subtitle(source)}</p>
-        {source.status === 'FAILED' && source.errorMessage && (
-          <p className="text-destructive mt-1 text-xs">{source.errorMessage}</p>
+        {source.status === 'FAILED' && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <p className="text-destructive text-xs">
+              {source.errorMessage ?? 'This source could not be processed.'}
+            </p>
+            <Button variant="outline" size="xs" disabled={retrying} onClick={onReprocess}>
+              <RefreshCw className={cn(retrying && 'animate-spin')} />
+              {retrying ? 'Retrying…' : 'Retry'}
+            </Button>
+          </div>
         )}
       </div>
       <DropdownMenu>
@@ -132,6 +156,12 @@ export function SourceRow({ source, highlighted, onOpenFile, onRename, onDelete 
           <MoreHorizontal />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {canViewSource(source) && (
+            <DropdownMenuItem onClick={onView}>
+              <Eye />
+              View text and chunks
+            </DropdownMenuItem>
+          )}
           {source.type === 'PDF' && (
             <DropdownMenuItem onClick={onOpenFile}>
               <ExternalLink />
@@ -144,6 +174,12 @@ export function SourceRow({ source, highlighted, onOpenFile, onRename, onDelete 
             >
               <ExternalLink />
               Open link
+            </DropdownMenuItem>
+          )}
+          {canReprocessSource(source) && (
+            <DropdownMenuItem disabled={retrying} onClick={onReprocess}>
+              <RefreshCw />
+              {source.status === 'FAILED' ? 'Retry' : 'Process again'}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={onRename}>
