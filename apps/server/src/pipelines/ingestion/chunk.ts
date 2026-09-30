@@ -147,10 +147,36 @@ function toUnits(text: string, start: number, end: number, target: number, count
   return units;
 }
 
+/** A markdown link's `(url "title")` part; allows one level of parentheses inside the URL. */
+const LINK_TARGET = String.raw`\((?:[^()]|\([^()]*\))*\)`;
+/** Permalink anchors docs sites put in headings: `[#](…)`, `[¶](…)`, `[§](…)`, `[🔗](…)`. */
+const ANCHOR_LINK = new RegExp(String.raw`\[\s*(?:\\?#|¶|§|🔗)\s*\]${LINK_TARGET}`, 'gu');
+const LINK = new RegExp(String.raw`\[([^\]]*)\]${LINK_TARGET}`, 'g');
+const MARKDOWN_ESCAPE = /\\([\\`*_{}[\]()#+\-.!|<>])/g;
+
+/**
+ * Heading text as a reader sees it: permalink anchors dropped, links reduced to their text,
+ * markdown escapes and trailing line breaks undone. Scraped docs pages (Sphinx, MkDocs…) put a `[#](url "Link to this
+ * heading")` anchor in every heading, which would otherwise end up in citations and embeddings.
+ */
+function cleanHeading(raw: string): string {
+  return (
+    raw
+      .replace(ANCHOR_LINK, '')
+      .replace(LINK, '$1')
+      .replace(MARKDOWN_ESCAPE, '$1')
+      // A trailing backslash is a markdown hard line break, not part of the text.
+      .replace(/\\+\s*$/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}
+
 /** Splits markdown into sections at its headings (`#` … `######`), ignoring fenced code. */
 function markdownGroups(text: string, target: number, count: Counter): Group[] {
   const groups: Group[] = [];
-  const path: string[] = [];
+  /** The open headings, outermost first. */
+  const path: { level: number; text: string }[] = [];
   let sectionStart = 0;
   let headingPath: string | null = null;
   let fence: string | null = null;
@@ -176,14 +202,15 @@ function markdownGroups(text: string, target: number, count: Counter): Group[] {
 
     const heading =
       fence === null ? /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/.exec(line) : null;
-    const headingText = heading?.[2]?.trim();
+    const headingText = heading?.[2] === undefined ? '' : cleanHeading(heading[2]);
     if (heading?.[1] && headingText) {
       closeSection(lineStart);
       const level = heading[1].length;
-      path.length = Math.min(path.length, level - 1);
-      // A skipped level (h1 → h3) leaves no gap in the path.
-      path.push(headingText);
-      headingPath = path.join(HEADER_SEPARATOR);
+      // A heading closes every open section at its level or deeper. Comparing levels (not path
+      // positions) keeps siblings siblings when a page has no `#` title or skips a level.
+      while ((path.at(-1)?.level ?? 0) >= level) path.pop();
+      path.push({ level, text: headingText });
+      headingPath = path.map((entry) => entry.text).join(HEADER_SEPARATOR);
       sectionStart = lineEnd;
     }
 

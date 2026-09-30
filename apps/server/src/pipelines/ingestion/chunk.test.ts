@@ -127,6 +127,64 @@ describe('chunking: markdown structure', () => {
     expect(chunks[0]?.content).toContain('# install deps');
   });
 
+  it('a page without a `#` title keeps its `##` sections as siblings', () => {
+    const { chunks } = chunkContent(
+      markdown('## Inference\n\nOne.\n\n### Regression\n\nTwo.\n\n## Learning\n\nThree.'),
+      options(),
+    );
+
+    expect(chunks.map((c) => c.headingPath)).toEqual([
+      'Inference',
+      'Inference › Regression',
+      'Learning',
+    ]);
+  });
+
+  it('after a skipped level, a heading closes the sections at its level and deeper', () => {
+    const { chunks } = chunkContent(
+      markdown('# A\n\nOne.\n\n### C\n\nTwo.\n\n## D\n\nThree.\n\n### E\n\nFour.\n\n# F\n\nFive.'),
+      options(),
+    );
+
+    expect(chunks.map((c) => c.headingPath)).toEqual(['A', 'A › C', 'A › D', 'A › D › E', 'F']);
+  });
+
+  it('drops permalink anchors, unwraps links and undoes escapes in heading text', () => {
+    const { chunks } = chunkContent(
+      markdown(
+        [
+          '# 1.1. Linear Models [\\#](https://example.org/linear.html\\#linear-models "Link to this heading")',
+          '',
+          'Intro.',
+          '',
+          '## 1.1.2. Ridge [¶](#ridge) regression [\\#](https://example.org/#r "Link")\\',
+          '',
+          'Ridge.',
+          '',
+          '## See [scikit-learn](https://scikit-learn.org/(stable)/ "docs") \\*docs\\*',
+          '',
+          'Links.',
+        ].join('\n'),
+      ),
+      options(),
+    );
+
+    expect(chunks.map((c) => c.headingPath)).toEqual([
+      '1.1. Linear Models',
+      '1.1. Linear Models › 1.1.2. Ridge regression',
+      '1.1. Linear Models › See scikit-learn *docs*',
+    ]);
+    expect(chunks[1]?.contextHeader).toBe('Guide › 1.1. Linear Models › 1.1.2. Ridge regression');
+  });
+
+  it('a heading that is only an anchor is not a heading', () => {
+    const { chunks } = chunkContent(markdown('# A\n\nOne.\n\n## [#](#x)\n\nTwo.'), options());
+
+    expect(chunks.map((c) => [c.headingPath, c.content])).toEqual([
+      ['A', 'One.\n\n## [#](#x)\n\nTwo.'],
+    ]);
+  });
+
   it('a heading with no text under it makes no chunk', () => {
     const { chunks } = chunkContent(markdown('# A\n\n## B\n\nBody.\n\n## Empty\n'), options());
 
