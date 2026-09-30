@@ -8,6 +8,7 @@
 - [ ] **YouTube link on the Website tab:** today it is accepted and read as a web page (poor text). Show "This is a YouTube video, use the YouTube tab" instead. The reverse (a web link on the YouTube tab) is already rejected. *(Owner, Phase 3 live check, 2026-09-30)*
 - [ ] **Orphaned PDF uploads in R2:** a duplicate PDF is only detected after its upload, which leaves the file in R2 with no source. Add a cleanup job for uploads that never became a source. *(2.5)*
 - [ ] **Scanned PDFs:** `NO_TEXT` today; OCR would make them usable. *(3.2)*
+- [ ] **Sweeper vs a long job queue:** a step that waits more than 15 minutes in the Inngest queue before starting is timed out as if its run were dead (the database can't tell the two apart). Fix: before failing a source, ask Inngest whether its run (`sources.processing_run_id`) is still queued or running, and only fail it if the run ended or is unknown. Needs Inngest's API added to `02-system-design.md`. Only matters with a backlog of well over a hundred sources. *(Code review, 2026-10-01)*
 
 
 

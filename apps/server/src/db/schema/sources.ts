@@ -45,6 +45,8 @@ export const sources = pgTable(
     chunkCount: integer('chunk_count').notNull().default(0),
     embeddingModel: text('embedding_model'),
     processingStartedAt: timestamp('processing_started_at', { withTimezone: true }),
+    /** The job run that owns the source while `PROCESSING`; every job write requires it. */
+    processingRunId: text('processing_run_id'),
     processedAt: timestamp('processed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })

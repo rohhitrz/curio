@@ -10,7 +10,7 @@ import {
   type Extraction,
 } from '../pipelines/ingestion/extract.js';
 import { fromStored, toStored } from '../pipelines/ingestion/stored-content.js';
-import type { IngestionRepository, SourceRef } from '../repositories/ingestion.repository.js';
+import type { IngestionRepository, RunRef } from '../repositories/ingestion.repository.js';
 import { websitePlaceholderTitle, youtubePlaceholderTitle } from './source-identity.js';
 
 /**
@@ -79,7 +79,7 @@ export function createIngestionService(deps: IngestionDeps) {
    * when it fails the source too. So a source never stays `PROCESSING` after its job ends.
    */
   async function guarded(
-    ref: SourceRef,
+    ref: RunRef,
     step: string,
     { isLastAttempt }: StepAttempt,
     work: () => Promise<StepResult>,
@@ -105,7 +105,7 @@ export function createIngestionService(deps: IngestionDeps) {
   }
 
   /** The extracted content chunked with the current settings. Undefined when the source is gone. */
-  async function loadChunks(ref: SourceRef) {
+  async function loadChunks(ref: RunRef) {
     const source = await repository.findExtracted(ref);
     if (!source) return undefined;
     const content = fromStored(source.extractedText ?? '', source.extractedLocations);
@@ -122,14 +122,14 @@ export function createIngestionService(deps: IngestionDeps) {
   }
 
   return {
-    /** Step 1: claim the source (`PENDING` → `PROCESSING`). */
-    async start(ref: SourceRef): Promise<StepResult> {
+    /** Step 1: claim the source for this run (`PENDING` → `PROCESSING`; a retry keeps the claim). */
+    async start(ref: RunRef): Promise<StepResult> {
       const claim = await repository.markProcessing(ref);
       return claim === 'claimed' ? { status: 'ok' } : { status: 'stopped', reason: claim };
     },
 
     /** Step 2: read the source and save its text and locations. */
-    extract(ref: SourceRef, attempt: StepAttempt): Promise<StepResult> {
+    extract(ref: RunRef, attempt: StepAttempt): Promise<StepResult> {
       return guarded(ref, 'extract', attempt, async () => {
         const source = await repository.findForExtraction(ref);
         if (!source) return NOT_FOUND;
@@ -151,7 +151,7 @@ export function createIngestionService(deps: IngestionDeps) {
     },
 
     /** Step 3: chunk. Nothing is stored yet; this fails early when there is nothing to index. */
-    chunk(ref: SourceRef, attempt: StepAttempt): Promise<StepResult> {
+    chunk(ref: RunRef, attempt: StepAttempt): Promise<StepResult> {
       return guarded(ref, 'chunk', attempt, async () => {
         const chunks = await loadChunks(ref);
         return chunks ? { status: 'ok', chunkCount: chunks.length } : NOT_FOUND;
@@ -162,7 +162,7 @@ export function createIngestionService(deps: IngestionDeps) {
      * Steps 4 and 5: embed the chunks, then replace the old ones and mark the source `READY` in
      * one transaction. They share a step because vectors are too big to pass between steps.
      */
-    embedAndCommit(ref: SourceRef, attempt: StepAttempt): Promise<StepResult> {
+    embedAndCommit(ref: RunRef, attempt: StepAttempt): Promise<StepResult> {
       return guarded(ref, 'embed-and-commit', attempt, async () => {
         const chunks = await loadChunks(ref);
         if (!chunks) return NOT_FOUND;
@@ -212,7 +212,7 @@ export function createIngestionService(deps: IngestionDeps) {
     },
 
     /** Safety net for a job that ended without marking its source: fail it generically. */
-    async fail(ref: SourceRef): Promise<void> {
+    async fail(ref: RunRef): Promise<void> {
       await repository.markFailed(ref, 'PROCESSING_FAILED', messages.unexpected);
     },
   };

@@ -10,7 +10,7 @@ import { createUnpdfParser } from '../../src/lib/pdf/index.js';
 import { countTokens } from '../../src/pipelines/ingestion/tokens.js';
 import {
   createIngestionRepository,
-  type SourceRef,
+  type RunRef,
 } from '../../src/repositories/ingestion.repository.js';
 import {
   createIngestionService,
@@ -59,13 +59,19 @@ type NewSource = Omit<typeof sources.$inferInsert, 'notebookId' | 'userId' | 'co
   contentHash?: string;
 };
 
-async function addSource(values: NewSource): Promise<SourceRef> {
+const newRunId = () => `run-${crypto.randomUUID()}`;
+
+/** The same source as another job run sees it (a duplicate, or the next reprocess). */
+const anotherRun = (ref: RunRef): RunRef => ({ ...ref, runId: newRunId() });
+
+/** A source in the test notebook, and the ref its first job run uses. */
+async function addSource(values: NewSource): Promise<RunRef> {
   const [row] = await db
     .insert(sources)
     .values({ contentHash: `hash-${values.title}`, ...values, notebookId, userId })
     .returning({ id: sources.id });
   if (!row) throw new Error('source not created');
-  return { userId, sourceId: row.id };
+  return { userId, sourceId: row.id, runId: newRunId() };
 }
 
 const textSource = () =>
@@ -101,7 +107,7 @@ async function pdfSource(pages: string[], contentHash?: string) {
 }
 
 /** The job's steps in order, as the Inngest function runs them when nothing fails. */
-async function runJob(ref: SourceRef, run: IngestionService = service) {
+async function runJob(ref: RunRef, run: IngestionService = service) {
   const results = [await run.start(ref)];
   const steps = [
     () => run.extract(ref, RETRY),
@@ -116,16 +122,16 @@ async function runJob(ref: SourceRef, run: IngestionService = service) {
 }
 
 /** What `POST /sources/:id/reprocess` does before it sends the event. */
-async function queueAgain(ref: SourceRef) {
+async function queueAgain(ref: RunRef) {
   await db.update(sources).set({ status: 'PENDING' }).where(eq(sources.id, ref.sourceId));
 }
 
-async function sourceRow(ref: SourceRef) {
+async function sourceRow(ref: RunRef) {
   const [row] = await db.select().from(sources).where(eq(sources.id, ref.sourceId));
   return row;
 }
 
-function chunksOf(ref: SourceRef) {
+function chunksOf(ref: RunRef) {
   return db
     .select()
     .from(sourceChunks)
@@ -276,7 +282,7 @@ describe('idempotency', () => {
     const before = await chunksOf(ref);
 
     // e.g. the sweeper re-sent the event while the first run was still waiting in the queue.
-    expect(await runJob(ref)).toEqual({ status: 'stopped', reason: 'not_pending' });
+    expect(await runJob(anotherRun(ref))).toEqual({ status: 'stopped', reason: 'not_pending' });
 
     expect(await sourceRow(ref)).toMatchObject({ status: 'READY', chunkCount: 2 });
     expect((await chunksOf(ref)).map((c) => c.id)).toEqual(before.map((c) => c.id));
@@ -288,8 +294,51 @@ describe('idempotency', () => {
     const ref = await websiteSource();
     await service.start(ref);
 
-    expect(await service.start(ref)).toEqual({ status: 'stopped', reason: 'not_pending' });
-    expect(await sourceRow(ref)).toMatchObject({ status: 'PROCESSING' });
+    const duplicate = anotherRun(ref);
+    expect(await service.start(duplicate)).toEqual({ status: 'stopped', reason: 'not_pending' });
+    expect(await sourceRow(ref)).toMatchObject({
+      status: 'PROCESSING',
+      processingRunId: ref.runId,
+    });
+  });
+
+  it('a retried first step keeps its own claim and the run finishes', async () => {
+    const ref = await websiteSource();
+    await service.start(ref);
+
+    // The claim committed, but suppose its result never reached Inngest: the step runs again.
+    expect(await service.start(ref)).toEqual({ status: 'ok' });
+    expect(await runJob(ref)).toEqual({ status: 'ok', chunkCount: 2 });
+    expect(await sourceRow(ref)).toMatchObject({ status: 'READY', chunkCount: 2 });
+  });
+
+  it('a superseded run cannot write once a newer run owns the source', async () => {
+    const oldRun = await websiteSource();
+    await service.start(oldRun);
+    await service.extract(oldRun, RETRY);
+    // The sweeper times the source out and the user retries: a new run claims it.
+    await db
+      .update(sources)
+      .set({ status: 'FAILED', errorCode: 'TIMEOUT' })
+      .where(eq(sources.id, oldRun.sourceId));
+    await queueAgain(oldRun);
+    const newRun = anotherRun(oldRun);
+    expect(await service.start(newRun)).toEqual({ status: 'ok' });
+
+    // The old run wakes up: none of its steps, and not its failure handler, touch the source.
+    expect(await service.embedAndCommit(oldRun, RETRY)).toEqual({
+      status: 'stopped',
+      reason: 'not_found',
+    });
+    await service.fail(oldRun);
+    expect(await chunksOf(oldRun)).toEqual([]);
+    expect(await sourceRow(oldRun)).toMatchObject({
+      status: 'PROCESSING',
+      processingRunId: newRun.runId,
+      errorCode: null,
+    });
+
+    expect(await runJob(newRun)).toEqual({ status: 'ok', chunkCount: 2 });
   });
 
   it('reprocessing replaces the old chunks with the new content', async () => {
@@ -624,7 +673,7 @@ describe('ownership', () => {
     const [other] = await db.insert(users).values({ clerkUserId: 'user_other' }).returning();
     if (!other) throw new Error('user not created');
 
-    const result = await runJob({ userId: other.id, sourceId: ref.sourceId });
+    const result = await runJob({ userId: other.id, sourceId: ref.sourceId, runId: newRunId() });
 
     expect(result).toEqual({ status: 'stopped', reason: 'not_found' });
     expect(await sourceRow(ref)).toMatchObject({ status: 'PENDING' });

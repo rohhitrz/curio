@@ -37,13 +37,15 @@ export function createProcessSourceFunction(client: Inngest, service: IngestionS
       ],
       throttle: ingestion.throttle,
       // Runs when a step still throws on its last attempt (e.g. the database was unreachable).
+      // Scoped to the failed run, so it can't fail a source a newer run has since claimed.
       onFailure: async ({ event }) => {
         const ref = eventData.safeParse(event.data.event.data);
-        if (ref.success) await service.fail(ref.data);
+        if (ref.success) await service.fail({ ...ref.data, runId: event.data.run_id });
       },
     },
-    async ({ event, step, attempt }): Promise<StepResult> => {
-      const ref = eventData.parse(event.data);
+    async ({ event, step, attempt, runId }): Promise<StepResult> => {
+      // The run ID stays the same across retries, so a retried step keeps this run's claim.
+      const ref = { ...eventData.parse(event.data), runId };
       // `attempt` counts the tries of the step that is about to run, starting at 0.
       const stepAttempt = { isLastAttempt: attempt >= ingestion.retries };
 

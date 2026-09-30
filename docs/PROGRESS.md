@@ -52,6 +52,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 4. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Run migration `0007` on production:** `cd apps/server && pnpm db:migrate:prod` (adds the nullable `sources.processing_run_id`). The review-fix commit is held back until then: the new job code writes that column, so deploying first would fail every source.
 - **Approve Phase 4.** To verify: `pnpm --filter @curio/evals fetch-docs` (only needed on a machine without the cache), then `pnpm eval`; it prints the table above and writes a results file (about 3 minutes, under a cent). Or read the committed `evals/results/2026-09-30-vector.json`.
 - **Before Phase 5:** create **Langfuse** and **Upstash Redis** accounts and put their keys in `.env` (names in `.env.example` once 5.x adds them; the agent will list the exact names at the start of Phase 5).
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
@@ -97,7 +98,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
-- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30). The agent can't verify production; both prod runs are as reported by the owner.
+- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30); `0007_sources_processing_run_id` on `dev` and `test`, **not on `main` yet** (the owner runs it before the code that uses it is pushed). The agent can't verify production; prod runs are as reported by the owner.
 - **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + `OPENAI_API_KEY` + `FIRECRAWL_API_KEY` + `TRANSCRIPT_API_KEY` (Secret, Production only; all five are required at boot), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
@@ -217,9 +218,9 @@ API and server:
   - **Checked in the browser** against the local API: failed row with Retry → Pending, the viewer's two tabs, "Show in text" highlight, and the phone layout (375 px, no sideways scroll). The dev rows used for this were restored afterwards. Not clicked: choosing a PDF file (needs a file picker).
 
 - **Code review fixes (2026-09-30, 4 findings from the owner's review of Phase 3):**
-  - **Duplicate runs:** `markProcessing` now claims only a `PENDING` source. A second run for the same source (the sweeper re-sends events for sources that wait more than 10 min) ends with `{ stopped, not_pending }` and redoes nothing. Trade-off: if step 1 succeeds but its result never reaches Inngest, the retried step finds the source already `PROCESSING` and stops; the sweeper then fails it with `TIMEOUT` after 15 min and the user retries.
+  - **Duplicate runs:** `markProcessing` now claims only a `PENDING` source. A second run for the same source (the sweeper re-sends events for sources that wait more than 10 min) ends with `{ stopped, not_pending }` and redoes nothing. (The trade-off this first had, a retried step 1 stopping its own run, is fixed by run ownership below.)
   - **NUL characters:** Postgres can't store `\u0000` in text or jsonb. Input schemas in `packages/shared` strip it (`cleanString`: notebook and source titles, pasted text), so such input is a normal 2xx, or a 400 when nothing is left. Extraction strips it from everything it reads (text, titles, string metadata) before anything is saved.
-  - **Sweeper clock:** `processing_started_at` is now set again at the start of every step (the step's first read is an `UPDATE … RETURNING`), so the 15-minute timeout measures time without progress, not time since step 1. A run waiting in the queue between steps is no longer timed out.
+  - **Sweeper clock:** `processing_started_at` is now set again at the start of every step (the step's first read is an `UPDATE … RETURNING`), so time across earlier steps doesn't add up. (Correction from the 2026-10-01 review: a step that waits more than 15 min in the queue *before it starts* is still timed out; see below.)
   - **`INNGEST_DEV` in production:** `loadEnv` refuses to start when `INNGEST_DEV` is on and `NODE_ENV` is production (the default). Local `.env` has `NODE_ENV=development`.
 
 
@@ -250,6 +251,11 @@ API and server:
   - `evals` depends on `drizzle-orm` (already used by the server) for the eval notebook's rows.
   - **Dataset fix:** q-006 (big Transformer training time) also has its answer on page 8, so page 8 was added as an expected location (the first run marked that correct chunk as a miss).
 
+- **Code review fixes (2026-10-01, 2 findings from the owner's review of 4.1–4.4 and the earlier fixes):**
+  - **Run ownership (fixed):** `sources.processing_run_id` (migration `0007`; `03-database-design.md` updated) holds the Inngest run that owns a `PROCESSING` source. The claim succeeds for a `PENDING` source, or for one already `PROCESSING` under the same run ID, so a retried step 1 (its first attempt committed but Inngest never recorded it) keeps its claim instead of stopping its own run. Every job write (`findForExtraction`, `saveExtraction`, `findExtracted`, `commitChunks`, `markFailed`) now requires the run ID too, so a duplicate run or a superseded older run can never write, and `onFailure` only fails the source if its own run still owns it (it gets `event.data.run_id`). The Inngest handler takes `runId` from its context (stable across a run's retries). `SourceRef` stays for IDs only; job code uses `RunRef` (`+ runId`).
+  - **Queue wait vs the sweeper (documented, not fixed):** a step that waits in Inngest's queue for more than 15 min before it starts still gets timed out; the database can't tell that from a dead run. Needs a backlog of well over a hundred sources at current concurrency. The misleading comment in `ingestion.repository.ts` and the sentence in `03-database-design.md` are corrected; the full fix (ask Inngest whether the run is alive before failing it) is in `docs/todo-v2.md`.
+  - **Test engine quirk:** `@inngest/test` gives every re-execution of the function a new random run ID and applies the engine's own `transformCtx` on the first execution, and one engine remembers earlier executions' steps. `process-source.test.ts` pins `runId`/`attempt` in the engine's `transformCtx` and builds a fresh engine per run.
+
 ## Eval results so far
 **Retrieval baseline, vector only** (`evals/results/2026-09-30-vector.json`, commit `dc908a9`, `text-embedding-3-small`, chunks 500 tokens / 15% overlap, 7 documents, 238 chunks, 60 answerable questions; top 10 retrieved; cost $0.002):
 
@@ -274,6 +280,10 @@ What it says for Phase 6:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (review fixes 4)
+- Done: run ownership for job runs (`processing_run_id`, migration `0007` on `dev` + `test`); queue-wait limit of the sweeper documented, full fix in `todo-v2.md`
+- Notes: 494 tests passing (421 server, 54 web, 19 evals). Committed locally, **not pushed until the owner runs `0007` on production**
 
 ### 2026-10-01 (4.4, Phase 4 built)
 - Done: 4.4 (baseline committed: hit rate@5 0.933, @10 0.967, MRR 0.796). Phase 4 waits for the owner's approval

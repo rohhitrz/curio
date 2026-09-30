@@ -111,6 +111,7 @@ users 1──* notebooks 1──* sources 1──* source_chunks
 | `chunk_count` | int | NOT NULL, default 0 |
 | `embedding_model` | text | nullable |
 | `processing_started_at` | timestamptz | nullable (the sweeper's clock: set when a job claims the source and again at the start of every step) |
+| `processing_run_id` | text | nullable (the job run that owns the source while `PROCESSING`: a retried step of that run keeps its claim, and every job write requires it, so a duplicate or superseded run can't write) |
 | `processed_at` | timestamptz | nullable |
 | `created_at`, `updated_at` | timestamptz | NOT NULL |
 
@@ -383,7 +384,7 @@ UPDATE sources
  WHERE status = 'PROCESSING' AND processing_started_at < now() - interval '15 minutes';
 ```
 
-The clock restarts at every job step, so only a source that makes no progress for 15 minutes times out; one that is just waiting in the job queue does not.
+The clock restarts at the start of every job step, so time spent across earlier steps doesn't add up. **Known limit:** the database can't tell a run whose next step is waiting in the job queue from a dead run, so a step that waits more than 15 minutes before starting (a job backlog of that length) is timed out too, and the user retries. At current concurrency that takes well over a hundred sources queued ahead. The full fix is for the sweeper to ask the job service whether the run (`processing_run_id`) is still alive before failing it (`docs/todo-v2.md`).
 
 A source still `PENDING` after 10 minutes never got a job run. The sweeper sends its event again and touches `updated_at`, so the same source isn't re-sent until another 10 minutes pass:
 ```sql

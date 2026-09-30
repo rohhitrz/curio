@@ -21,14 +21,32 @@ const db = getTestDb();
 const logger = pino({ level: 'silent' });
 
 let scraper: ReturnType<typeof createFakeScraper>;
-let engine: InngestTestEngine;
+let processSource: ReturnType<typeof createProcessSourceFunction>;
 let ref: { sourceId: string; userId: string };
+let runId: string;
+let currentAttempt = 0;
 
-/** Runs the real Inngest function for a `source/created` event. */
+/**
+ * The context the handler sees. The test engine re-executes the function once per step with a
+ * new random run ID each time; real Inngest keeps one run ID for the whole run and its retries,
+ * so it is pinned. Set on the engine itself: the engine applies its own `transformCtx` on the
+ * first execution, before one passed to `execute`.
+ */
+const transformCtx = (ctx: Parameters<typeof mockCtx>[0]) => ({
+  ...mockCtx(ctx),
+  attempt: currentAttempt,
+  runId,
+});
+
+/**
+ * Runs the real Inngest function for a `source/created` event. Each call is a separate run: a
+ * fresh engine, since an engine remembers the steps of its earlier executions.
+ */
 function run(data: unknown = ref, attempt = 0) {
+  currentAttempt = attempt;
+  const engine = new InngestTestEngine({ function: processSource, transformCtx });
   return engine.execute({
     events: [{ name: 'source/created', data: data as Record<string, unknown> }],
-    transformCtx: (ctx) => ({ ...mockCtx(ctx), attempt }),
   });
 }
 
@@ -62,7 +80,7 @@ beforeEach(async () => {
     logger,
     fetch: () => Promise.reject(new Error('network is blocked in tests')),
   });
-  engine = new InngestTestEngine({ function: createProcessSourceFunction(client, service) });
+  processSource = createProcessSourceFunction(client, service);
 
   const [user] = await db.insert(users).values({ clerkUserId: 'user_job' }).returning();
   if (!user) throw new Error('user not created');
@@ -84,6 +102,7 @@ beforeEach(async () => {
     .returning();
   if (!source) throw new Error('source not created');
   ref = { sourceId: source.id, userId: user.id };
+  runId = `run-${crypto.randomUUID()}`;
 });
 
 describe('processSource function', () => {
@@ -141,6 +160,27 @@ describe('processSource function', () => {
     expect(error).toBeUndefined();
     expect(result).toMatchObject({ status: 'stopped', code: 'SERVICE_UNAVAILABLE' });
     expect(await status()).toEqual({ status: 'FAILED', errorCode: 'SERVICE_UNAVAILABLE' });
+  });
+
+  it('the run that claims the source owns it; another run for it stops at the first step', async () => {
+    scraper.failNext(IngestionError.transient('The website took too long to respond.'));
+    await run(ref, 0);
+    const [claimed] = await db
+      .select({ processingRunId: sources.processingRunId })
+      .from(sources)
+      .where(eq(sources.id, ref.sourceId));
+    expect(claimed?.processingRunId).toBe(runId);
+
+    const firstRun = runId;
+    runId = `run-${crypto.randomUUID()}`;
+    const { result, ctx } = await run(ref, 0);
+    expect(result).toEqual({ status: 'stopped', reason: 'not_pending' });
+    expect(ctx.step.run).toHaveBeenCalledTimes(1);
+
+    // The first run's retry carries on where it stopped.
+    runId = firstRun;
+    expect((await run(ref, 1)).result).toEqual({ status: 'ok', chunkCount: 1 });
+    expect(await status()).toEqual({ status: 'READY', errorCode: null });
   });
 
   it('an event without valid IDs is rejected before any step runs', async () => {

@@ -1,11 +1,17 @@
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { sourceChunks, sources, type NewSourceChunk } from '../db/schema/index.js';
 
-/** Identifies the source a job run works on. Every query is scoped by both. */
+/** Identifies a source. Every query is scoped by both. */
 export interface SourceRef {
   userId: string;
   sourceId: string;
+}
+
+/** A source as one job run works on it: the run's writes only land while it owns the source. */
+export interface RunRef extends SourceRef {
+  /** The job run's ID; the same across retries of that run's steps. */
+  runId: string;
 }
 
 /** A chunk ready to store; the repository adds the source and notebook IDs. */
@@ -22,25 +28,40 @@ export interface ExtractionToSave {
 export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) {
   const owned = ({ userId, sourceId }: SourceRef) =>
     and(eq(sources.id, sourceId), eq(sources.userId, userId));
-  /** Writes only land while the job owns the source, never on a deleted or finished one. */
-  const processing = (ref: SourceRef) => and(owned(ref), eq(sources.status, 'PROCESSING'));
+  /**
+   * Writes only land while this run owns the source: never on a deleted or finished source, and
+   * never from a duplicate or superseded run.
+   */
+  const processing = (ref: RunRef) =>
+    and(owned(ref), eq(sources.status, 'PROCESSING'), eq(sources.processingRunId, ref.runId));
 
   return {
     /**
-     * Claims a `PENDING` source for processing. Only one run can win: a duplicate run (the
-     * sweeper re-sends events for sources that wait a long time) finds the source already taken
-     * and stops, instead of processing a finished source all over again.
+     * Claims a `PENDING` source for this run. Only one run can win: a duplicate run (the sweeper
+     * re-sends events for sources that wait a long time) finds the source taken and stops,
+     * instead of processing a finished source all over again. The winning run can claim again:
+     * if this step's first attempt committed but the job service never recorded it, the retry
+     * must not stop its own run.
      */
-    async markProcessing(ref: SourceRef): Promise<'claimed' | 'not_pending' | 'not_found'> {
+    async markProcessing(ref: RunRef): Promise<'claimed' | 'not_pending' | 'not_found'> {
       const rows = await db
         .update(sources)
         .set({
           status: 'PROCESSING',
+          processingRunId: ref.runId,
           processingStartedAt: sql`now()`,
           errorCode: null,
           errorMessage: null,
         })
-        .where(and(owned(ref), eq(sources.status, 'PENDING')))
+        .where(
+          and(
+            owned(ref),
+            or(
+              eq(sources.status, 'PENDING'),
+              and(eq(sources.status, 'PROCESSING'), eq(sources.processingRunId, ref.runId)),
+            ),
+          ),
+        )
         .returning({ id: sources.id });
       if (rows.length > 0) return 'claimed';
 
@@ -53,12 +74,14 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
     },
 
     /**
-     * What extraction needs. Undefined when the source is gone or no longer processing.
+     * What extraction needs. Undefined when the source is gone or this run no longer owns it.
      *
-     * Reading at the start of a step also restarts the sweeper's clock (`processing_started_at`):
-     * steps can wait in the job queue, and only a source that makes no progress should time out.
+     * Reading at the start of a step also restarts the sweeper's clock (`processing_started_at`),
+     * so time spent across earlier steps doesn't add up. A step that waits in the job queue for
+     * longer than the timeout before it starts is still timed out: the database can't tell that
+     * wait from a dead run (known limit, docs/03-database-design.md).
      */
-    async findForExtraction(ref: SourceRef) {
+    async findForExtraction(ref: RunRef) {
       const [row] = await db
         .update(sources)
         .set({ processingStartedAt: sql`now()` })
@@ -75,7 +98,7 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
       return row;
     },
 
-    async saveExtraction(ref: SourceRef, extraction: ExtractionToSave): Promise<boolean> {
+    async saveExtraction(ref: RunRef, extraction: ExtractionToSave): Promise<boolean> {
       const rows = await db
         .update(sources)
         .set(extraction)
@@ -85,10 +108,10 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
     },
 
     /**
-     * The saved extraction. Undefined when the source is gone or no longer processing. Restarts
+     * The saved extraction. Undefined when the source is gone or this run no longer owns it. Restarts
      * the sweeper's clock, like `findForExtraction`.
      */
-    async findExtracted(ref: SourceRef) {
+    async findExtracted(ref: RunRef) {
       const [row] = await db
         .update(sources)
         .set({ processingStartedAt: sql`now()` })
@@ -104,10 +127,10 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
     /**
      * Replaces the source's chunks and marks it `READY` in one transaction: all or nothing, so a
      * source is never half-indexed, and running it again gives the same result. False (and
-     * nothing written) when the source was deleted or is no longer processing.
+     * nothing written) when the source was deleted or this run no longer owns it.
      */
     async commitChunks(
-      ref: SourceRef,
+      ref: RunRef,
       chunks: ChunkToStore[],
       embeddingModel: string,
     ): Promise<boolean> {
@@ -192,8 +215,8 @@ export function createIngestionRepository(db: Db, chunkInsertBatchSize: number) 
         .returning({ sourceId: sources.id, userId: sources.userId });
     },
 
-    /** Marks a processing source `FAILED` with the reason. False when there was nothing to fail. */
-    async markFailed(ref: SourceRef, code: string, message: string): Promise<boolean> {
+    /** Marks the source `FAILED` with the reason while this run owns it. False otherwise. */
+    async markFailed(ref: RunRef, code: string, message: string): Promise<boolean> {
       const rows = await db
         .update(sources)
         .set({ status: 'FAILED', errorCode: code, errorMessage: message })

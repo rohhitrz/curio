@@ -149,7 +149,8 @@ async function main() {
       const sourceId = await insertSource(document, user.id, notebook.id);
       documentBySource.set(sourceId, document);
 
-      const ref = { userId: user.id, sourceId };
+      // One job run per source, as Inngest would do it.
+      const ref = { userId: user.id, sourceId, runId: `eval-${randomUUID()}` };
       const attempt = { isLastAttempt: true };
       for (const [step, run] of [
         ['start', () => service.start(ref)],
