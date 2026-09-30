@@ -31,8 +31,17 @@ export const chunking = {
 } as const;
 
 export const retrieval = {
+  /** Chunks vector search returns: the candidate pool that fusion and rerank start from. */
+  vectorCandidates: 40,
   fusionCandidates: 40,
   rerankTopK: 8,
+  /**
+   * pgvector keeps scanning the HNSW index until enough chunks pass the notebook filter
+   * (docs/03-database-design.md). Without it, a notebook whose chunks aren't among the index's
+   * first `hnsw.ef_search` (40) nearest across all notebooks gets few or no results.
+   * `strict_order` keeps results exactly ordered by distance.
+   */
+  hnswIterativeScan: 'strict_order',
 } as const;
 
 export const conversation = {

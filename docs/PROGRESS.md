@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 4 (Eval foundation), not started
-- **Current step:** none yet
+- **Current step:** none (4.1 done)
 - **Blocked on:** nothing
-- **Next step:** 4.1 retrieval module v0
+- **Next step:** 4.2 golden dataset (ends at a 🛑 STOP for the owner's review)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -29,7 +29,7 @@
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 4
-- [ ] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
+- [x] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
 - [ ] 4.2 Golden dataset: ~5–8 documents (all types), ~40–60 Q&A + ~10 unanswerable in `evals/dataset/`
 - [ ] 🛑 Owner reviews and fixes the dataset
 - [ ] 4.3 Eval runner (`pnpm eval`): hit rate@k + MRR, JSON to `evals/results/`
@@ -45,9 +45,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 4
-1. Start with 4.1. Read `02-system-design.md` (retrieval), `03-database-design.md` (`source_chunks`), `06-test-plan.md` and `07-decisions.md` first.
-2. Search must only return chunks of `READY` sources (a failed reprocess keeps its old chunks).
-3. 4.2 ends at a 🛑 STOP: the owner reviews the dataset before 4.3.
+1. Next is 4.2: read `06-test-plan.md` §6 (dataset format, categories, location-based relevance) first.
+2. 4.2 ends at a 🛑 STOP: the owner reviews the dataset before 4.3.
 4. Tests use fake providers only; `pnpm eval` is the only thing that calls real APIs, and only from 4.3 on.
 
 ## Pending on owner
@@ -218,6 +217,14 @@ API and server:
   - **`INNGEST_DEV` in production:** `loadEnv` refuses to start when `INNGEST_DEV` is on and `NODE_ENV` is production (the default). Local `.env` has `NODE_ENV=development`.
 
 
+- **Retrieval v0 (4.1):**
+  - `pipelines/retrieval/retrieve.ts` `retrieve({ userId, notebookId, query, limit? }, { embeddings, vectorSearch })` → `RetrievedChunk[]` (rank from 1, source id/title/type, chunk index, content, context header, `location` {page, start/end seconds, heading path, char range}, `score` = cosine similarity). No HTTP and no DB import; the eval runner (4.3) and chat (Phase 5) inject the providers. A blank query returns `[]` without an embeddings call; a bad `limit` throws `RangeError`.
+  - `repositories/retrieval.repository.ts` `vectorSearch`: nearest by cosine distance (`<=>`, the HNSW index's operator), filtered by `notebook_id` + `sources.user_id` + `sources.status = 'READY'` (a failed reprocess keeps its old chunks). Another user's notebook → empty list; turning that into a 404 is the calling service's job.
+  - **Iterative scan:** each search runs in a transaction that sets `hnsw.iterative_scan` locally (`set_config(…, true)`, so it never leaks to other queries on a pooled connection). Mode `strict_order` (results exactly ordered by distance) is in `config.retrieval.hnswIterativeScan`. pgvector on Neon is 0.8.6.
+  - **Proof it matters:** an integration test forces the planner onto the HNSW index (100 chunks next to the query in another notebook, 5 far ones in the target). With the scan off, the target comes back short; with `strict_order`, all 5 come back in order.
+  - **Sizes:** `config.retrieval.vectorCandidates` = 40 (the candidate pool fusion and rerank will start from). The eval metrics' cut-offs (k = 5, 10) are applied by the runner.
+  - Not done: the query embedding and the stored chunk embeddings aren't checked for the same model (`sources.embedding_model`). Only one model exists today; worth a guard if the model ever changes.
+
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
 
@@ -228,6 +235,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (4.1)
+- Done: 4.1 (retrieval v0: vector-only search, notebook + READY filter, iterative scan)
+- Notes: 468 tests passing (414 server, 54 web). Owner chose the 4.2 dataset: theme **ML fundamentals** (2 PDFs incl. "Attention Is All You Need", Wikipedia "Overfitting", scikit-learn "Linear Models", 3Blue1Brown neural networks video, StatQuest ridge regression video, original study notes on gradient descent); third-party content kept in a **gitignored local cache**, with URL + SHA-256 in `documents.json`
 
 ### 2026-09-30 (Phase 3 approved)
 - Owner approved Phase 3 and the source error-code list. Added `docs/todo-v2.md` for deferred work (first entry: block YouTube links on the Website tab)
