@@ -12,6 +12,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/drizzle/**',
       '**/db/migrations/**',
+      // Plain Node tooling scripts, outside the type-checked projects.
+      'apps/*/scripts/**',
     ],
   },
   js.configs.recommended,

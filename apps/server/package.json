@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "typecheck": "tsc --noEmit",
+    "typecheck:vercel": "node scripts/vercel-typecheck.cjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:test": "DB_TARGET=test drizzle-kit migrate",
