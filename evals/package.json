@@ -1,0 +1,23 @@
+{
+  "name": "@curio/evals",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fetch-docs": "tsx --env-file-if-exists=../.env scripts/fetch-documents.ts",
+    "preview": "tsx scripts/preview-chunks.ts",
+    "check": "tsx scripts/check-dataset.ts",
+    "review": "tsx scripts/review-dataset.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.2"
+  }
+}

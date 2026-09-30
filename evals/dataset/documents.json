@@ -1,0 +1,50 @@
+[
+  {
+    "id": "doc-attention",
+    "title": "Attention Is All You Need",
+    "type": "PDF",
+    "url": "https://arxiv.org/pdf/1706.03762v7",
+    "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697"
+  },
+  {
+    "id": "doc-dropout",
+    "title": "Dropout: A Simple Way to Prevent Neural Networks from Overfitting",
+    "type": "PDF",
+    "url": "https://jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf",
+    "sha256": "9c196ccbe6c6a595a1adba6cd030d35f7c2e548bbf5e7f1278b0109d8dd9ebaa"
+  },
+  {
+    "id": "doc-overfitting",
+    "title": "Overfitting (Wikipedia)",
+    "type": "WEBSITE",
+    "url": "https://en.wikipedia.org/wiki/Overfitting",
+    "sha256": "410a583ea1adaa8efd7b7343c5bb36c88e562a7257aab0064d12784d8fb6d5ba"
+  },
+  {
+    "id": "doc-sklearn-linear",
+    "title": "scikit-learn: Linear Models",
+    "type": "WEBSITE",
+    "url": "https://scikit-learn.org/stable/modules/linear_model.html",
+    "sha256": "3b67533272d749843d671eb54b737aa3d24f3cdfa2002022031f16eb2c3fa9a0"
+  },
+  {
+    "id": "doc-3b1b-neural-network",
+    "title": "But what is a neural network? (3Blue1Brown)",
+    "type": "YOUTUBE",
+    "url": "https://www.youtube.com/watch?v=aircAruvnKk",
+    "sha256": "2d223d8ce7a172f56da623f11a28261dc955e3bfa1a3033c75a54699f3c98cbb"
+  },
+  {
+    "id": "doc-statquest-ridge",
+    "title": "Regularization Part 1: Ridge (L2) Regression (StatQuest)",
+    "type": "YOUTUBE",
+    "url": "https://www.youtube.com/watch?v=Q81RR3yKn30",
+    "sha256": "62b8166d44056fff395aaa802d42bacece3d01fc8574768e14003f88d2b1f12b"
+  },
+  {
+    "id": "doc-gd-notes",
+    "title": "Study notes: gradient descent",
+    "type": "TEXT",
+    "file": "notes/gradient-descent.md"
+  }
+]

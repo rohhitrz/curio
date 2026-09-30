@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 4 (Eval foundation), not started
-- **Current step:** none (4.1 done)
-- **Blocked on:** nothing
-- **Next step:** 4.2 golden dataset (ends at a 🛑 STOP for the owner's review)
+- **Phase:** 4 (Eval foundation), in progress
+- **Current step:** 🛑 STOP after 4.2: the golden dataset is drafted and waits for the owner's review
+- **Blocked on:** owner reviewing `evals/dataset/` (see "Pending on owner")
+- **Next step:** apply the owner's dataset fixes, then 4.3 eval runner
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -17,7 +17,7 @@
 | 1 | Auth + notebooks + first deploy | ✅ Done (owner approved) |
 | 2 | Sources (no processing) | ✅ Done (owner approved) |
 | 3 | Ingestion pipeline | ✅ Done (owner approved) |
-| 4 | Eval foundation | ⏳ Not started |
+| 4 | Eval foundation | 🔨 In progress |
 | 5 | Basic RAG chat | ⏳ Not started |
 | 6 | Advanced retrieval | ⏳ Not started |
 | 7 | Memory | ⏳ Not started |
@@ -30,8 +30,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 4
 - [x] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
-- [ ] 4.2 Golden dataset: ~5–8 documents (all types), ~40–60 Q&A + ~10 unanswerable in `evals/dataset/`
-- [ ] 🛑 Owner reviews and fixes the dataset
+- [x] 4.2 Golden dataset: 7 documents (all types), 60 answerable questions + 10 unanswerable in `evals/dataset/`
+- [ ] 🛑 Owner reviews and fixes the dataset (current)
 - [ ] 4.3 Eval runner (`pnpm eval`): hit rate@k + MRR, JSON to `evals/results/`
 - [ ] 4.4 Run and commit the baseline
 
@@ -45,12 +45,14 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 4
-1. Next is 4.2: read `06-test-plan.md` §6 (dataset format, categories, location-based relevance) first.
-2. 4.2 ends at a 🛑 STOP: the owner reviews the dataset before 4.3.
-4. Tests use fake providers only; `pnpm eval` is the only thing that calls real APIs, and only from 4.3 on.
+1. **Do not start 4.3 until the owner has reviewed the dataset.** Apply their fixes to `evals/dataset/questions.jsonl`, then run `pnpm --filter @curio/evals check`.
+2. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
+3. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
+4. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- Nothing. Phase 3 approved on 2026-09-30 after the live checks: Inngest resynced; text, website and YouTube reached `READY`; a scanned PDF → `FAILED` with the `NO_TEXT` message and Retry; deleting a notebook removed its PDF from `curio-prod`; the source error-code list in `04-api-design.md` §4 is confirmed. Found and fixed: the Website and YouTube tabs shared one URL.
+- **🛑 Review the golden dataset** (4.2). Run `pnpm --filter @curio/evals review`, then read `evals/.cache/review.md`: every question with its expected answer and the source text at its expected location. Check that each answer is right, that the location is where it's said, and that the unanswerable ones really aren't in the documents. Edit `evals/dataset/questions.jsonl` directly or tell the agent what to change.
+- Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
 - **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
@@ -226,6 +228,15 @@ API and server:
   - **Sizes:** `config.retrieval.vectorCandidates` = 40 (the candidate pool fusion and rerank will start from). The eval metrics' cut-offs (k = 5, 10) are applied by the runner.
   - Not done: the query embedding and the stored chunk embeddings aren't checked for the same model (`sources.embedding_model`). Only one model exists today; worth a guard if the model ever changes.
 
+- **Golden dataset (4.2):**
+  - **`evals/` is a workspace package** (`@curio/evals`; `pnpm-workspace.yaml` lists it). It imports the server's providers, extractor and chunker by relative path, so what it chunks is exactly what ingestion stores. No new third-party dependency (`zod`, `tsx`, `typescript`, `vitest`, `@types/node` are already used in the repo). Scripts: `fetch-docs` (named so because `pnpm fetch` is a built-in pnpm command), `check`, `review`, `preview`, `test`, `typecheck`. See `evals/README.md`.
+  - **Documents (owner-chosen theme: ML fundamentals):** "Attention Is All You Need" (arXiv PDF, 15 pages, 28 chunks), the Dropout paper (JMLR PDF, 30 pages, 55 chunks), Wikipedia "Overfitting" (49 chunks), scikit-learn "1.1. Linear Models" (76 chunks), 3Blue1Brown "But what is a neural network?" (9 chunks), StatQuest "Ridge (L2) Regression" (7 chunks), and original notes on gradient descent written for the dataset (`evals/dataset/notes/gradient-descent.md`, 14 chunks). 238 chunks in total. Five documents touch regularization, so retrieval is realistically hard.
+  - **Third-party content is never committed** (owner's choice): it is fetched with the app's own Firecrawl/Supadata providers (and plain downloads for PDFs) into gitignored `evals/.cache/`. `documents.json` stores each URL plus the SHA-256 of what was fetched; `fetch-docs` fails if cached content no longer matches.
+  - **Questions:** 70 in `questions.jsonl`: 33 factual, 15 exact-term, 6 multi-part (most span two documents), 6 follow-up (with `history`), 10 unanswerable (near the topic, e.g. BERT warmup, ILSVRC-2014, WMT 2016). Every document has 7–13 questions. Drafted by the agent from the chunk previews (no LLM API call).
+  - **Expected locations** (`evals/src/relevance.ts`, unit-tested): PDF = page; YouTube = a time window around where the fact is said, and a chunk counts if its time range overlaps it (the video chunks span ~2–3 minutes); website/text = the chunk's exact heading path (`null` = before the first heading). An exact path, not a prefix, because every scikit-learn chunk sits under "1.1. Linear Models".
+  - **`check`** validates both files and confirms every expected location matches at least one chunk ingestion produces; it passes. **`review`** writes `.cache/review.md` for the owner.
+  - **Found in passing:** ~20 of Wikipedia's 49 chunks are the page's navigation boxes (link tables under "External links"), and scraped markdown keeps every link URL. Realistic noise for the baseline; stripping link URLs or navboxes is a Phase 6 candidate (chunk quality).
+
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
 
@@ -236,6 +247,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (4.2, 🛑 dataset review)
+- Done: 4.2 (`@curio/evals` package, 7 documents fetched into the local cache, 70 questions, relevance rule, `check`/`review`/`preview` scripts)
+- Notes: 485 tests passing (418 server, 54 web, 13 evals). Stopped for the owner's dataset review
 
 ### 2026-09-30 (chunker heading fix)
 - Done: heading paths close by level (a page starting at `##` no longer nests all sections under the first) and heading text is cleaned of permalink anchors, links, escapes. Found while reading the 4.2 dataset's chunks
