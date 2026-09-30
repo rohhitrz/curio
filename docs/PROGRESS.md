@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 4 (Eval foundation), in progress
-- **Current step:** 4.4 baseline (4.3 done)
-- **Blocked on:** nothing
-- **Next step:** 4.4 run and commit the baseline
+- **Phase:** 4 (Eval foundation), all steps built; **waiting for the owner's approval**
+- **Current step:** none (4.1–4.4 done)
+- **Blocked on:** owner approving Phase 4
+- **Next step:** Phase 5 (basic RAG chat), only after approval. It needs **Langfuse** and **Upstash** accounts and keys in `.env` first
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -17,7 +17,7 @@
 | 1 | Auth + notebooks + first deploy | ✅ Done (owner approved) |
 | 2 | Sources (no processing) | ✅ Done (owner approved) |
 | 3 | Ingestion pipeline | ✅ Done (owner approved) |
-| 4 | Eval foundation | 🔨 In progress |
+| 4 | Eval foundation | 🔨 Built, awaiting owner approval |
 | 5 | Basic RAG chat | ⏳ Not started |
 | 6 | Advanced retrieval | ⏳ Not started |
 | 7 | Memory | ⏳ Not started |
@@ -33,7 +33,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 4.2 Golden dataset: 7 documents (all types), 60 answerable questions + 10 unanswerable in `evals/dataset/`
 - [x] 🛑 Owner reviews and fixes the dataset (owner spot-checked a sample and approved it as is, 2026-09-30)
 - [x] 4.3 Eval runner (`pnpm eval`): hit rate@k + MRR, JSON to `evals/results/`
-- [ ] 4.4 Run and commit the baseline
+- [x] 4.4 Run and commit the baseline (`evals/results/2026-09-30-vector.json`, from `dc908a9`)
 
 ## Phase 3 steps (done)
 - [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (live, `d53cff3`)
@@ -45,13 +45,16 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 4
+0. **Phase 4 is built. Do not start Phase 5 until the owner approves it**, and not before Langfuse and Upstash keys are in `.env`.
 1. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
 2. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
 3. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
 4. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- Nothing. The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
+- **Approve Phase 4.** To verify: `pnpm --filter @curio/evals fetch-docs` (only needed on a machine without the cache), then `pnpm eval`; it prints the table above and writes a results file (about 3 minutes, under a cent). Or read the committed `evals/results/2026-09-30-vector.json`.
+- **Before Phase 5:** create **Langfuse** and **Upstash Redis** accounts and put their keys in `.env` (names in `.env.example` once 5.x adds them; the agent will list the exact names at the start of Phase 5).
+- The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
 - **Optional:** the Inngest, OpenAI, Firecrawl and transcript keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
@@ -248,7 +251,21 @@ API and server:
   - **Dataset fix:** q-006 (big Transformer training time) also has its answer on page 8, so page 8 was added as an expected location (the first run marked that correct chunk as a miss).
 
 ## Eval results so far
-- None yet (baseline comes in Phase 4)
+**Retrieval baseline, vector only** (`evals/results/2026-09-30-vector.json`, commit `dc908a9`, `text-embedding-3-small`, chunks 500 tokens / 15% overlap, 7 documents, 238 chunks, 60 answerable questions; top 10 retrieved; cost $0.002):
+
+| | Questions | Hit rate@5 | Hit rate@10 | MRR |
+|---|---|---|---|---|
+| **Overall** | 60 | **0.933** | **0.967** | **0.796** |
+| factual | 33 | 0.970 | 1.000 | 0.855 |
+| exact-term | 15 | 0.933 | 1.000 | 0.867 |
+| multi-part | 6 | 1.000 | 1.000 | 0.547 |
+| follow-up | 6 | 0.667 | 0.667 | 0.542 |
+
+What it says for Phase 6:
+- **Follow-ups are the weak spot**, as expected: "Is it deterministic?" and "What values of c are typical?" find nothing without the conversation. Query rewrite targets exactly this.
+- **Multi-part** questions always find *one* of their locations but rank the right chunks lower (MRR 0.55). Hit rate only needs one relevant chunk, so it can't show whether sub-queries find *every* part; a per-question "all locations found" measure would, worth adding with sub-queries.
+- **A score threshold alone can't refuse:** top similarity for unanswerable questions reaches 0.68 while some answerable ones sit at 0.24. The relevance gate will need rerank scores, not raw cosine.
+- The numbers are high overall: questions tend to reuse the documents' wording. The ablation still has room at MRR and on follow-ups; a few harder paraphrased questions would make later gains clearer.
 
 ## Session log
 <!-- Newest first. One entry per session:
@@ -257,6 +274,9 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (4.4, Phase 4 built)
+- Done: 4.4 (baseline committed: hit rate@5 0.933, @10 0.967, MRR 0.796). Phase 4 waits for the owner's approval
 
 ### 2026-10-01 (4.3)
 - Done: 4.3 (`pnpm eval`: real ingestion + retrieval on `dev`, hit rate@k + MRR, results JSON). Owner approved the dataset after a spot check
