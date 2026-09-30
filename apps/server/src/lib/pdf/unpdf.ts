@@ -1,5 +1,5 @@
 import { extractText, getDocumentProxy } from 'unpdf';
-import { ExtractionError } from '../../errors/extraction-error.js';
+import { IngestionError } from '../../errors/ingestion-error.js';
 import type { PdfParser } from './types.js';
 
 const PDF_MAGIC = '%PDF-';
@@ -27,7 +27,7 @@ export function createUnpdfParser(): PdfParser {
   return {
     async parse(file) {
       // The type is checked by content, not by the name or the declared Content-Type.
-      if (!looksLikePdf(file)) throw ExtractionError.permanent('INVALID_FILE', messages.notPdf);
+      if (!looksLikePdf(file)) throw IngestionError.permanent('INVALID_FILE', messages.notPdf);
 
       let pageTexts: string[];
       try {
@@ -35,7 +35,7 @@ export function createUnpdfParser(): PdfParser {
         const document = await getDocumentProxy(new Uint8Array(file));
         ({ text: pageTexts } = await extractText(document, { mergePages: false }));
       } catch (cause) {
-        throw ExtractionError.permanent(
+        throw IngestionError.permanent(
           'INVALID_FILE',
           isPasswordError(cause) ? messages.password : messages.corrupted,
           { cause },
@@ -44,7 +44,7 @@ export function createUnpdfParser(): PdfParser {
 
       const pages = pageTexts.map((text, index) => ({ pageNumber: index + 1, text: text.trim() }));
       if (pages.every((page) => page.text === '')) {
-        throw ExtractionError.permanent('NO_TEXT', messages.scanned);
+        throw IngestionError.permanent('NO_TEXT', messages.scanned);
       }
       return { pages };
     },

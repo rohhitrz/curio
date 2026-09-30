@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 3 (Ingestion pipeline), in progress
-- **Current step:** 3.4 (`source_chunks` migration + embeddings provider)
-- **Blocked on:** nothing
-- **Next step:** 3.4
+- **Current step:** 3.5 (`processSource` job)
+- **Blocked on:** nothing for building 3.5. Before 3.5 is **pushed**, the owner must run migration `0005` on production and add three keys to Vercel (see "Pending on owner")
+- **Next step:** 3.5
 
 ## Phases
 | # | Phase | Status |
@@ -31,19 +31,21 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.1 Inngest client + signed `/api/inngest` endpoint + local dev server; adding a source sends `source/created` (live, `d53cff3`)
 - [x] 3.2 Extractors behind providers: `unpdf`, Firecrawl, Supadata, text; each failure classified transient or permanent with a user-facing message. Not wired into the app yet (that is 3.5)
 - [x] 3.3 Chunking module (pure): `pipelines/ingestion/chunk.ts`, tokens counted with `gpt-tokenizer`
-- [ ] 3.4 Migration: `source_chunks`; embeddings provider (batched)
+- [x] 3.4 Migration `0005_source_chunks` (applied on `dev` and `test`; **not on `main` yet**); OpenAI embeddings provider (batched)
 - [ ] 3.5 `processSource` job
 - [ ] 3.6 Sweeper cron · `reprocess` · `content` + `chunks` endpoints · `notebook/deleted` R2 cleanup job
 - [ ] 3.7 Frontend: failure reason + retry, text source viewer, chunk viewer
 
 ## Resume here: Phase 3
 1. 3.1 is deployed and checked (2026-09-30): `/health` 200; unsigned `GET` and `POST /api/inngest` → 401.
-2. Build 3.4 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. All Phase 3 key names are in local `.env` (checked by name, 2026-09-30). `FIRECRAWL_API_KEY` and `TRANSCRIPT_API_KEY` are **not** in `config/env.ts` yet: add them as required in 3.5, when the providers are wired into the app, and only after they are on Vercel.
+2. Build 3.5 → 3.7. Read `docs/05-build-plan.md` §6 and the docs each step touches. All Phase 3 key names are in local `.env` (checked by name, 2026-09-30). `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` and `OPENAI_API_KEY` are **not** in `config/env.ts` yet: add them as required in 3.5, when the providers are wired into the app, and push only after they are on Vercel and migration `0005` is on `main`.
 3. Tests use fake providers only; no real API calls outside `pnpm eval`.
 
 ## Pending on owner
 - **Inngest dashboard, after 3.5 deploys:** Apps → Sync new app → `https://curio-server-ten.vercel.app/api/inngest`. Inngest Cloud refuses to sync an app with no functions ("No functions registered within your app", seen 2026-09-30), so this waits for `processSource`. That error also means Inngest reached the endpoint in the Production environment.
-- **Before 3.5 deploys:** add `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` to Vercel `curio-server` too (type Secret).
+- **Before 3.5 deploys (both needed):**
+  - Run migration `0005_source_chunks` on production: `cd apps/server && pnpm db:migrate:prod`.
+  - Add `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `TRANSCRIPT_API_KEY` to Vercel `curio-server` (type Secret, Production).
 - **Optional:** the two Inngest keys are on Vercel for **Production only**. Preview deployments of `curio-server` won't boot until they are also ticked for Preview (we only deploy from `main`, so nothing is affected today).
 
 ## R2 setup (done 2026-09-29)
@@ -84,7 +86,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = Neon `test` (`TEST_DATABASE_URL`). `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per file; files run serially. **Prod** = Neon `main`.
-- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30).
+- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:test` · `pnpm db:migrate:prod` (main). `drizzle.config.ts` maps `DB_TARGET` dev/test/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on `dev` and `test` only (prod pending on the owner).
 - **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (Secret, Production only), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
@@ -145,8 +147,8 @@ API and server:
   - **Content shape** keeps each type's citation location: PDF → `pages[{ pageNumber, text }]` (empty pages kept so numbers stay right), YouTube → `segments[{ text, startSeconds, endSeconds }]`, website/text → `markdown`. How this is stored between job steps is decided in 3.5.
   - **Titles:** website and YouTube return the real title (replaces the placeholder); PDF and text return `null` and keep the user's title.
   - **Learned metadata:** PDF `pageCount` + `fileHash` (real SHA-256 of the file; the browser's hash is only a claim, and what to do on a mismatch is a 3.5 decision); YouTube `durationSeconds` + `language`.
-  - **Errors:** everything thrown is an `ExtractionError` (`errors/extraction-error.ts`) with `code`, `retryable` and a user-facing `message`; vendor detail goes in `cause` for the log only. **Source error codes (not in the docs yet):** `NO_TEXT`, `INVALID_FILE`, `FILE_MISSING`, `PAGE_NOT_FOUND`, `PAGE_BLOCKED`, `NO_TRANSCRIPT`, `VIDEO_UNAVAILABLE`, `VIDEO_TOO_LONG`, `SERVICE_UNAVAILABLE` (the only transient one), `EXTRACTION_FAILED`, plus the sweeper's `TIMEOUT`. Propose adding the list to `04-api-design.md` when 3.7 shows them.
-  - **Transient** = network failure, timeout, 429, 5xx, vendor still working. **Permanent** = the rest, including our own bad key or empty credits (401/402 → `EXTRACTION_FAILED` with a generic message; retrying can't fix it).
+  - **Errors:** everything thrown is an `IngestionError` (`errors/ingestion-error.ts`; renamed from `ExtractionError` in 3.4 because embedding uses it too) with `code`, `retryable` and a user-facing `message`; vendor detail goes in `cause` for the log only. **Source error codes (not in the docs yet):** `NO_TEXT`, `INVALID_FILE`, `FILE_MISSING`, `PAGE_NOT_FOUND`, `PAGE_BLOCKED`, `NO_TRANSCRIPT`, `VIDEO_UNAVAILABLE`, `VIDEO_TOO_LONG`, `SERVICE_UNAVAILABLE` (the only transient one), `PROCESSING_FAILED`, plus the sweeper's `TIMEOUT`. Propose adding the list to `04-api-design.md` when 3.7 shows them.
+  - **Transient** = network failure, timeout, 429, 5xx, vendor still working. **Permanent** = the rest, including our own bad key or empty credits (401/402 → `PROCESSING_FAILED` with a generic message; retrying can't fix it).
   - **No vendor SDKs:** Firecrawl and Supadata are called with plain `fetch` (one endpoint each), so there is no new dependency beyond `unpdf` and tests inject a stub `fetch`. Timeouts and the transcript job polling are in `config/limits.ts` `extraction`.
   - **Firecrawl** `POST /v2/scrape` (markdown, main content only). It reports a failed scrape as **HTTP 200 with `success: false`** and a `code` (seen live for a DNS failure), and reports the target page's own status in `metadata.statusCode` (404/410 → `PAGE_NOT_FOUND`, 401/403 → `PAGE_BLOCKED`).
   - **Supadata** `GET /v1/metadata` (title, length) then `GET /v1/transcript?mode=native`. No captions comes back as **HTTP 206** with `error: transcript-unavailable`. A 202 means a background job, polled up to 10 × 3 s. The 3-hour limit is checked before the transcript is fetched.
@@ -164,6 +166,12 @@ API and server:
   - **Locations:** `pageNumber` (PDF), `startSeconds`/`endSeconds` floored/ceiled to whole seconds (YouTube), `headingPath` (website/text; null before the first heading).
   - **Tuning points for Phase 6:** small sections each become their own small chunk (no merging across headings); only ATX headings count.
 
+- **Chunks table + embeddings (3.4):**
+  - `source_chunks` matches `03-database-design.md`: `vector(1536)` (from `config.embeddings.dimensions`), `search_vector` generated by Postgres from the context header + content, `UNIQUE (source_id, chunk_index)`, HNSW (`vector_cosine_ops`), GIN and `notebook_id` indexes, cascade from `sources`. The iterative-scan setting belongs to the search query (4.1), not the table.
+  - **Embeddings provider** (`lib/embeddings`): `embed(texts)` → one vector per text in order, plus `model` for `sources.embedding_model`. Plain `fetch` to `POST /v1/embeddings` (no SDK), `config.embeddingRequests.batchSize` (100) texts per call, batches in sequence; a failed batch fails the whole call. 429 / 5xx / timeout → transient; `insufficient_quota`, 400, 401, 404 → permanent `PROCESSING_FAILED`.
+  - **Not called for real:** only `pnpm eval` may call OpenAI, so the provider is covered by stubbed-`fetch` tests only. Its first real call will be the 3.5 end-to-end check.
+  - Test fake: `test/fakes/embeddings.ts` gives each text a stable unit vector.
+
 
 ## Eval results so far
 - None yet (baseline comes in Phase 4)
@@ -175,6 +183,10 @@ API and server:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-09-30 (3.4)
+- Done: 3.4 (`source_chunks` migration on `dev` + `test`, OpenAI embeddings provider). `ExtractionError` renamed `IngestionError`; code `EXTRACTION_FAILED` renamed `PROCESSING_FAILED`
+- Notes: 338 tests passing (304 server, 34 web)
 
 ### 2026-09-30 (3.3)
 - Done: 3.3 (chunking module)

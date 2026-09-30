@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
-import { ExtractionError } from '../../errors/extraction-error.js';
+import { IngestionError } from '../../errors/ingestion-error.js';
 import { readJson, request } from '../http-request.js';
 import type { Transcript, TranscriptProvider, TranscriptSegment } from './types.js';
 
@@ -53,34 +53,34 @@ function watchUrl(videoId: string): string {
 }
 
 /** Maps a Supadata error (its `error` identifier, else the HTTP status) to a classified failure. */
-function failure(status: number, body: unknown): ExtractionError {
+function failure(status: number, body: unknown): IngestionError {
   const parsed = errorBody.safeParse(body);
   const id = parsed.success ? parsed.data.error : '';
   const detail = parsed.success ? (parsed.data.message ?? '') : 'no error body';
   const cause = new Error(`Supadata ${status}${id ? ` ${id}` : ''}: ${detail}`);
 
   if (id === 'transcript-unavailable') {
-    return ExtractionError.permanent('NO_TRANSCRIPT', messages.noTranscript, { cause });
+    return IngestionError.permanent('NO_TRANSCRIPT', messages.noTranscript, { cause });
   }
   if (id === 'not-found' || id === 'forbidden' || status === 404 || status === 403) {
-    return ExtractionError.permanent('VIDEO_UNAVAILABLE', messages.unavailable, { cause });
+    return IngestionError.permanent('VIDEO_UNAVAILABLE', messages.unavailable, { cause });
   }
   if (id === 'limit-exceeded' || status === 429) {
-    return ExtractionError.transient(messages.busy, { cause });
+    return IngestionError.transient(messages.busy, { cause });
   }
   if (id === 'internal-error' || status >= 500) {
-    return ExtractionError.transient(messages.unreachable, { cause });
+    return IngestionError.transient(messages.unreachable, { cause });
   }
   if (id === 'invalid-request' || status === 400) {
-    return ExtractionError.permanent('EXTRACTION_FAILED', messages.invalid, { cause });
+    return IngestionError.permanent('PROCESSING_FAILED', messages.invalid, { cause });
   }
   // `unauthorized` / `upgrade-required`: our key or plan. Retrying won't fix it; the cause is
   // logged for the owner.
-  return ExtractionError.permanent('EXTRACTION_FAILED', messages.failed, { cause });
+  return IngestionError.permanent('PROCESSING_FAILED', messages.failed, { cause });
 }
 
-function unexpected(what: string, cause: unknown): ExtractionError {
-  return ExtractionError.transient(messages.unreachable, {
+function unexpected(what: string, cause: unknown): IngestionError {
+  return IngestionError.transient(messages.unreachable, {
     cause: new Error(`Supadata returned an unexpected ${what}`, { cause }),
   });
 }
@@ -101,7 +101,7 @@ function toTranscript(body: unknown): Transcript {
     });
   }
   if (segments.length === 0) {
-    throw ExtractionError.permanent('NO_TRANSCRIPT', messages.noTranscript);
+    throw IngestionError.permanent('NO_TRANSCRIPT', messages.noTranscript);
   }
   return { language: parsed.data.lang ?? null, segments };
 }
@@ -138,7 +138,7 @@ export function createSupadataTranscriptProvider(config: SupadataConfig): Transc
       if (job.data.status === 'completed') return toTranscript(body);
       if (job.data.status === 'failed') throw failure(status, job.data.error);
     }
-    throw ExtractionError.transient(messages.pending);
+    throw IngestionError.transient(messages.pending);
   }
 
   return {

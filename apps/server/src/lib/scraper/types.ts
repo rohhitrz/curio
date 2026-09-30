@@ -5,7 +5,7 @@ export interface ScrapedPage {
   markdown: string;
 }
 
-/** Reads a web page. Failures are `ExtractionError`s, already classified transient or permanent. */
+/** Reads a web page. Failures are `IngestionError`s, already classified transient or permanent. */
 export interface ScraperProvider {
   scrape(url: string): Promise<ScrapedPage>;
 }

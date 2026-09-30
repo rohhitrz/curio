@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ExtractionError } from '../../errors/extraction-error.js';
+import { IngestionError } from '../../errors/ingestion-error.js';
 import { readJson, request } from '../http-request.js';
 import type { ScraperProvider } from './types.js';
 
@@ -48,22 +48,22 @@ const messages = {
 function assertPageStatus(status: number | null | undefined): void {
   if (status === null || status === undefined || status < 400) return;
   if (status === 404 || status === 410) {
-    throw ExtractionError.permanent('PAGE_NOT_FOUND', messages.notFound);
+    throw IngestionError.permanent('PAGE_NOT_FOUND', messages.notFound);
   }
   if (status === 401 || status === 403 || status === 451) {
-    throw ExtractionError.permanent('PAGE_BLOCKED', messages.blocked);
+    throw IngestionError.permanent('PAGE_BLOCKED', messages.blocked);
   }
   if (status === 408 || status === 429 || status >= 500) {
-    throw ExtractionError.transient(messages.siteDown);
+    throw IngestionError.transient(messages.siteDown);
   }
-  throw ExtractionError.permanent('EXTRACTION_FAILED', messages.failed);
+  throw IngestionError.permanent('PROCESSING_FAILED', messages.failed);
 }
 
 /**
  * Firecrawl's own failure (it could not, or would not, scrape). Its `code` says more than the
  * HTTP status: a failed scrape can come back as a 200 with `success: false`.
  */
-function scrapeFailure(status: number, body: unknown): ExtractionError {
+function scrapeFailure(status: number, body: unknown): IngestionError {
   const parsed = errorResponse.safeParse(body);
   const code = parsed.success ? (parsed.data.code ?? '') : '';
   const cause = new Error(
@@ -71,24 +71,24 @@ function scrapeFailure(status: number, body: unknown): ExtractionError {
   );
 
   if (/dns/i.test(code)) {
-    return ExtractionError.permanent('PAGE_NOT_FOUND', messages.noSuchSite, { cause });
+    return IngestionError.permanent('PAGE_NOT_FOUND', messages.noSuchSite, { cause });
   }
   if (/unsupported/i.test(code)) {
-    return ExtractionError.permanent('EXTRACTION_FAILED', messages.unsupported, { cause });
+    return IngestionError.permanent('PROCESSING_FAILED', messages.unsupported, { cause });
   }
   if (status === 408 || /timeout/i.test(code)) {
-    return ExtractionError.transient(messages.slow, { cause });
+    return IngestionError.transient(messages.slow, { cause });
   }
   // A failed scrape without a telling status or code: the site may just be having a bad moment.
-  if (status < 400) return ExtractionError.transient(messages.siteDown, { cause });
-  if (status === 409 || status === 429) return ExtractionError.transient(messages.busy, { cause });
-  if (status >= 500) return ExtractionError.transient(messages.unreachable, { cause });
-  if (status === 403) return ExtractionError.permanent('PAGE_BLOCKED', messages.blocked, { cause });
+  if (status < 400) return IngestionError.transient(messages.siteDown, { cause });
+  if (status === 409 || status === 429) return IngestionError.transient(messages.busy, { cause });
+  if (status >= 500) return IngestionError.transient(messages.unreachable, { cause });
+  if (status === 403) return IngestionError.permanent('PAGE_BLOCKED', messages.blocked, { cause });
   if (status === 400) {
-    return ExtractionError.permanent('EXTRACTION_FAILED', messages.unsupported, { cause });
+    return IngestionError.permanent('PROCESSING_FAILED', messages.unsupported, { cause });
   }
   // 401 / 402: our key or credits. Retrying won't fix it; the cause is logged for the owner.
-  return ExtractionError.permanent('EXTRACTION_FAILED', messages.failed, { cause });
+  return IngestionError.permanent('PROCESSING_FAILED', messages.failed, { cause });
 }
 
 export function createFirecrawlScraper(config: FirecrawlConfig): ScraperProvider {
@@ -126,7 +126,7 @@ export function createFirecrawlScraper(config: FirecrawlConfig): ScraperProvider
 
       const parsed = scrapeResponse.safeParse(body);
       if (!parsed.success) {
-        throw ExtractionError.transient(messages.unreachable, {
+        throw IngestionError.transient(messages.unreachable, {
           cause: new Error('Firecrawl returned an unexpected response', { cause: parsed.error }),
         });
       }
@@ -135,7 +135,7 @@ export function createFirecrawlScraper(config: FirecrawlConfig): ScraperProvider
       assertPageStatus(metadata?.statusCode);
 
       const content = markdown?.trim() ?? '';
-      if (content === '') throw ExtractionError.permanent('NO_TEXT', messages.empty);
+      if (content === '') throw IngestionError.permanent('NO_TEXT', messages.empty);
 
       const rawTitle = Array.isArray(metadata?.title) ? metadata.title[0] : metadata?.title;
       return { title: rawTitle?.trim() || null, markdown: content };

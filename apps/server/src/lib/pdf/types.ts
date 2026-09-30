@@ -10,7 +10,7 @@ export interface ParsedPdf {
   pages: PdfPage[];
 }
 
-/** Reads the text of a PDF, page by page. Failures are permanent `ExtractionError`s. */
+/** Reads the text of a PDF, page by page. Failures are permanent `IngestionError`s. */
 export interface PdfParser {
   parse(file: Uint8Array): Promise<ParsedPdf>;
 }

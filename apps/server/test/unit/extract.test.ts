@@ -8,7 +8,7 @@ import {
 import { createFakeStorage } from '../fakes/storage.js';
 import { buildPdf } from '../helpers/pdf.js';
 import { quotas } from '../../src/config/index.js';
-import { ExtractionError } from '../../src/errors/extraction-error.js';
+import { IngestionError } from '../../src/errors/ingestion-error.js';
 import { createUnpdfParser } from '../../src/lib/pdf/index.js';
 import {
   extractSource,
@@ -47,10 +47,10 @@ const youtube = source({
 });
 const pdfSource = source({ type: 'PDF', storageKey: STORAGE_KEY, metadata: { fileSize: 10 } });
 
-async function failure(input: ExtractableSource): Promise<ExtractionError> {
+async function failure(input: ExtractableSource): Promise<IngestionError> {
   const error = await extractSource(input, deps).catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(ExtractionError);
-  return error as ExtractionError;
+  expect(error).toBeInstanceOf(IngestionError);
+  return error as IngestionError;
 }
 
 beforeEach(() => {
@@ -123,13 +123,13 @@ describe('extract: website', () => {
   });
 
   it('passes the scraper’s classified failure through', async () => {
-    scraper.failNext(ExtractionError.permanent('PAGE_NOT_FOUND', 'This page does not exist.'));
+    scraper.failNext(IngestionError.permanent('PAGE_NOT_FOUND', 'This page does not exist.'));
 
     expect(await failure(website)).toMatchObject({ code: 'PAGE_NOT_FOUND', retryable: false });
   });
 
   it('times out twice, then works', async () => {
-    scraper.failNext(ExtractionError.transient('slow'), ExtractionError.transient('slow'));
+    scraper.failNext(IngestionError.transient('slow'), IngestionError.transient('slow'));
 
     expect(await failure(website)).toMatchObject({ retryable: true });
     expect(await failure(website)).toMatchObject({ retryable: true });
@@ -205,16 +205,16 @@ describe('extract: YouTube', () => {
   it('no transcript → the provider’s permanent failure passes through', async () => {
     transcript.failNext(
       // The first queued failure hits `getVideo`; NO_TRANSCRIPT comes from either call.
-      ExtractionError.permanent('NO_TRANSCRIPT', 'This video has no captions.'),
+      IngestionError.permanent('NO_TRANSCRIPT', 'This video has no captions.'),
     );
 
     expect(await failure(youtube)).toMatchObject({ code: 'NO_TRANSCRIPT', retryable: false });
   });
 
-  it('source without a video ID → permanent EXTRACTION_FAILED, no provider call', async () => {
+  it('source without a video ID → permanent PROCESSING_FAILED, no provider call', async () => {
     const error = await failure({ ...youtube, metadata: {} });
 
-    expect(error).toMatchObject({ code: 'EXTRACTION_FAILED', retryable: false });
+    expect(error).toMatchObject({ code: 'PROCESSING_FAILED', retryable: false });
     expect(transcript.calls).toEqual([]);
   });
 });

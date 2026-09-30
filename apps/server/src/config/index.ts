@@ -3,6 +3,7 @@ export { retrievalFlags, type RetrievalFlags } from './flags.js';
 export {
   chunking,
   conversation,
+  embeddingRequests,
   extraction,
   locks,
   quotas,

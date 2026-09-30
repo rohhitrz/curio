@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { json, stubFetch, timeoutError } from '../helpers/fetch.js';
-import { ExtractionError } from '../../src/errors/extraction-error.js';
+import { IngestionError } from '../../src/errors/ingestion-error.js';
 import { createFirecrawlScraper } from '../../src/lib/scraper/firecrawl.js';
 
 const PAGE_URL = 'https://example.com/articles/rag';
@@ -19,12 +19,12 @@ function page(data: object) {
   return json({ success: true, data });
 }
 
-async function failure(...replies: Parameters<typeof stubFetch>): Promise<ExtractionError> {
+async function failure(...replies: Parameters<typeof stubFetch>): Promise<IngestionError> {
   const error = await scraper(...replies)
     .provider.scrape(PAGE_URL)
     .catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(ExtractionError);
-  return error as ExtractionError;
+  expect(error).toBeInstanceOf(IngestionError);
+  return error as IngestionError;
 }
 
 describe('Firecrawl scraper', () => {
@@ -139,7 +139,7 @@ describe('Firecrawl scraper', () => {
   ])('%s (%i) → permanent, vendor detail kept for the log but not shown', async (_l, status, b) => {
     const error = await failure(json(b, status));
 
-    expect(error).toMatchObject({ code: 'EXTRACTION_FAILED', retryable: false });
+    expect(error).toMatchObject({ code: 'PROCESSING_FAILED', retryable: false });
     expect(error.message).toBe("We couldn't read this website. Please try again later.");
     expect((error.cause as Error).message).toContain(`Firecrawl ${status}`);
   });

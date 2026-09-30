@@ -58,6 +58,12 @@ export const extraction = {
   transcriptJobPollAttempts: 10,
 } as const;
 
+export const embeddingRequests = {
+  /** Texts per embeddings call (the API allows far more; smaller calls retry cheaply). */
+  batchSize: 100,
+  timeoutMs: 30_000,
+} as const;
+
 export const requests = {
   /** JSON body cap. Pasted text can be 100k chars, which is up to ~400 KB of UTF-8. */
   jsonBodyLimit: '1mb',

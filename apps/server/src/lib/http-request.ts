@@ -1,4 +1,4 @@
-import { ExtractionError } from '../errors/extraction-error.js';
+import { IngestionError } from '../errors/ingestion-error.js';
 
 export interface RequestOptions {
   fetch: typeof fetch;
@@ -8,7 +8,7 @@ export interface RequestOptions {
 }
 
 /**
- * `fetch` with a timeout. A network failure or a timeout becomes a transient `ExtractionError`;
+ * `fetch` with a timeout. A network failure or a timeout becomes a transient `IngestionError`;
  * HTTP error statuses are returned for the caller to classify.
  */
 export async function request(
@@ -19,7 +19,7 @@ export async function request(
   try {
     return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (cause) {
-    throw ExtractionError.transient(unreachableMessage, { cause });
+    throw IngestionError.transient(unreachableMessage, { cause });
   }
 }
 

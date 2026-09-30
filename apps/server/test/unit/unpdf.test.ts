@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { buildPdf } from '../helpers/pdf.js';
-import { ExtractionError } from '../../src/errors/extraction-error.js';
+import { IngestionError } from '../../src/errors/ingestion-error.js';
 import { createUnpdfParser } from '../../src/lib/pdf/unpdf.js';
 
 const parser = createUnpdfParser();
 
-async function failure(file: Uint8Array): Promise<ExtractionError> {
+async function failure(file: Uint8Array): Promise<IngestionError> {
   const error = await parser.parse(file).catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(ExtractionError);
-  return error as ExtractionError;
+  expect(error).toBeInstanceOf(IngestionError);
+  return error as IngestionError;
 }
 
 describe('unpdf parser', () => {

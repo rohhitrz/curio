@@ -17,7 +17,7 @@ export interface Transcript {
 }
 
 /**
- * Reads a YouTube video's details and captions. Failures are `ExtractionError`s, already
+ * Reads a YouTube video's details and captions. Failures are `IngestionError`s, already
  * classified transient or permanent.
  */
 export interface TranscriptProvider {

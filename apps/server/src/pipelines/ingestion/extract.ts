@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { quotas } from '../../config/index.js';
-import { ExtractionError } from '../../errors/extraction-error.js';
+import { IngestionError } from '../../errors/ingestion-error.js';
 import type { PdfPage, PdfParser } from '../../lib/pdf/index.js';
 import type { ScraperProvider } from '../../lib/scraper/index.js';
 import type { StorageProvider } from '../../lib/storage/index.js';
@@ -50,21 +50,21 @@ const messages = {
 
 function assertVideoLength(durationSeconds: number | null): void {
   if (durationSeconds !== null && durationSeconds > quotas.youtubeMaxSeconds) {
-    throw ExtractionError.permanent('VIDEO_TOO_LONG', messages.tooLong);
+    throw IngestionError.permanent('VIDEO_TOO_LONG', messages.tooLong);
   }
 }
 
 async function extractPdf(source: ExtractableSource, deps: ExtractionDeps): Promise<Extraction> {
   const { storageKey } = source;
-  if (storageKey === null) throw ExtractionError.permanent('FILE_MISSING', messages.fileMissing);
+  if (storageKey === null) throw IngestionError.permanent('FILE_MISSING', messages.fileMissing);
 
   let file: Uint8Array | null;
   try {
     file = await deps.storage.download(storageKey);
   } catch (cause) {
-    throw ExtractionError.transient(messages.storageDown, { cause });
+    throw IngestionError.transient(messages.storageDown, { cause });
   }
-  if (file === null) throw ExtractionError.permanent('FILE_MISSING', messages.fileMissing);
+  if (file === null) throw IngestionError.permanent('FILE_MISSING', messages.fileMissing);
 
   const { pages } = await deps.pdf.parse(file);
   return {
@@ -83,7 +83,7 @@ async function extractWebsite(
   source: ExtractableSource,
   deps: ExtractionDeps,
 ): Promise<Extraction> {
-  if (source.url === null) throw ExtractionError.permanent('EXTRACTION_FAILED', messages.noUrl);
+  if (source.url === null) throw IngestionError.permanent('PROCESSING_FAILED', messages.noUrl);
   const page = await deps.scraper.scrape(source.url);
   return {
     title: page.title,
@@ -98,7 +98,7 @@ async function extractYouTube(
 ): Promise<Extraction> {
   const { videoId } = source.metadata;
   if (typeof videoId !== 'string' || videoId === '') {
-    throw ExtractionError.permanent('EXTRACTION_FAILED', messages.notAVideo);
+    throw IngestionError.permanent('PROCESSING_FAILED', messages.notAVideo);
   }
 
   // Length is checked before the transcript is fetched, so an over-long video costs one cheap call.
@@ -120,12 +120,12 @@ async function extractYouTube(
 
 function extractText(source: ExtractableSource): Extraction {
   const markdown = source.extractedText?.trim() ?? '';
-  if (markdown === '') throw ExtractionError.permanent('NO_TEXT', messages.emptyText);
+  if (markdown === '') throw IngestionError.permanent('NO_TEXT', messages.emptyText);
   return { title: null, content: { kind: 'markdown', markdown }, metadata: {} };
 }
 
 /**
- * Reads a source into text plus the locations its citations need. Throws `ExtractionError`:
+ * Reads a source into text plus the locations its citations need. Throws `IngestionError`:
  * `retryable` ones are worth another attempt, the rest fail the source with their message.
  */
 export async function extractSource(

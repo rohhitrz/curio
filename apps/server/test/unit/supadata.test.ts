@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { json, stubFetch, timeoutError } from '../helpers/fetch.js';
-import { ExtractionError } from '../../src/errors/extraction-error.js';
+import { IngestionError } from '../../src/errors/ingestion-error.js';
 import { createSupadataTranscriptProvider } from '../../src/lib/transcript/supadata.js';
 
 const VIDEO_ID = 'dQw4w9WgXcQ';
@@ -23,10 +23,10 @@ function supadata(...replies: Parameters<typeof stubFetch>) {
   return { provider, requests: stub.requests, sleeps };
 }
 
-async function failure(call: Promise<unknown>): Promise<ExtractionError> {
+async function failure(call: Promise<unknown>): Promise<IngestionError> {
   const error = await call.catch((e: unknown) => e);
-  expect(error).toBeInstanceOf(ExtractionError);
-  return error as ExtractionError;
+  expect(error).toBeInstanceOf(IngestionError);
+  return error as IngestionError;
 }
 
 const transcript = {
@@ -116,7 +116,7 @@ describe('Supadata transcript', () => {
 
     const error = await failure(provider.getTranscript(VIDEO_ID));
 
-    expect(error).toMatchObject({ code: 'EXTRACTION_FAILED', retryable: false });
+    expect(error).toMatchObject({ code: 'PROCESSING_FAILED', retryable: false });
     expect(error.message).toBe("We couldn't read this video. Please try again later.");
     expect((error.cause as Error).message).toBe(`Supadata ${status} ${id}: Check your API key`);
   });
@@ -125,7 +125,7 @@ describe('Supadata transcript', () => {
     const { provider } = supadata(json({ error: 'invalid-request', message: 'Bad url' }, 400));
 
     expect(await failure(provider.getTranscript(VIDEO_ID))).toMatchObject({
-      code: 'EXTRACTION_FAILED',
+      code: 'PROCESSING_FAILED',
       retryable: false,
     });
   });
@@ -201,14 +201,14 @@ describe('Supadata transcript', () => {
       });
     });
 
-    it('the job fails for an unknown reason → permanent EXTRACTION_FAILED', async () => {
+    it('the job fails for an unknown reason → permanent PROCESSING_FAILED', async () => {
       const { provider } = supadata(
         json({ jobId: 'job_1' }, 202),
         json({ status: 'failed', error: null }),
       );
 
       expect(await failure(provider.getTranscript(VIDEO_ID))).toMatchObject({
-        code: 'EXTRACTION_FAILED',
+        code: 'PROCESSING_FAILED',
         retryable: false,
       });
     });
