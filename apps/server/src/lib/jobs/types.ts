@@ -5,6 +5,8 @@ export interface JobEvents {
   'source/reprocess': { sourceId: string; userId: string };
   /** The rows are already gone, so the files to delete travel with the event. */
   'notebook/deleted': { notebookId: string; userId: string; storageKeys: string[] };
+  /** Fold older messages into the conversation's rolling summary. */
+  'conversation/summarize': { conversationId: string; userId: string };
 }
 
 export type JobEventName = keyof JobEvents;

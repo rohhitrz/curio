@@ -95,6 +95,7 @@ export function createApp({
     llm,
     tracer,
     locks,
+    jobs,
     countTokens,
     logger,
   });

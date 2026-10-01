@@ -1,5 +1,5 @@
 import type { CitationSnapshot } from '@curio/shared';
-import { and, desc, eq, lt, max, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, lt, lte, max, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { conversations, messages, notebooks } from '../db/schema/index.js';
 import type { Cursor } from '../pagination/cursor.js';
@@ -13,6 +13,7 @@ const conversationColumns = {
   lessonId: conversations.lessonId,
   title: conversations.title,
   summary: conversations.summary,
+  summarizedThroughSeq: conversations.summarizedThroughSeq,
   lastMessageAt: conversations.lastMessageAt,
   createdAt: conversations.createdAt,
   updatedAt: conversations.updatedAt,
@@ -153,6 +154,47 @@ export function createChatRepository(db: Db) {
         .orderBy(desc(messages.seq))
         .limit(count);
       return rows.reverse();
+    },
+
+    /** Complete messages with `afterSeq < seq <= throughSeq`, oldest first (for the summary). */
+    async completeMessagesBetween(conversationId: string, afterSeq: number, throughSeq: number) {
+      return db
+        .select(messageColumns)
+        .from(messages)
+        .where(
+          and(
+            eq(messages.conversationId, conversationId),
+            gt(messages.seq, afterSeq),
+            lte(messages.seq, throughSeq),
+            eq(messages.status, 'COMPLETE'),
+          ),
+        )
+        .orderBy(asc(messages.seq));
+    },
+
+    /**
+     * Saves a new rolling summary only if no one else did since it was drafted (optimistic
+     * concurrency, docs/03-database-design.md §8). False → another job got there first.
+     */
+    async saveSummary(update: {
+      userId: string;
+      conversationId: string;
+      summary: string | null;
+      throughSeq: number;
+      expectedThroughSeq: number;
+    }): Promise<boolean> {
+      const rows = await db
+        .update(conversations)
+        .set({ summary: update.summary, summarizedThroughSeq: update.throughSeq })
+        .where(
+          and(
+            eq(conversations.id, update.conversationId),
+            eq(conversations.userId, update.userId),
+            eq(conversations.summarizedThroughSeq, update.expectedThroughSeq),
+          ),
+        )
+        .returning({ id: conversations.id });
+      return rows.length > 0;
     },
 
     async findMessage(messageId: string) {

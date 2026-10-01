@@ -10,6 +10,7 @@ import type { Logger } from 'pino';
 import { conversation as conversationLimits, locks } from '../config/index.js';
 import { AppError, NotFoundError, ServiceUnavailableError } from '../errors/app-error.js';
 import { LlmError } from '../errors/llm-error.js';
+import type { JobsProvider } from '../lib/jobs/index.js';
 import type { LlmMessage, LlmProvider } from '../lib/llm/index.js';
 import type { Lock, LockProvider } from '../lib/locks/index.js';
 import type { Tracer } from '../lib/tracing/index.js';
@@ -26,6 +27,7 @@ import type {
   ConversationRow,
   MessageRow,
 } from '../repositories/chat.repository.js';
+import { needsSummary } from './conversation-summary.service.js';
 
 export const DEFAULT_CONVERSATION_TITLE = 'New conversation';
 
@@ -54,6 +56,8 @@ export interface ChatServiceDeps {
   llm: LlmProvider;
   tracer: Tracer;
   locks: LockProvider;
+  /** Queues the summary job (Phase 7). */
+  jobs: JobsProvider;
   countTokens: (text: string) => number;
   logger: Logger;
 }
@@ -165,6 +169,17 @@ export function createChatService(deps: ChatServiceDeps) {
     }
   }
 
+  /** Queues the summary job once enough messages sit outside the summary. Never throws. */
+  async function requestSummary(userId: string, conversation: ConversationRow, lastSeq: number) {
+    if (!needsSummary(lastSeq, conversation.summarizedThroughSeq)) return;
+    try {
+      await deps.jobs.send('conversation/summarize', { conversationId: conversation.id, userId });
+    } catch (err) {
+      // The next answer asks again; until then the prompt has the last messages only.
+      logger.warn({ err, conversationId: conversation.id }, 'summary job not queued');
+    }
+  }
+
   /** Replays a saved answer without calling the model (a resend after the answer was saved). */
   function replay(answer: MessageRow, lock: Lock): ChatRun {
     return {
@@ -271,7 +286,7 @@ export function createChatService(deps: ChatServiceDeps) {
                 conversation.title === DEFAULT_CONVERSATION_TITLE && question.seq === 1
                   ? titleFromQuestion(question.content, conversationLimits.autoTitleMaxChars)
                   : undefined;
-              await repository.saveAssistantMessage({
+              const saved = await repository.saveAssistantMessage({
                 id: messageId,
                 conversationId: conversation.id,
                 content: result.text,
@@ -288,6 +303,7 @@ export function createChatService(deps: ChatServiceDeps) {
               });
               sink({ type: 'citations', citations: result.citations });
               sink({ type: 'finish', traceId });
+              await requestSummary(userId, conversation, saved.seq);
             },
           );
         } catch (err) {

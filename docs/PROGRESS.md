@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 6 (Advanced retrieval), all steps built: 🛑 **waiting for owner approval**
-- **Current step:** 6.8 done (timeouts + graceful degradation)
+- **Phase:** 7 (Memory), in progress
+- **Current step:** 7.1 done (conversation summary job + context = summary + last ~10)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** Phase 7 (memory), once Phase 6 is approved
+- **Next step:** 7.2 topic embeddings + `PATCH /notebooks` `topic`
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -19,8 +19,8 @@
 | 3 | Ingestion pipeline | ✅ Done (owner approved) |
 | 4 | Eval foundation | ✅ Done (owner approved) |
 | 5 | Basic RAG chat | ✅ Done (owner approved) |
-| 6 | Advanced retrieval | 🔨 In progress |
-| 7 | Memory | ⏳ Not started |
+| 6 | Advanced retrieval | ✅ Done (owner approved) |
+| 7 | Memory | 🔨 In progress |
 | 8 | Learning paths | ⏳ Not started |
 | 9 | Lessons | ⏳ Not started |
 | 10 | Hardening | ⏳ Not started |
@@ -28,7 +28,16 @@
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 6
+## Current phase steps: Phase 7
+- [x] 7.1 Conversation summary: `summarizeConversation` job (`conversation/summarize`, `inngest/summarize-conversation.ts`) → `conversation-summary.service.ts` (`draft` then `save` as two steps, so a failed save doesn't repeat the model call) · pure `pipelines/memory/summarize.ts` (Luna `conversationSummary`, old summary + new messages, markers stripped, failed answers left out) · optimistic save (`WHERE summarized_through_seq = old`, scoped by user; 0 rows → `superseded`) · chat queues the job after a saved answer when more than `conversation.summarizeAfterMessages` (20) messages sit outside the summary; queueing failure only logs · prompt = summary + last `recentMessages` (10) · traced as `conversation-summary`
+- [ ] 7.2 Topic embeddings + `PATCH /notebooks` `topic`
+- [ ] 7.3 Migration `memories` (checks + partial unique indexes); repository
+- [ ] 7.4 `extractMemories` job: add / update / skip, never overwrites `USER_EDITED`, 200 cap
+- [ ] 7.5 Memory in prompts (tone and depth only)
+- [ ] 7.6 Memory API (4 endpoints) + memory page + "Noted" notice
+- [ ] 🛑 Owner approves Phase 7
+
+## Phase 6 steps (done)
 - [x] 6.1 Feature flags through the pipeline: `pipelines/retrieval/pipeline.ts` `runRetrieval` (understand → vector (+ keyword) search per query → RRF fusion when there is more than one list → rerank → top `rerankTopK`), each step behind its flag in `config/flags.ts`, injected as optional deps (flag on without its dep throws) · RRF in `fusion.ts` (`retrieval.rrfK` = 60) · chat traces each step as a span under `retrieve` · eval runner uses `runRetrieval`, `--flags=a,b` for ablations, `-retrieval` suffix on retrieval-only results
 - [x] 6.2 Query understanding: `pipelines/retrieval/understand.ts` (one Luna `generateObject`: `needsRetrieval`, `standaloneQuery`, `subQueries` ≤ `retrieval.maxSubQueries`; last `understandingHistoryMessages` of history) · failed call → raw question (`failed: ['understand']`, logged) · routed-out messages get a short `chatReply` with no sources · **eval: `queryRewrite` on** (`2026-10-01-vector+queryRewrite.json`) · eval runner retries a question after a retryable LLM error
 - [x] 6.3 Keyword search: `keywordChunks` in `retrieval.repository.ts` (any word of the query via `plainto_tsquery` with `&` → `|`, `ts_rank`, same scoping as vector search, `retrieval.keywordCandidates` = 40; no migration, `search_vector` + GIN exist since 0005) · fused with RRF · **eval: `hybridSearch` on** (`2026-10-01-vector+queryRewrite+hybridSearch.json`)
@@ -37,7 +46,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 6.6 Citation check: `removeInvalidMarkers` (`citations.ts`) drops every `[n]` with no source the model saw, also inside groups; the saved answer is the checked text, so snapshots and text always agree (the live stream may still show an invented number for a moment: the web app already hides markers with no citation). Removed markers go to the trace output and each eval answer (`removedMarkers`). No eval in the build plan for this step
 - [x] 6.7 Eval-gated trials: HyDE built behind the `hyde` flag (one more vector search with a hypothetical passage; failure skipped) + `--chunk-tokens` in the eval. **Not adopted** (R-09): retrieval is at the dataset's ceiling (MRR 0.983); the owner stopped the trial runs before they finished, so no result file
 - [x] 6.8 Timeouts + degradation: `chatTimeouts` (understanding 3s and HyDE 3s via `withDeadline`, which aborts the call and rejects even if it hangs → skipped; question embedding 5s on its own client; `statement_timeout` 5s on both searches) · `serviceTimeouts` (Upstash 2s per request, R2 connect 5s / request 15s) · searches run with `allSettled`: vector down → keyword only, keyword down → vector only, both down → error · rerank down → fused order, gate skipped (6.4/6.5)
-- [ ] 🛑 Owner approves Phase 6
+- [x] 🛑 Owner approves Phase 6 (2026-10-02: "Start Phase 7")
 
 ## Phase 5 steps (done)
 - [x] 5.1 Migration `0008_conversations_messages` (on all three branches; prod run by the owner, 2026-10-01) · shared chat enums + `citationSnapshotSchema` in `packages/shared/src/chat.ts`
@@ -64,7 +73,15 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.6 Sweeper cron (every 5 min) · `POST /sources/:id/reprocess` · `GET /sources/:id/content` + `/chunks` · `notebook/deleted` R2 cleanup job
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
-## Resume here: Phase 6
+## Resume here: Phase 7
+- **7.1 notes:**
+  - The job summarizes seqs `(summarized_through_seq, lastSeq − 10]`; the last 10 go to the prompt word for word, so nothing is sent twice. Between runs up to ~10 messages sit in neither (the documented ~20 / ~10 thresholds); fine for now, revisit if long chats lose the thread.
+  - The job re-checks the threshold itself, so duplicate events (one per answer until the job runs) end as `up_to_date` without a model call.
+  - Only COMPLETE messages are summarized; a range with only failed answers moves the marker without a model call.
+  - **Inngest:** the new function appears after the deploy syncs the app; if `summarize-conversation` isn't listed in the Inngest dashboard, resync the app there.
+  - Vercel's non-strict build reads a parsed `z.string().nullable()` as optional: the job rebuilds the draft field by field before `save` (`typecheck:vercel` caught it).
+
+## Phase 6 notes
 0. **6.1 notes (read before 6.2).** For Phase 6 read `02-system-design.md` §7, `07-decisions.md` R-01–R-08 and the Phase 6 rows of `06-test-plan.md`.
    - `runRetrieval` (`pipelines/retrieval/pipeline.ts`) is the one entry point for chat and the eval; `retrieve` is now just the vector-search half. With every flag off it is the vector baseline (same top chunks, cosine scores kept since fusion doesn't run on one list).
    - Flag → step: `queryRewrite` or `subQueries` turns on the understanding call; `queryRewrite` searches `standaloneQuery` (blank → raw question) **and owns routing** (`needsRetrieval: false` → `retrieved: false`, no search); `subQueries` adds one search per sub-query (deduped against the main query). `hybridSearch` adds `keywordSearch` next to each vector search. `rerank` reorders the fused candidates; off → top `rerankTopK` in fused order. `hyde` is not wired yet (6.7).
@@ -116,7 +133,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Approve Phase 6.** How to verify: ask a few questions on the live app, including a follow-up ("what are its disadvantages?") and something not in your sources (should say "not in your sources" right away); in Langfuse, a `chat` trace shows `understand` → `search` → `rerank` under `retrieve` and **time to first token under ~3s**; numbers in "Eval results so far" (ablation table).
+- **Full test suite not run since the 6.4 checkpoint.** The owner stopped the checkpoint run and asked for 7.1 to be pushed without tests (2026-10-02). Run `pnpm test` (alone, ~25 min) at the next checkpoint.
+- **Phase 6 live check** (Phase 6 approved; still worth doing): ask a few questions on the live app, including a follow-up ("what are its disadvantages?") and something not in your sources (should say "not in your sources" right away); in Langfuse, a `chat` trace shows `understand` → `search` → `rerank` under `retrieve` and **time to first token under ~3s**; numbers in "Eval results so far" (ablation table).
 - **Re-process the YouTube source that came out in Arabic** (Process again), now that transcripts ask for English.
 - **Later:** swap Vercel `COHERE_API_KEY` for a Cohere Production key once other people use Curio (Trial keys: 10 calls/min, not for production; the variable name stays the same).
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
@@ -390,6 +408,11 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-02 (Phase 6 approved, 7.1)
+- Done: 7.1 conversation summary job
+- Owner: "Start Phase 7" (Phase 6 approved); stopped the checkpoint run and the targeted test runs; asked to finish 7.1 and push. Pushed with lint + typecheck + `typecheck:vercel` clean and the 15 new 7.1 tests passing (run before the last two small fixes); `chat.test.ts` and the full suite **not** run
+- Notes: the 6.5–6.8 commits went out in the same push
 
 ### 2026-10-02 (6.5–6.8, Phase 6 built)
 - Done: 6.5 relevance gate (on, 0.70), 6.6 citation check, 6.7 HyDE / chunk size (not adopted, R-09; owner stopped the trial runs), 6.8 timeouts + degradation

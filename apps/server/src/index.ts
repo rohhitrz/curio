@@ -21,6 +21,7 @@ import { createApp } from './create-app.js';
 import { createDb } from './db/client.js';
 import { createCleanupNotebookFilesFunction } from './inngest/cleanup-notebook-files.js';
 import { createProcessSourceFunction } from './inngest/process-source.js';
+import { createSummarizeConversationFunction } from './inngest/summarize-conversation.js';
 import { createSweepStuckSourcesFunction } from './inngest/sweep-stuck-sources.js';
 import { Redis } from '@upstash/redis';
 import { createClerkAuthProvider } from './lib/auth/index.js';
@@ -41,8 +42,10 @@ import { startLangfuseTracing } from './lib/tracing/index.js';
 import { createSupadataTranscriptProvider } from './lib/transcript/index.js';
 import { createLogger } from './logger.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
+import { createChatRepository } from './repositories/chat.repository.js';
 import { createIngestionRepository } from './repositories/ingestion.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
+import { createConversationSummaryService } from './services/conversation-summary.service.js';
 import { createIngestionService } from './services/ingestion.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
 
@@ -162,6 +165,12 @@ const notebooksService = createNotebooksService(
   jobs,
   logger,
 );
+const summaryService = createConversationSummaryService({
+  repository: createChatRepository(db),
+  llm,
+  tracer,
+  logger,
+});
 
 const app: Express = createApp({
   logger,
@@ -180,6 +189,7 @@ const app: Express = createApp({
     createProcessSourceFunction(inngest, ingestionService),
     createSweepStuckSourcesFunction(inngest, ingestionService),
     createCleanupNotebookFilesFunction(inngest, notebooksService),
+    createSummarizeConversationFunction(inngest, summaryService),
   ]),
 });
 

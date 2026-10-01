@@ -69,6 +69,14 @@ export const conversation = {
   recentMessages: 10,
   /** A new conversation is named after its first question, cut to about this length. */
   autoTitleMaxChars: 80,
+  /**
+   * After an answer, more than this many messages missing from the summary → the summary job
+   * runs (docs/04-api-design.md §5, step 10). It summarizes all but the last `recentMessages`,
+   * which the prompt already carries word for word.
+   */
+  summarizeAfterMessages: 20,
+  /** Retries of the summary job; a failed run is caught up by the next answer's event. */
+  summaryJobRetries: 2,
 } as const;
 
 export const uploads = {
