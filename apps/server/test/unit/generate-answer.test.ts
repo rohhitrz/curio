@@ -11,6 +11,7 @@ import { generateAnswer } from '../../src/pipelines/retrieval/generate.js';
 import {
   buildChatMessages,
   CHAT_ANSWER_INSTRUCTIONS,
+  CHAT_REPLY_INSTRUCTIONS,
   NOT_IN_SOURCES_ANSWER,
 } from '../../src/pipelines/retrieval/prompt.js';
 import type { RetrievedChunk } from '../../src/pipelines/retrieval/retrieve.js';
@@ -221,6 +222,36 @@ describe('buildChatMessages', () => {
 });
 
 describe('generateAnswer', () => {
+  it('a message routed past retrieval gets a short reply: chatReply task, no sources', async () => {
+    const llm = createFakeLlm('You are welcome!');
+
+    const answer = generateAnswer(
+      {
+        question: 'thanks!',
+        chunks: [],
+        history: [{ role: 'assistant', content: 'Dropout drops units [1].' }],
+        retrieved: false,
+      },
+      { llm: llm.provider, countTokens: countWords },
+    );
+
+    expect(await drain(answer.textStream)).toBe('You are welcome!');
+    expect(await answer.result).toMatchObject({
+      text: 'You are welcome!',
+      citations: [],
+      refused: false,
+      model: 'fake-llm',
+    });
+    expect(answer.sources).toEqual([]);
+    const [request] = llm.requests;
+    expect(request?.task).toBe('chatReply');
+    expect(request?.instructions).toBe(CHAT_REPLY_INSTRUCTIONS);
+    expect(request?.messages).toEqual([
+      { role: 'assistant', content: 'Dropout drops units.' },
+      { role: 'user', content: 'thanks!' },
+    ]);
+  });
+
   it('streams a grounded answer and returns its citation snapshots', async () => {
     const llm = createFakeLlm('Dropout randomly drops units during training [1].');
     const a = chunk({ content: 'Dropout drops units at random.' });

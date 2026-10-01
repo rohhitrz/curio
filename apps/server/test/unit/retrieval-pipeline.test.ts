@@ -182,6 +182,25 @@ describe('runRetrieval', () => {
     expect(calls.rerank).toEqual([]);
   });
 
+  it('a failed understanding call is skipped: raw question searched, failure reported', async () => {
+    const { deps, searchedText } = setup({ queryRewrite: true, subQueries: true });
+    const error = new Error('LLM down');
+    deps.understandQuery = () => Promise.reject(error);
+    const reported: [string, unknown][] = [];
+    deps.onStepFailed = (step, err) => reported.push([step, err]);
+
+    const result = await runRetrieval(input, deps);
+
+    expect(searchedText).toEqual([input.question]);
+    expect(result).toMatchObject({
+      retrieved: true,
+      queries: [input.question],
+      failed: ['understand'],
+      steps: { understand: false },
+    });
+    expect(reported).toEqual([['understand', error]]);
+  });
+
   it('subQueries on alone: searches the raw question plus each sub-query, fused', async () => {
     const { deps, searchedText, calls } = setup(
       { subQueries: true },

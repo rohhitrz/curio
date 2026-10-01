@@ -3,7 +3,13 @@ import { citations as citationLimits, retrieval } from '../../config/index.js';
 import type { LlmMessage, LlmProvider, LlmUsage } from '../../lib/llm/index.js';
 import { toCitationSnapshots } from './citations.js';
 import { buildContext, type ContextSource } from './context.js';
-import { buildChatMessages, CHAT_ANSWER_INSTRUCTIONS, NOT_IN_SOURCES_ANSWER } from './prompt.js';
+import {
+  buildChatMessages,
+  buildReplyMessages,
+  CHAT_ANSWER_INSTRUCTIONS,
+  CHAT_REPLY_INSTRUCTIONS,
+  NOT_IN_SOURCES_ANSWER,
+} from './prompt.js';
 import type { RetrievedChunk } from './retrieve.js';
 
 export interface GenerateAnswerInput {
@@ -13,6 +19,11 @@ export interface GenerateAnswerInput {
   /** Recent messages, oldest first, without the new question. */
   history: LlmMessage[];
   summary?: string | null;
+  /**
+   * False when routing skipped the search ("thanks!"): a short reply without sources instead of
+   * "not in your sources". Defaults to true.
+   */
+  retrieved?: boolean;
   abortSignal?: AbortSignal;
 }
 
@@ -55,9 +66,12 @@ const isRefusal = (text: string) => text.trim() === NOT_IN_SOURCES_ANSWER;
 /**
  * Steps 6–7 of the chat pipeline (docs/02-system-design.md §7): numbers the retrieved chunks,
  * streams a grounded answer that cites them as `[n]`, and turns the markers into citation
- * snapshots. With no chunks it answers "not in your sources" without calling the model.
+ * snapshots. With no chunks it answers "not in your sources" without calling the model; a message
+ * routed past retrieval gets a short reply with no sources.
  */
 export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerDeps): AnswerStream {
+  if (input.retrieved === false) return generateReply(input, deps);
+
   const context = buildContext(input.chunks, {
     maxTokens: deps.contextMaxTokens ?? retrieval.contextMaxTokens,
     countTokens: deps.countTokens,
@@ -107,4 +121,22 @@ export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerD
   result.catch(() => undefined);
 
   return { sources: context.sources, textStream: stream.textStream, result };
+}
+
+function generateReply(input: GenerateAnswerInput, deps: GenerateAnswerDeps): AnswerStream {
+  const stream = deps.llm.stream({
+    task: 'chatReply',
+    instructions: CHAT_REPLY_INSTRUCTIONS,
+    messages: buildReplyMessages({ question: input.question, history: input.history }),
+    ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
+  });
+  const result = stream.result.then((llmResult): Answer => ({
+    text: llmResult.text,
+    citations: [],
+    refused: false,
+    model: llmResult.model,
+    usage: llmResult.usage,
+  }));
+  result.catch(() => undefined);
+  return { sources: [], textStream: stream.textStream, result };
 }

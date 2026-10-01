@@ -20,6 +20,28 @@ Rules:
 - Write clearly for a learner: lead with the direct answer, then explain. Use short paragraphs, and lists when they help. Use Markdown.
 - Answer in the language of the question.`;
 
+/**
+ * For a message routed past retrieval ("thanks!", "hi"). Fixed text, cached like the answer's.
+ * It still must not answer from its own knowledge: routing can be wrong.
+ */
+export const CHAT_REPLY_INSTRUCTIONS = `You are Curio, a study assistant that answers questions from the user's own sources. The user's latest message is small talk (a greeting, thanks, an acknowledgement), so no sources were searched.
+
+Rules:
+- Reply in one or two short, friendly sentences, in the language of the message.
+- Do not state any facts and do not answer questions about any topic. If the message does ask something, say you can answer it from their sources and ask them to phrase it as a question.`;
+
+/** Earlier turns (old `[n]` markers removed) then the new message, for the no-sources reply. */
+export function buildReplyMessages(input: { question: string; history: LlmMessage[] }) {
+  return [...cleanHistory(input.history), { role: 'user' as const, content: input.question }];
+}
+
+function cleanHistory(history: LlmMessage[]): LlmMessage[] {
+  return history.map((message) => ({
+    role: message.role,
+    content: message.role === 'assistant' ? stripMarkers(message.content) : message.content,
+  }));
+}
+
 export interface ChatPromptInput {
   question: string;
   /** Numbered sources (`buildContext`). */
@@ -43,12 +65,7 @@ export function buildChatMessages(input: ChatPromptInput): LlmMessage[] {
       { role: 'assistant', content: 'Understood.' },
     );
   }
-  for (const message of input.history) {
-    messages.push({
-      role: message.role,
-      content: message.role === 'assistant' ? stripMarkers(message.content) : message.content,
-    });
-  }
+  messages.push(...cleanHistory(input.history));
   messages.push({
     role: 'user',
     content: `Sources:\n\n${input.contextText}\n\n---\n\nQuestion: ${input.question}`,

@@ -47,6 +47,7 @@ import { createLogger } from '../../apps/server/src/logger.js';
 import { countTokens } from '../../apps/server/src/pipelines/ingestion/tokens.js';
 import { generateAnswer } from '../../apps/server/src/pipelines/retrieval/generate.js';
 import { runRetrieval } from '../../apps/server/src/pipelines/retrieval/pipeline.js';
+import { understandQuery } from '../../apps/server/src/pipelines/retrieval/understand.js';
 import type { RetrievedChunk } from '../../apps/server/src/pipelines/retrieval/retrieve.js';
 import { createIngestionRepository } from '../../apps/server/src/repositories/ingestion.repository.js';
 import { createRetrievalRepository } from '../../apps/server/src/repositories/retrieval.repository.js';
@@ -241,6 +242,16 @@ async function main() {
     },
   });
   const retrievalRepository = createRetrievalRepository(db);
+  // No call is made until a step uses it: query understanding (when its flags are on), answers
+  // and the judge.
+  const llm = createOpenAiLlm({
+    apiKey: requireEnv('OPENAI_API_KEY'),
+    models: llmModels,
+    tasks: llmTasks,
+    timeoutMs: llmRequests.timeoutMs,
+    maxRetries: llmRequests.maxRetries,
+  });
+  const usage = new UsageByModel();
 
   try {
     // ── A fresh eval notebook ──
@@ -292,11 +303,23 @@ async function main() {
     }
 
     // ── Ask every question ──
-    const outcomes: (QuestionOutcome & Record<string, unknown>)[] = [];
-    const retrievedByQuestion = new Map<string, RetrievedChunk[]>();
+    const outcomes: (QuestionOutcome & {
+      id: string;
+      topScore: number | null;
+      queries: string[];
+      routedPastRetrieval: boolean;
+      failedSteps: string[];
+      retrieved: ReturnType<typeof describe>[];
+    })[] = [];
+    const retrievedByQuestion = new Map<string, { retrieved: boolean; chunks: RetrievedChunk[] }>();
     for (const question of questions) {
       embeddedTokens += countTokens(question.question);
-      const { queries, chunks: results } = await runRetrieval(
+      const {
+        retrieved,
+        queries,
+        failed,
+        chunks: results,
+      } = await runRetrieval(
         {
           userId: user.id,
           notebookId: notebook.id,
@@ -308,9 +331,17 @@ async function main() {
           flags: args.flags,
           embeddings,
           vectorSearch: (params) => retrievalRepository.vectorSearch(params),
+          understandQuery: async (understandInput) => {
+            const understood = await understandQuery(understandInput, { llm });
+            usage.add(understood.model, understood.usage);
+            return understood;
+          },
+          onStepFailed: (step, error) => {
+            console.warn(`\n${question.id}: ${step} failed, skipped: ${String(error)}`);
+          },
         },
       );
-      retrievedByQuestion.set(question.id, results);
+      retrievedByQuestion.set(question.id, { retrieved, chunks: results });
       const scored = results.map((result) =>
         describe(result, documentBySource, question.expectedLocations),
       );
@@ -321,14 +352,16 @@ async function main() {
         relevantRanks: scored.filter((r) => r.relevant).map((r) => r.rank),
         topScore: scored[0]?.score ?? null,
         queries,
+        routedPastRetrieval: !retrieved,
+        failedSteps: failed,
         retrieved: scored,
       });
     }
 
     // ── Answers, graded by the judge ──
-    const usage = new UsageByModel();
     const answers = args.answers
       ? await runAnswers({
+          llm,
           questions,
           retrievedByQuestion,
           documentBySource,
@@ -380,14 +413,16 @@ async function main() {
       ),
       cost: costReport(embeddedTokens, usage),
       durationSeconds: Math.round((Date.now() - startedAt) / 1000),
-      questions: outcomes.map(({ id, category, relevantRanks, topScore, queries, retrieved }) => ({
-        id,
-        category,
-        firstRelevantRank: relevantRanks[0] ?? null,
-        topScore,
-        queries,
-        retrieved,
-        ...(answers ? { answers: answers.byQuestion.get(id as string) ?? [] } : {}),
+      questions: outcomes.map((outcome) => ({
+        id: outcome.id,
+        category: outcome.category,
+        firstRelevantRank: outcome.relevantRanks[0] ?? null,
+        topScore: outcome.topScore,
+        queries: outcome.queries,
+        routedPastRetrieval: outcome.routedPastRetrieval,
+        failedSteps: outcome.failedSteps,
+        retrieved: outcome.retrieved,
+        ...(answers ? { answers: answers.byQuestion.get(outcome.id) ?? [] } : {}),
       })),
     };
 
@@ -504,8 +539,9 @@ function costReport(embeddingTokens: number, usage: UsageByModel) {
 }
 
 interface AnswerRunInput {
+  llm: LlmProvider;
   questions: Question[];
-  retrievedByQuestion: Map<string, RetrievedChunk[]>;
+  retrievedByQuestion: Map<string, { retrieved: boolean; chunks: RetrievedChunk[] }>;
   documentBySource: Map<string, EvalDocument>;
   runs: number;
   usage: UsageByModel;
@@ -517,19 +553,13 @@ interface AnswerRunInput {
  * correctness by the judge, citation accuracy and refusals in code.
  */
 async function runAnswers({
+  llm,
   questions,
   retrievedByQuestion,
   documentBySource,
   runs,
   usage,
 }: AnswerRunInput) {
-  const llm = createOpenAiLlm({
-    apiKey: requireEnv('OPENAI_API_KEY'),
-    models: llmModels,
-    tasks: llmTasks,
-    timeoutMs: llmRequests.timeoutMs,
-    maxRetries: llmRequests.maxRetries,
-  });
   const prompts = await readJudgePrompts();
   const perRun: AnswerMetrics[] = [];
   const allOutcomes: AnswerOutcome[][] = [];
@@ -581,13 +611,19 @@ async function answerAndGrade(
   llm: LlmProvider,
   prompts: JudgePrompts,
   question: Question,
-  retrievedByQuestion: Map<string, RetrievedChunk[]>,
+  retrievedByQuestion: AnswerRunInput['retrievedByQuestion'],
   documentBySource: Map<string, EvalDocument>,
   usage: UsageByModel,
 ) {
-  const chunks = (retrievedByQuestion.get(question.id) ?? []).slice(0, retrieval.rerankTopK);
+  const found = retrievedByQuestion.get(question.id);
+  const chunks = (found?.chunks ?? []).slice(0, retrieval.rerankTopK);
   const stream = generateAnswer(
-    { question: question.question, chunks, history: question.history },
+    {
+      question: question.question,
+      chunks,
+      history: question.history,
+      retrieved: found?.retrieved ?? true,
+    },
     { llm, countTokens },
   );
   // Read the stream to the end, as chat does; the result has the full text.

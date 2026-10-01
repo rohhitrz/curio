@@ -12,11 +12,16 @@ import { eq } from 'drizzle-orm';
 import type { AddressInfo } from 'node:net';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { retrievalFlags, type RetrievalFlags } from '../../src/config/index.js';
 import { messages, sourceChunks, sources, users } from '../../src/db/schema/index.js';
 import type { LlmProvider, LlmResult } from '../../src/lib/llm/index.js';
 import { LlmError } from '../../src/errors/llm-error.js';
-import { NOT_IN_SOURCES_ANSWER } from '../../src/pipelines/retrieval/prompt.js';
-import { fakeVector } from '../fakes/embeddings.js';
+import {
+  CHAT_REPLY_INSTRUCTIONS,
+  NOT_IN_SOURCES_ANSWER,
+} from '../../src/pipelines/retrieval/prompt.js';
+import { QUERY_UNDERSTANDING_INSTRUCTIONS } from '../../src/pipelines/retrieval/understand.js';
+import { createFakeEmbeddings, fakeVector, type FakeEmbeddings } from '../fakes/embeddings.js';
 import { createFakeLlm, type FakeLlm } from '../fakes/llm.js';
 import { createFakeLocks, type FakeLocks } from '../fakes/locks.js';
 import { createFakeRateLimiter, type FakeRateLimiter } from '../fakes/rate-limit.js';
@@ -35,18 +40,22 @@ let tracer: FakeTracer;
 let locks: FakeLocks;
 let rateLimiter: FakeRateLimiter;
 let app: ReturnType<typeof createTestApp>;
+let embeddings: FakeEmbeddings;
 
-function buildApp(provider?: LlmProvider) {
+function buildApp(provider?: LlmProvider, flags?: Partial<RetrievalFlags>) {
   const fake = createFakeLlm();
   llm = fake;
   tracer = createFakeTracer();
   locks = createFakeLocks();
   rateLimiter = createFakeRateLimiter();
+  embeddings = createFakeEmbeddings();
   app = createTestApp({
     llm: provider ? { ...fake, provider } : fake,
     tracer,
     locks,
     rateLimiter,
+    embeddings,
+    ...(flags ? { flags: { ...retrievalFlags, ...flags } } : {}),
   });
 }
 
@@ -773,5 +782,78 @@ describe('rate limits', () => {
 
     expect(res.status).toBe(429);
     expect(rateLimiter.checks).toEqual([expect.objectContaining({ name: 'sourceAdds' })]);
+  });
+});
+
+describe('query understanding (queryRewrite on)', () => {
+  const understood = (standaloneQuery: string, needsRetrieval = true) =>
+    JSON.stringify({ needsRetrieval, standaloneQuery, subQueries: [] });
+
+  beforeEach(() => {
+    buildApp(undefined, { queryRewrite: true });
+  });
+
+  it('a follow-up searches the rewritten query, with the history sent to the rewrite', async () => {
+    const { conversationId } = await setup();
+    llm.reply(understood('What is dropout?'), 'Dropout drops units [1].');
+    await send(conversationId, 'What is dropout?');
+    embeddings.calls.length = 0;
+
+    llm.reply(understood('What are the disadvantages of dropout?'), 'It slows training [1].');
+    const res = await send(conversationId, 'What are its disadvantages?');
+
+    expect(res.status).toBe(200);
+    expect(embeddings.calls).toEqual([['What are the disadvantages of dropout?']]);
+    const rewrite = llm.requests.at(-2);
+    expect(rewrite?.task).toBe('queryUnderstanding');
+    expect(rewrite?.instructions).toBe(QUERY_UNDERSTANDING_INSTRUCTIONS);
+    expect(rewrite?.messages[0]?.content).toContain('User: What is dropout?');
+    // The answer still sees the user's own words.
+    expect(llm.requests.at(-1)?.messages.at(-1)?.content).toContain(
+      'Question: What are its disadvantages?',
+    );
+    expect(tracer.spans.map((span) => span.name)).toContain('understand');
+  });
+
+  it('"thanks!" makes no retrieval call and gets a short reply without citations', async () => {
+    const { conversationId } = await setup();
+    llm.reply(understood('thanks!', false), 'You are welcome!');
+
+    const res = await send(conversationId, 'thanks!');
+
+    const chunks = parseStream(res.text);
+    expect(textOf(chunks)).toBe('You are welcome!');
+    expect(chunks.find((c) => c.type === 'data-citations')?.data).toEqual([]);
+    expect(embeddings.calls).toEqual([]);
+    expect(llm.requests.map((r) => r.task)).toEqual(['queryUnderstanding', 'chatReply']);
+    expect(llm.requests[1]?.instructions).toBe(CHAT_REPLY_INSTRUCTIONS);
+    const { items } = await listMessages(conversationId);
+    expect(items[0]).toMatchObject({ role: 'ASSISTANT', status: 'COMPLETE', citations: [] });
+  });
+
+  it('a failed understanding call falls back to the raw question', async () => {
+    const { conversationId } = await setup();
+    llm.reply(new LlmError(true, 'down'), 'Dropout drops units [1].');
+
+    const res = await send(conversationId, 'What is dropout?');
+
+    expect(textOf(parseStream(res.text))).toBe('Dropout drops units [1].');
+    expect(embeddings.calls).toEqual([['What is dropout?']]);
+    expect(tracer.spans.find((span) => span.name === 'understand')?.failed).toBe(true);
+    expect(tracer.spans.find((span) => span.name === 'retrieve')?.output).toMatchObject({
+      failed: ['understand'],
+    });
+  });
+});
+
+describe('retrieval flags off (default)', () => {
+  it('makes no understanding call', async () => {
+    const { conversationId } = await setup();
+    llm.reply('Dropout drops units [1].');
+
+    await send(conversationId, 'What are its disadvantages?');
+
+    expect(llm.requests.map((r) => r.task)).toEqual(['chatAnswer']);
+    expect(embeddings.calls).toEqual([['What are its disadvantages?']]);
   });
 });

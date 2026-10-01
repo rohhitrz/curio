@@ -41,7 +41,11 @@ export type StepRunner = <T>(name: string, input: unknown, fn: () => Promise<T>)
 export interface RetrievalPipelineDeps extends RetrievalDeps, RetrievalStepDeps {
   flags: RetrievalFlags;
   step?: StepRunner;
+  /** An optional step failed and was skipped (graceful degradation); the caller logs it. */
+  onStepFailed?: (step: OptionalStep, error: unknown) => void;
 }
+
+export type OptionalStep = 'understand';
 
 export interface RetrievalPipelineInput {
   userId: string;
@@ -62,6 +66,8 @@ export interface RetrievalPipelineResult {
   chunks: RetrievedChunk[];
   /** Which optional steps ran, for traces and the eval results. */
   steps: { understand: boolean; keyword: boolean; fusion: boolean; rerank: boolean };
+  /** Optional steps that failed and were skipped. */
+  failed: OptionalStep[];
 }
 
 const runDirectly: StepRunner = (_name, _input, fn) => fn();
@@ -80,6 +86,7 @@ const runDirectly: StepRunner = (_name, _input, fn) => fn();
  * - `rerank`: reorders the fused candidates; without it they are cut to `topK` in fused order.
  *
  * Flag on without its step's dep is a wiring bug: it throws before anything is called.
+ * A failing understanding call doesn't fail the request: the raw question is searched.
  */
 export async function runRetrieval(
   input: RetrievalPipelineInput,
@@ -91,7 +98,8 @@ export async function runRetrieval(
   requireStepDeps(deps);
 
   const understandOn = flags.queryRewrite || flags.subQueries;
-  const steps = { understand: understandOn, keyword: false, fusion: false, rerank: false };
+  const steps = { understand: false, keyword: false, fusion: false, rerank: false };
+  const failed: OptionalStep[] = [];
 
   let searchQuery = input.question;
   let subQueries: string[] = [];
@@ -99,12 +107,21 @@ export async function runRetrieval(
     const understandQuery = deps.understandQuery;
     const understood = await step('understand', { question: input.question }, () =>
       understandQuery({ question: input.question, history: input.history }),
-    );
-    if (flags.queryRewrite) {
-      if (!understood.needsRetrieval) return { retrieved: false, queries: [], chunks: [], steps };
-      searchQuery = understood.standaloneQuery.trim() || input.question;
+    ).catch((error: unknown) => {
+      failed.push('understand');
+      deps.onStepFailed?.('understand', error);
+      return null;
+    });
+    if (understood) {
+      steps.understand = true;
+      if (flags.queryRewrite) {
+        if (!understood.needsRetrieval) {
+          return { retrieved: false, queries: [], chunks: [], steps, failed };
+        }
+        searchQuery = understood.standaloneQuery.trim() || input.question;
+      }
+      if (flags.subQueries) subQueries = understood.subQueries;
     }
-    if (flags.subQueries) subQueries = understood.subQueries;
   }
 
   const queries = dedupe([searchQuery, ...subQueries]);
@@ -156,7 +173,7 @@ export async function runRetrieval(
     chunks = candidates.slice(0, topK);
   }
 
-  return { retrieved: true, queries, chunks: renumber(chunks), steps };
+  return { retrieved: true, queries, chunks: renumber(chunks), steps, failed };
 }
 
 function requireStepDeps(deps: RetrievalPipelineDeps) {

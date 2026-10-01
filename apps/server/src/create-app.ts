@@ -1,7 +1,8 @@
 import cors from 'cors';
 import express, { Router, type Express, type RequestHandler } from 'express';
 import type { Logger } from 'pino';
-import { requests, retrievalFlags } from './config/index.js';
+import { requests, retrievalFlags, type RetrievalFlags } from './config/index.js';
+import { understandQuery } from './pipelines/retrieval/understand.js';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
 import type { EmbeddingsProvider } from './lib/embeddings/index.js';
@@ -45,6 +46,8 @@ export interface AppOptions {
   rateLimiter: RateLimiter;
   /** Serves `/api/inngest`. It checks Inngest's request signature itself; there is no user auth. */
   jobsHandler: RequestHandler;
+  /** Defaults to `config/flags.ts`; tests turn steps on. */
+  flags?: RetrievalFlags;
 }
 
 export function createApp({
@@ -60,6 +63,7 @@ export function createApp({
   locks,
   rateLimiter,
   jobsHandler,
+  flags = retrievalFlags,
 }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
   const notebooksService = createNotebooksService(
@@ -73,9 +77,10 @@ export function createApp({
   const chatService = createChatService({
     repository: createChatRepository(db),
     retrieval: {
-      flags: retrievalFlags,
+      flags,
       embeddings,
       vectorSearch: (params) => retrievalRepository.vectorSearch(params),
+      understandQuery: (input) => understandQuery(input, { llm }),
     },
     llm,
     tracer,

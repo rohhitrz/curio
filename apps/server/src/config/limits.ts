@@ -36,6 +36,10 @@ export const retrieval = {
   fusionCandidates: 40,
   /** RRF's k: 60 is the value from the original paper and the common default. */
   rrfK: 60,
+  /** Sub-queries searched besides the main query, at most. */
+  maxSubQueries: 3,
+  /** Recent messages the query-understanding call sees to resolve follow-ups. */
+  understandingHistoryMessages: 6,
   rerankTopK: 8,
   /**
    * pgvector keeps scanning the HNSW index until enough chunks pass the notebook filter

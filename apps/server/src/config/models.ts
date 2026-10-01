@@ -22,6 +22,8 @@ export interface LlmTaskConfig {
 export const llmTasks = {
   queryUnderstanding: { tier: 'luna', maxOutputTokens: 1_000, reasoningEffort: 'none' },
   chatAnswer: { tier: 'luna', maxOutputTokens: 4_000, reasoningEffort: 'low' },
+  /** A message routed past retrieval ("thanks!"): a short reply, no sources. */
+  chatReply: { tier: 'luna', maxOutputTokens: 300, reasoningEffort: 'none' },
   conversationSummary: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   memoryExtraction: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   learningPath: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },

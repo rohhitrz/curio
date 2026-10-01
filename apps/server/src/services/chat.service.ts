@@ -214,7 +214,7 @@ export function createChatService(deps: ChatServiceDeps) {
                 question.seq,
                 conversationLimits.recentMessages,
               );
-              const { chunks } = await tracer.span(
+              const { chunks, retrieved } = await tracer.span(
                 'retrieve',
                 { query: question.content },
                 () =>
@@ -228,11 +228,19 @@ export function createChatService(deps: ChatServiceDeps) {
                     {
                       ...deps.retrieval,
                       step: (name, input, fn) => tracer.span(name, input, fn),
+                      onStepFailed: (step, err) => {
+                        logger.warn(
+                          { err, step, conversationId: conversation.id },
+                          'retrieval step failed; skipped',
+                        );
+                      },
                     },
                   ),
                 (found) => ({
+                  retrieved: found.retrieved,
                   queries: found.queries,
                   steps: found.steps,
+                  failed: found.failed,
                   chunks: found.chunks.map((c) => ({
                     chunkId: c.chunkId,
                     sourceId: c.sourceId,
@@ -248,6 +256,7 @@ export function createChatService(deps: ChatServiceDeps) {
                   chunks,
                   history: toHistory(history),
                   summary: conversation.summary,
+                  retrieved,
                 },
                 { llm: deps.llm, countTokens: deps.countTokens },
               );
