@@ -862,6 +862,8 @@ async function answerAndGrade(
   const record = {
     text: answer.text,
     refused: answer.refused,
+    // Invented `[n]`s the citation check removed (step 8).
+    removedMarkers: answer.removedMarkers,
     citations,
     faithfulness: faithfulness && {
       supported: faithfulness.claims.filter((c) => c.supported).length,

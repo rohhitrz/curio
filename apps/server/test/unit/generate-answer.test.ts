@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createFakeLlm } from '../fakes/llm.js';
 import {
   citedMarkers,
+  removeInvalidMarkers,
   stripMarkers,
   toCitationSnapshots,
 } from '../../src/pipelines/retrieval/citations.js';
@@ -119,6 +120,22 @@ describe('buildContext', () => {
 });
 
 describe('citations', () => {
+  it('citation check: invalid [n] removed, also inside a group; valid and repeated ones kept', () => {
+    const valid = new Set([1, 2]);
+    expect(removeInvalidMarkers('A [1]. B [9]. C [1, 9, 2]. D [1][1]. E [9][2].', valid)).toEqual({
+      text: 'A [1]. B. C [1, 2]. D [1][1]. E [2].',
+      removed: [9],
+    });
+    expect(removeInvalidMarkers('No markers here.', valid)).toEqual({
+      text: 'No markers here.',
+      removed: [],
+    });
+    expect(removeInvalidMarkers('Thanks [1]!', new Set())).toEqual({
+      text: 'Thanks!',
+      removed: [1],
+    });
+  });
+
   it('reads markers in order of first appearance, including grouped ones', () => {
     expect(citedMarkers('A [2]. B [1, 3]. C [2][4]. D [1,5].')).toEqual([2, 1, 3, 4, 5]);
     expect(citedMarkers('No citations, a list [a] and [0].')).toEqual([]);
@@ -288,6 +305,7 @@ describe('generateAnswer', () => {
     expect(await drain(answer.textStream)).toBe(NOT_IN_SOURCES_ANSWER);
     await expect(answer.result).resolves.toEqual({
       text: NOT_IN_SOURCES_ANSWER,
+      removedMarkers: [],
       citations: [],
       refused: true,
       model: null,

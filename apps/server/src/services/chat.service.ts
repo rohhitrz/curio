@@ -281,7 +281,11 @@ export function createChatService(deps: ChatServiceDeps) {
                 ...(replacesId ? { replacesId } : {}),
                 ...(title ? { title } : {}),
               });
-              trace.setOutput({ text: result.text, citations: result.citations.length });
+              trace.setOutput({
+                text: result.text,
+                citations: result.citations.length,
+                removedMarkers: result.removedMarkers,
+              });
               sink({ type: 'citations', citations: result.citations });
               sink({ type: 'finish', traceId });
             },

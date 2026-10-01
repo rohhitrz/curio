@@ -318,7 +318,7 @@ describe('send a message', () => {
         name: 'chat',
         sessionId: conversationId,
         input: 'What is dropout?',
-        output: { text: 'Answer [1].', citations: 1 },
+        output: { text: 'Answer [1].', citations: 1, removedMarkers: [] },
       }),
     ]);
     const [retrieveSpan] = tracer.spans;
@@ -949,5 +949,21 @@ describe('relevance gate (rerank + relevanceGate on)', () => {
 
     expect(textOf(parseStream(res.text))).toBe('Dropout drops units [1].');
     expect(tracer.spans.find((s) => s.name === 'retrieve')?.output).toMatchObject({ gated: false });
+  });
+});
+
+describe('citation check', () => {
+  it('an invented [n] is removed from the saved answer; the valid one keeps its citation', async () => {
+    const { conversationId } = await setup();
+    llm.reply('Dropout drops units [1]. It was invented in 1850 [7].');
+
+    const res = await send(conversationId, 'What is dropout?');
+
+    const citations = parseStream(res.text).find((c) => c.type === 'data-citations')
+      ?.data as CitationSnapshot[];
+    expect(citations.map((c) => c.marker)).toEqual([1]);
+    const { items } = await listMessages(conversationId);
+    expect(items[0]?.content).toBe('Dropout drops units [1]. It was invented in 1850.');
+    expect(tracer.traces[0]?.output).toMatchObject({ removedMarkers: [7] });
   });
 });

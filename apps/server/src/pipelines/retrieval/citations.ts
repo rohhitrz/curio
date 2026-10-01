@@ -21,6 +21,36 @@ export function stripMarkers(text: string): string {
   return text.replace(/ ?\[\d+(?:\s*,\s*\d+)*\]/g, '');
 }
 
+/**
+ * Step 8, the citation check (decision R-06): drops every `[n]` whose number isn't one of the
+ * sources the model saw, also inside a group (`[1, 9]` → `[1]`); a group left empty goes with
+ * the space before it. Deterministic, no model call. Returns the text and the numbers removed.
+ */
+export function removeInvalidMarkers(
+  text: string,
+  validMarkers: ReadonlySet<number>,
+): { text: string; removed: number[] } {
+  const removed: number[] = [];
+  const checked = text.replace(
+    / ?\[(\d+(?:\s*,\s*\d+)*)\]/g,
+    (group: string, list: string, offset: number, whole: string) => {
+      const kept = list
+        .split(',')
+        .map((part) => Number(part.trim()))
+        .filter((marker) => {
+          if (validMarkers.has(marker)) return true;
+          if (!removed.includes(marker)) removed.push(marker);
+          return false;
+        });
+      const space = group.startsWith(' ') ? ' ' : '';
+      if (kept.length > 0) return `${space}[${kept.join(', ')}]`;
+      // A removed group takes its space along, unless another marker follows (`A [9][2]`).
+      return whole[offset + group.length] === '[' ? space : '';
+    },
+  );
+  return { text: checked, removed };
+}
+
 function snippet(content: string, maxChars: number): string {
   const text = content.replace(/\s+/g, ' ').trim();
   if (text.length <= maxChars) return text;

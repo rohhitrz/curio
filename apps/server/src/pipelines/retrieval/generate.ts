@@ -1,7 +1,7 @@
 import type { CitationSnapshot } from '@curio/shared';
 import { citations as citationLimits, retrieval } from '../../config/index.js';
 import type { LlmMessage, LlmProvider, LlmUsage } from '../../lib/llm/index.js';
-import { toCitationSnapshots } from './citations.js';
+import { removeInvalidMarkers, toCitationSnapshots } from './citations.js';
 import { buildContext, type ContextSource } from './context.js';
 import {
   buildChatMessages,
@@ -37,8 +37,10 @@ export interface GenerateAnswerDeps {
 }
 
 export interface Answer {
-  /** With `[n]` markers. */
+  /** With `[n]` markers, after the citation check: every marker has a citation. */
   text: string;
+  /** Markers the model invented (no such source) and the check removed. */
+  removedMarkers: number[];
   citations: CitationSnapshot[];
   /** The "not in your sources" reply, from the model or without calling it. */
   refused: boolean;
@@ -83,6 +85,7 @@ export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerD
       textStream: once(NOT_IN_SOURCES_ANSWER),
       result: Promise.resolve({
         text: NOT_IN_SOURCES_ANSWER,
+        removedMarkers: [],
         citations: [],
         refused: true,
         model: null,
@@ -103,13 +106,18 @@ export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerD
     ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
   });
 
+  const validMarkers = new Set(context.sources.map((source) => source.marker));
   const result = stream.result.then((llmResult): Answer => {
     const refused = isRefusal(llmResult.text);
+    // The text streamed live may still hold an invented marker (the web app hides markers with
+    // no citation); the saved answer doesn't.
+    const checked = removeInvalidMarkers(llmResult.text, validMarkers);
     return {
-      text: llmResult.text,
+      text: checked.text,
+      removedMarkers: checked.removed,
       citations: refused
         ? []
-        : toCitationSnapshots(llmResult.text, context.sources, {
+        : toCitationSnapshots(checked.text, context.sources, {
             snippetMaxChars: deps.snippetMaxChars ?? citationLimits.snippetMaxChars,
           }),
       refused,
@@ -130,13 +138,18 @@ function generateReply(input: GenerateAnswerInput, deps: GenerateAnswerDeps): An
     messages: buildReplyMessages({ question: input.question, history: input.history }),
     ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
   });
-  const result = stream.result.then((llmResult): Answer => ({
-    text: llmResult.text,
-    citations: [],
-    refused: false,
-    model: llmResult.model,
-    usage: llmResult.usage,
-  }));
+  const result = stream.result.then((llmResult): Answer => {
+    // No sources here, so any marker is invented.
+    const checked = removeInvalidMarkers(llmResult.text, new Set());
+    return {
+      text: checked.text,
+      removedMarkers: checked.removed,
+      citations: [],
+      refused: false,
+      model: llmResult.model,
+      usage: llmResult.usage,
+    };
+  });
   result.catch(() => undefined);
   return { sources: [], textStream: stream.textStream, result };
 }
