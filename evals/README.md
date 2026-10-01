@@ -58,6 +58,7 @@ pnpm eval -- --only=q-001,q-061    # smoke test: these questions only, printed, 
 
    The generator is the chat model (Luna); the judge is `evalJudge` (Sol), both from
    `apps/server/src/config/models.ts`.
+
 5. Writes `results/<date>-<config>.json`: retrieval metrics (over the top 10) and answer metrics
    (averaged over runs, plus each run), overall and per category, the git commit, the models, the
    cost per model, and every question's retrieved chunks, answers, citations and judge verdicts.
