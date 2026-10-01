@@ -34,9 +34,12 @@ export const llmTasks = {
 
 export type LlmTask = keyof typeof llmTasks;
 
-/** Cohere rerank model (step 4 of retrieval). Picked by eval in 6.4: pro vs fast. */
+/**
+ * Cohere rerank model (step 4 of retrieval). Fast, picked by eval in 6.4: same retrieval as pro
+ * (MRR 0.983), answers within noise, ~35% faster and 20% cheaper (decision R-04).
+ */
 export const rerankModels = {
-  default: 'rerank-v4.0-pro',
+  default: 'rerank-v4.0-fast',
   /** The models the eval compares. */
   candidates: ['rerank-v4.0-pro', 'rerank-v4.0-fast'],
 } as const;

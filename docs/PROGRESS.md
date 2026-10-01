@@ -6,8 +6,8 @@
 ## Current status
 - **Phase:** 6 (Advanced retrieval)
 - **Current step:** 6.3 done (keyword search; `hybridSearch` turned on)
-- **Blocked on:** nothing (Cohere key in `.env` for 6.4)
-- **Next step:** 6.4 rerank → eval (code wired, flag off; eval pro vs fast next)
+- **Blocked on:** turning rerank on live needs a Cohere **Production** key on Vercel (the local key is a Trial key: 10 calls/min, not for production)
+- **Next step:** 6.5 relevance gate (threshold on rerank scores, tuned on the unanswerable questions) → eval
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -32,7 +32,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 6.1 Feature flags through the pipeline: `pipelines/retrieval/pipeline.ts` `runRetrieval` (understand → vector (+ keyword) search per query → RRF fusion when there is more than one list → rerank → top `rerankTopK`), each step behind its flag in `config/flags.ts`, injected as optional deps (flag on without its dep throws) · RRF in `fusion.ts` (`retrieval.rrfK` = 60) · chat traces each step as a span under `retrieve` · eval runner uses `runRetrieval`, `--flags=a,b` for ablations, `-retrieval` suffix on retrieval-only results
 - [x] 6.2 Query understanding: `pipelines/retrieval/understand.ts` (one Luna `generateObject`: `needsRetrieval`, `standaloneQuery`, `subQueries` ≤ `retrieval.maxSubQueries`; last `understandingHistoryMessages` of history) · failed call → raw question (`failed: ['understand']`, logged) · routed-out messages get a short `chatReply` with no sources · **eval: `queryRewrite` on** (`2026-10-01-vector+queryRewrite.json`) · eval runner retries a question after a retryable LLM error
 - [x] 6.3 Keyword search: `keywordChunks` in `retrieval.repository.ts` (any word of the query via `plainto_tsquery` with `&` → `|`, `ts_rank`, same scoping as vector search, `retrieval.keywordCandidates` = 40; no migration, `search_vector` + GIN exist since 0005) · fused with RRF · **eval: `hybridSearch` on** (`2026-10-01-vector+queryRewrite+hybridSearch.json`)
-- [ ] 6.4 Rerank provider; compare Cohere vs Jina → pick → **eval** (needs keys)
+- [x] 6.4 Rerank: Cohere provider (`lib/rerank/`) + `rerankChunks` (top 8, relevance 0–1 as the chunk score) · failure → fused order · **eval: `rerank-v4.0-fast` picked over pro** (R-04) · `rerank` flag **off until the Production key is on Vercel** (`loadEnv` refuses to start with the flag on and no key)
 - [ ] 6.5 Relevance gate; threshold tuned on the unanswerable questions → **eval**
 - [ ] 6.6 Citation check (deterministic)
 - [ ] 6.7 Eval-gated trials: HyDE, chunk size tuning → kept only if they improve results; outcome in `07-decisions.md`
@@ -74,7 +74,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - 6.1 has no eval in the build plan; no eval run was made (no LLM call). The vector config is unchanged, so `2026-10-01-vector.json` stays the baseline.
    - **6.2 notes:** `queryRewrite` is **on** in `config/flags.ts` (so live chat makes one extra Luna call per message); `subQueries` stays off until its turn in the ablation (after rerank). `createTestApp` defaults to **every flag off** so flipping a flag never changes unrelated tests; tests opt in with `flags`. The answer prompt still gets the user's own words; only search uses the rewrite. `generateAnswer({ retrieved: false })` → `chatReply` task (`CHAT_REPLY_INSTRUCTIONS`: one or two sentences, no facts). In the eval no question was routed past retrieval.
    - **6.3 notes:** keyword rows (`KeywordMatch`, with `textRank`) become `RetrievedChunk`s in the pipeline; after fusion every chunk's `score` is its RRF score, so **the relevance gate (6.5) can't use these scores**: use rerank scores. `createTestApp` keeps every flag off (tests opt in).
-   - **6.4 state:** Cohere provider (`lib/rerank/`), `rerankChunks` step, fallback to the fused order on failure, `--rerank-model` in the eval: committed and tested, `rerank` flag still off. The key can use `rerank-v3.5`, `rerank-v4.0-fast`, `rerank-v4.0-pro`; no Jina key, so the comparison is v4.0-pro vs v4.0-fast. Price ≈ $2.50 (pro) / $2.00 (fast) per 1,000 searches (third-party listing; Cohere bills search units, which the response reports). Rerank failing must fall back to the fused order (test-plan row), like `understand`.
+   - **6.4 notes:** rerank reads `contextHeader + content` (same as embeddings); its query is the rewritten one. The eval paces rerank calls to 10/min (`evalConfig.rerankCallsPerMinute`) because the local key is a **Trial key**: a first pair of runs lost 12 of 70 questions each to 429s, which silently kept the fused order (discarded). With a Production key the pacing can go. For 6.5+, evaluate with `--flags=queryRewrite,hybridSearch,rerank` (rerank is off in the app config). Rerank lowers pro's refusal accuracy (0.85; fast 0.95): unrelated-but-close chunks reach the model, which is the gate's job (6.5).
    - **Judge is Luna** (owner, 2026-10-01, decision O-04). Never compare a Sol-judged result with a Luna-judged one.
    - **Timeouts (6.8):** the understanding call has only the general 90s LLM timeout. In the eval one Luna understanding call hit it (q-066, fell back correctly); chat needs a short per-step timeout (~2–3s) so a slow rewrite can't stall the answer.
    - Lesson-scoped chat (search only some sources, test-plan Phase 6 row) needs a `sourceIds` filter on both searches; it arrives with lessons (9.4).
@@ -113,7 +113,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Jina key (optional, 6.4):** the build plan compares Cohere vs Jina; only `COHERE_API_KEY` is in `.env`. Without `JINA_API_KEY` the comparison is Cohere only.
+- **Cohere Production key → Vercel `curio-server` as `COHERE_API_KEY` (Secret, Production)**, then I turn the `rerank` flag on. A Trial key would fail most live calls at 10/min.
+- **Confirm skipping Jina** (build plan 6.4 says compare Cohere vs Jina; I compared Cohere pro vs fast instead, no Jina key).
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
@@ -361,6 +362,8 @@ What it says:
 | vector (`68e42f1`) | 0.933 | 0.967 | 0.796 | 0.976 | 4.50 | 0.84 | 0.832 | 0.90 | 0.008 |
 | + rewrite (`68e42f1`) | 0.950 | **1.000** | 0.814 | 0.956 | 4.59 | 0.88 | 0.867 | 0.95 | 0 |
 | + hybrid (`26054a9`) | **0.967** | 0.983 | **0.845** | 0.963 | **4.73** | **0.97** | 0.865 | 0.95 | 0 |
+| + rerank pro (`7df8e28`) | 1.000 | 1.000 | 0.983 | 0.985 | 4.83 | 0.97 | 0.866 | 0.85 | 0 |
+| + rerank **fast** (`7df8e28`) | **1.000** | **1.000** | **0.983** | 0.968 | 4.78 | 0.95 | 0.847 | 0.95 | 0 |
 
 | By category (correctness · MRR) | vector | + rewrite | + hybrid |
 |---|---|---|---|
@@ -371,6 +374,7 @@ What it says:
 
 - **Rewrite (6.2) kept:** follow-ups 3.50 → 4.67, MRR 0.54 → 0.73. Same picture as the Sol-judged run.
 - **Hybrid (6.3) kept:** correctness ≥ 4 goes 0.88 → 0.97; multi-part gains most (MRR 0.55 → 0.81, ≥ 4 from 1 in 12 to 8 in 12): keyword matches pull in the second side of a comparison. Exact-term is flat: one question (q-002, "d_model") drops out of the top 10 because Postgres splits `d_model` into "d" + "model", and chunks found by both lists outrank its vector-only hit under RRF. Not tuned for one question; rerank (6.4) sees the 40 fused candidates, where it still is.
+- **Rerank (6.4):** retrieval near-perfect (MRR 0.85 → 0.98, every answerable question's location in the top 5). Answers barely move (they were already 4.7+), so its value is retrieval headroom and the 0–1 scores the gate needs. Fast = pro on retrieval, answers within noise, faster and cheaper → fast. Rerank latency p50 745 ms / p95 1.2 s (fast, Trial key). Rerank cost ≈ $0.14 per run (70 searches), now the biggest line of a run.
 - **Luna as judge** scores a little higher than Sol (vector correctness 4.50 vs 4.38) and is ~9× cheaper per run. One Luna judge reply degenerated into escape codes and broke a run; that error is now retried.
 
 ## Session log
@@ -380,6 +384,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-02 (6.4)
+- Done: 6.4 Cohere rerank + eval; `rerank-v4.0-fast` picked; flag off until a Production key is on Vercel
+- Notes: the local Cohere key is a Trial key (10 calls/min): first runs lost 12/70 reranks to 429 and were discarded; the eval now paces rerank calls. Owner moved `DATABASE_URL`, `CLERK_SECRET_KEY`, `R2_SECRET_ACCESS_KEY` on Vercel from Config to Secret (same values; solo Hobby account, so no rotation needed) and redeployed
 
 ### 2026-10-01 (6.3, judge → Luna)
 - Done: 6.3 keyword search + eval, `hybridSearch` on. Owner switched the eval judge to Luna (O-04; docs updated); vector and rewrite re-run with it

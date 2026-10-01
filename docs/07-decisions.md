@@ -155,6 +155,7 @@
 **R-04 · Reranking the top ~40 → top ~6–8**
 - **Why:** embeddings compare query and chunk separately; a reranker reads them together. Usually the biggest single quality gain.
 - **Trade-off:** extra latency (~0.3–0.5s) and cost; the main cost driver at scale
+- **Model (6.4, 2026-10-02): Cohere `rerank-v4.0-fast`.** Eval vs `rerank-v4.0-pro` on rewrite + hybrid: identical retrieval (hit@5 1.0, MRR 0.983, up from 0.845 without rerank), answers within noise (correctness 4.78 vs 4.83), latency p50 745 vs 1,112 ms (p95 1,224 vs 1,604), ~$2 vs ~$2.50 per 1,000 searches. Jina wasn't compared (no key; owner to confirm skipping it). Latency is above the ~0.3–0.5s budget on a Trial key; chat's 3s rerank timeout falls back to the fused order
 
 **R-05 · Relevance gate**
 - **Why:** search always returns *something*; enforces "never invent" in code, not just in a prompt
