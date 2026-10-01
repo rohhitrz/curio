@@ -7,6 +7,8 @@ import {
   users,
   type NewSourceChunk,
 } from '../../src/db/schema/index.js';
+import { retrieval, type RetrievalFlags } from '../../src/config/index.js';
+import { runRetrieval } from '../../src/pipelines/retrieval/pipeline.js';
 import { retrieve } from '../../src/pipelines/retrieval/retrieve.js';
 import {
   createRetrievalRepository,
@@ -17,6 +19,13 @@ import { createFakeEmbeddings, fakeVector } from '../fakes/embeddings.js';
 import { getTestDb, truncateAllTables } from '../helpers/db.js';
 
 const db = getTestDb();
+const allFlagsOff: RetrievalFlags = {
+  queryRewrite: false,
+  hybridSearch: false,
+  rerank: false,
+  subQueries: false,
+  hyde: false,
+};
 const repository = createRetrievalRepository(db);
 
 type SourceStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
@@ -273,6 +282,94 @@ describe('vector search (retrieval repository)', () => {
   });
 });
 
+describe('keyword search (retrieval repository)', () => {
+  async function setupNotebook() {
+    const user = await seedUser('user_keyword');
+    const notebook = await seedNotebook(user.id);
+    return { user, notebook };
+  }
+
+  const search = (userId: string, notebookId: string, query: string, limit = 10) =>
+    repository.keywordSearch({ userId, notebookId, query, limit });
+
+  it('matches stemmed words, ranks chunks that match more of them first', async () => {
+    const { user, notebook } = await setupNotebook();
+    const source = await seedSource(
+      notebook,
+      [
+        'L2 regularization penalizes large weights.',
+        'Regularization reduces overfitting.',
+        'Transformers use attention.',
+      ],
+      { title: 'Notes', chunk: { pageNumber: 2 } },
+    );
+
+    const rows = await search(user.id, notebook.id, 'What does L2 regularization penalize?');
+
+    // Any word matches (OR); "penalize" matches "penalizes" by stem.
+    expect(rows.map((row) => row.content)).toEqual([
+      'L2 regularization penalizes large weights.',
+      'Regularization reduces overfitting.',
+    ]);
+    expect(rows[0]).toMatchObject({ sourceId: source.id, sourceTitle: 'Notes', pageNumber: 2 });
+    expect(rows[0]?.textRank).toBeGreaterThan(rows[1]?.textRank ?? Infinity);
+  });
+
+  it('finds exact terms and numbers', async () => {
+    const { user, notebook } = await setupNotebook();
+    await seedSource(notebook, ['We used warmup_steps = 4000.', 'Adam with β2 = 0.98.']);
+
+    expect((await search(user.id, notebook.id, 'β2 0.98')).map((r) => r.content)).toEqual([
+      'Adam with β2 = 0.98.',
+    ]);
+    expect((await search(user.id, notebook.id, '4000')).map((r) => r.content)).toEqual([
+      'We used warmup_steps = 4000.',
+    ]);
+  });
+
+  it('searches the context header too', async () => {
+    const { user, notebook } = await setupNotebook();
+    await seedSource(notebook, ['Some passage.'], { title: 'Dropout paper' });
+    expect(await search(user.id, notebook.id, 'dropout')).toHaveLength(1);
+  });
+
+  it('a query of only stop words or punctuation matches nothing', async () => {
+    const { user, notebook } = await setupNotebook();
+    await seedSource(notebook, ['the and of a']);
+    expect(await search(user.id, notebook.id, 'the of a')).toEqual([]);
+    expect(await search(user.id, notebook.id, '?!')).toEqual([]);
+  });
+
+  it('treats query syntax as plain text', async () => {
+    const { user, notebook } = await setupNotebook();
+    await seedSource(notebook, ['dropout rate']);
+    expect(await search(user.id, notebook.id, "dropout & !rate | ' ( :*")).toHaveLength(1);
+  });
+
+  it('respects the limit', async () => {
+    const { user, notebook } = await setupNotebook();
+    await seedSource(notebook, ['dropout one', 'dropout two', 'dropout three']);
+    expect(await search(user.id, notebook.id, 'dropout', 2)).toHaveLength(2);
+  });
+
+  it('only searches READY sources in the given notebook of the given user', async () => {
+    const { user, notebook } = await setupNotebook();
+    const other = await seedNotebook(user.id, 'Other');
+    const bob = await seedUser('user_bob_keyword');
+    const bobs = await seedNotebook(bob.id);
+    await seedSource(notebook, ['dropout ready']);
+    await seedSource(notebook, ['dropout failed'], { status: 'FAILED' });
+    await seedSource(notebook, ['dropout processing'], { status: 'PROCESSING' });
+    await seedSource(other, ['dropout other notebook']);
+    await seedSource(bobs, ['dropout bob']);
+
+    expect((await search(user.id, notebook.id, 'dropout')).map((r) => r.content)).toEqual([
+      'dropout ready',
+    ]);
+    expect(await search(user.id, bobs.id, 'dropout')).toEqual([]);
+  });
+});
+
 describe('retrieve (pipeline + repository)', () => {
   it('embeds the question and returns the matching chunk first, with rank and score', async () => {
     const user = await seedUser('user_retrieval');
@@ -303,5 +400,40 @@ describe('retrieve (pipeline + repository)', () => {
     expect(results[0]?.score).toBeCloseTo(1, 5);
     expect(results[1]?.rank).toBe(2);
     expect(results[1]?.score).toBeLessThan(results[0]?.score ?? 0);
+  });
+
+  it('hybrid search: keyword search brings in an exact term that vector search misses', async () => {
+    const user = await seedUser('user_retrieval');
+    const notebook = await seedNotebook(user.id);
+    const query = 'How many warmup_steps?';
+    const queryVector = fakeVector(query);
+    // More filler than vector search returns, all close to the query's vector.
+    const fillers = Array.from(
+      { length: retrieval.vectorCandidates + 1 },
+      (_, i) => `filler passage ${String(i)}`,
+    );
+    await seedSource(notebook, fillers, { vectorFor: (text) => near(queryVector, text) });
+    await seedSource(notebook, ['We trained with warmup_steps = 4000.']);
+
+    const run = (hybridSearch: boolean) =>
+      runRetrieval(
+        { userId: user.id, notebookId: notebook.id, question: query, history: [], topK: 5 },
+        {
+          flags: { ...allFlagsOff, hybridSearch },
+          embeddings: createFakeEmbeddings().provider,
+          vectorSearch: (params) => repository.vectorSearch(params),
+          keywordSearch: (params) => repository.keywordSearch(params),
+        },
+      );
+
+    const vectorOnly = await run(false);
+    expect(vectorOnly.chunks.map((c) => c.content)).not.toContain(
+      'We trained with warmup_steps = 4000.',
+    );
+
+    const hybrid = await run(true);
+    expect(hybrid.steps).toMatchObject({ keyword: true, fusion: true });
+    // Rank 1 in the keyword list ties with the vector list's rank 1, which comes first.
+    expect(hybrid.chunks[1]?.content).toBe('We trained with warmup_steps = 4000.');
   });
 });

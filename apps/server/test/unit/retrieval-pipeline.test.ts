@@ -93,7 +93,8 @@ function setup(
     },
     keywordSearch: (params) => {
       calls.keyword.push(params.query);
-      return Promise.resolve([chunk(`keyword:${params.query}-1`)]);
+      const { distance: _distance, ...row } = match(`keyword:${params.query}-1`);
+      return Promise.resolve([{ ...row, textRank: 0.5 }]);
     },
     rerank: (input) => {
       calls.rerank.push({

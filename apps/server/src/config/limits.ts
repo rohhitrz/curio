@@ -33,6 +33,8 @@ export const chunking = {
 export const retrieval = {
   /** Chunks vector search returns: the candidate pool that fusion and rerank start from. */
   vectorCandidates: 40,
+  /** Chunks keyword search returns, fused with the vector results (hybrid search). */
+  keywordCandidates: 40,
   fusionCandidates: 40,
   /** RRF's k: 60 is the value from the original paper and the common default. */
   rrfK: 60,

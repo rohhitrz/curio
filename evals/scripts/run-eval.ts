@@ -332,6 +332,7 @@ async function main() {
           flags: args.flags,
           embeddings,
           vectorSearch: (params) => retrievalRepository.vectorSearch(params),
+          keywordSearch: (params) => retrievalRepository.keywordSearch(params),
           understandQuery: async (understandInput) => {
             const understood = await understandQuery(understandInput, { llm });
             usage.add(understood.model, understood.usage);

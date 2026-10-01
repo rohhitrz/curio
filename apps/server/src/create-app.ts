@@ -80,6 +80,7 @@ export function createApp({
       flags,
       embeddings,
       vectorSearch: (params) => retrievalRepository.vectorSearch(params),
+      keywordSearch: (params) => retrievalRepository.keywordSearch(params),
       understandQuery: (input) => understandQuery(input, { llm }),
     },
     llm,

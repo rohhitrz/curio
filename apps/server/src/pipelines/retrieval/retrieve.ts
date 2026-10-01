@@ -21,6 +21,12 @@ export interface ChunkMatch {
   distance: number;
 }
 
+/** One chunk as keyword search returns it: no distance, a full-text rank instead. */
+export interface KeywordMatch extends Omit<ChunkMatch, 'distance'> {
+  /** Postgres `ts_rank`: higher matches more of the query; not comparable to cosine scores. */
+  textRank: number;
+}
+
 export interface RetrievalDeps {
   embeddings: EmbeddingsProvider;
   /** Nearest chunks first, scoped to the user's notebook and to `READY` sources. */
@@ -92,10 +98,15 @@ export async function retrieve(
     embedding,
     limit,
   });
-  return matches.map((match, index) => toRetrievedChunk(match, index + 1));
+  return matches.map((match, index) => toRetrievedChunk(match, index + 1, 1 - match.distance));
 }
 
-function toRetrievedChunk(match: ChunkMatch, rank: number): RetrievedChunk {
+/** A search row as a ranked chunk; `score` is whatever the search ranks by. */
+export function toRetrievedChunk(
+  match: Omit<ChunkMatch, 'distance'>,
+  rank: number,
+  score: number,
+): RetrievedChunk {
   return {
     rank,
     chunkId: match.chunkId,
@@ -113,6 +124,6 @@ function toRetrievedChunk(match: ChunkMatch, rank: number): RetrievedChunk {
       charStart: match.charStart,
       charEnd: match.charEnd,
     },
-    score: 1 - match.distance,
+    score,
   };
 }

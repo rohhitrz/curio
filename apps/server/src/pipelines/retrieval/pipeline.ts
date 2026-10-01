@@ -2,7 +2,13 @@ import type { RetrievalFlags } from '../../config/index.js';
 import { retrieval } from '../../config/index.js';
 import type { LlmMessage } from '../../lib/llm/index.js';
 import { fuseRankLists } from './fusion.js';
-import { retrieve, type RetrievalDeps, type RetrievedChunk } from './retrieve.js';
+import {
+  retrieve,
+  toRetrievedChunk,
+  type KeywordMatch,
+  type RetrievalDeps,
+  type RetrievedChunk,
+} from './retrieve.js';
 
 /** Step 1's structured output (docs/02-system-design.md §7). */
 export interface QueryUnderstanding {
@@ -26,7 +32,7 @@ export interface RetrievalStepDeps {
     notebookId: string;
     query: string;
     limit: number;
-  }) => Promise<RetrievedChunk[]>;
+  }) => Promise<KeywordMatch[]>;
   /** Returns at most `topK` of `chunks`, most relevant first. */
   rerank?: (input: {
     query: string;
@@ -146,8 +152,10 @@ export async function runRetrieval(
                 userId: input.userId,
                 notebookId: input.notebookId,
                 query,
-                limit: retrieval.vectorCandidates,
-              }),
+                limit: retrieval.keywordCandidates,
+              }).then((matches) =>
+                matches.map((match, index) => toRetrievedChunk(match, index + 1, match.textRank)),
+              ),
             ]
           : []),
       ]),
