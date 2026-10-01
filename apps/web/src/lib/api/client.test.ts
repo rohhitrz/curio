@@ -110,4 +110,32 @@ describe('api client', () => {
       api.get('/notebooks/n1', { schema: z.object({ id: z.string() }) }),
     ).rejects.toThrow();
   });
+
+  it('stream returns the body of a streamed answer and asks for an event stream', async () => {
+    const { api, call } = setup(
+      new Response('data: {"type":"start"}\n\n', {
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+    );
+
+    const body = await api.stream('/conversations/c1/messages', { id: 'm1', content: 'Hi' });
+
+    expect(await new Response(body).text()).toBe('data: {"type":"start"}\n\n');
+    expect(call().url).toBe('http://api.test/api/v1/conversations/c1/messages');
+    expect(call().headers.get('accept')).toBe('text/event-stream');
+    expect(call().init.body).toBe('{"id":"m1","content":"Hi"}');
+  });
+
+  it('stream throws the API error when the request is refused before streaming', async () => {
+    const { api } = setup(
+      jsonResponse(409, {
+        error: { code: 'CONVERSATION_BUSY', message: 'An answer is still being written.' },
+      }),
+    );
+
+    const error = await api.stream('/conversations/c1/messages', {}).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 409, code: 'CONVERSATION_BUSY' });
+  });
 });

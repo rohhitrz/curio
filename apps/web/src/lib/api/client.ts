@@ -21,20 +21,25 @@ interface RequestOptions<T> {
 }
 
 export function createApiClient({ baseUrl, getToken, fetch: fetchImpl = fetch }: ApiClientOptions) {
-  async function request<T>(method: Method, path: string, options: RequestOptions<T> = {}) {
+  /** Sends the request; a failed fetch (offline, DNS) becomes a `SERVICE_UNAVAILABLE` ApiError. */
+  async function send(
+    method: Method,
+    path: string,
+    options: RequestOptions<unknown>,
+    accept: string,
+  ) {
     const url = new URL(path, baseUrl);
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }
 
-    const headers = new Headers({ accept: 'application/json' });
+    const headers = new Headers({ accept });
     const token = await getToken();
     if (token) headers.set('authorization', `Bearer ${token}`);
     if (options.body !== undefined) headers.set('content-type', 'application/json');
 
-    let res: Response;
     try {
-      res = await fetchImpl(url, {
+      return await fetchImpl(url, {
         method,
         headers,
         body: options.body === undefined ? null : JSON.stringify(options.body),
@@ -48,7 +53,10 @@ export function createApiClient({ baseUrl, getToken, fetch: fetchImpl = fetch }:
         'Could not reach the server. Check your connection.',
       );
     }
+  }
 
+  async function request<T>(method: Method, path: string, options: RequestOptions<T> = {}) {
+    const res = await send(method, path, options, 'application/json');
     if (res.status === 204) return undefined as T;
 
     const body: unknown = await res.json().catch(() => undefined);
@@ -68,6 +76,16 @@ export function createApiClient({ baseUrl, getToken, fetch: fetchImpl = fetch }:
       request<T>('PUT', api(path), { ...options, body }),
     delete: <T = void>(path: string, options?: RequestOptions<T>) =>
       request<T>('DELETE', api(path), options),
+    /**
+     * POST that answers with a stream (chat). Errors before the stream starts come back as the
+     * usual JSON and are thrown as `ApiError`; otherwise the open response is returned.
+     */
+    stream: async (path: string, body?: unknown, options: { signal?: AbortSignal } = {}) => {
+      const res = await send('POST', api(path), { ...options, body }, 'text/event-stream');
+      if (!res.ok) throw toApiError(res.status, await res.json().catch(() => undefined));
+      if (!res.body) throw new ApiError(res.status, 'INTERNAL_ERROR', 'The answer was empty.');
+      return res.body;
+    },
     /** `GET /health` sits outside `/api/v1`. */
     health: () => request<{ status: string }>('GET', '/health'),
   };

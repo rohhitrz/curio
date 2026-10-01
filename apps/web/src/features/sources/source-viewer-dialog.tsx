@@ -21,22 +21,36 @@ interface SourceViewerDialogProps {
   /** The source being viewed; null closes the dialog. */
   source: Source | null;
   onOpenChange: (open: boolean) => void;
+  /** Opens on the Text tab with this passage highlighted (e.g. from a chat citation). */
+  highlight?: HighlightRange | null;
 }
 
-export function SourceViewerDialog({ source, onOpenChange }: SourceViewerDialogProps) {
+export function SourceViewerDialog({ source, onOpenChange, highlight }: SourceViewerDialogProps) {
   return (
     <Dialog open={source !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
         {/* Keyed by source, so the tab and highlight start fresh for each one */}
-        {source && <SourceViewer key={source.id} source={source} />}
+        {source && (
+          <SourceViewer
+            key={`${source.id}:${highlight?.start ?? ''}:${highlight?.end ?? ''}`}
+            source={source}
+            initialHighlight={highlight ?? null}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function SourceViewer({ source }: { source: Source }) {
+function SourceViewer({
+  source,
+  initialHighlight,
+}: {
+  source: Source;
+  initialHighlight: HighlightRange | null;
+}) {
   const [tab, setTab] = useState<ViewerTab>('text');
-  const [highlight, setHighlight] = useState<HighlightRange | null>(null);
+  const [highlight, setHighlight] = useState<HighlightRange | null>(initialHighlight);
 
   function showInText(chunk: SourceChunk) {
     if (chunk.charStart === null || chunk.charEnd === null) return;

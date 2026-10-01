@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 5 (Basic RAG chat), in progress
-- **Current step:** 5.4 done
+- **Current step:** 5.5 done
 - **Blocked on:** nothing (Langfuse and Upstash keys are in `.env`)
-- **Next step:** 5.5 Frontend: chat UI, streaming, status events, citations open the exact spot, 👍 / 👎
+- **Next step:** 5.6 Eval runner: answer metrics (faithfulness, correctness, citation accuracy, refusal accuracy) with Sol as judge → full baseline
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -33,7 +33,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 5.2 LLM provider `lib/llm` (AI SDK + `@ai-sdk/openai`, Responses API: `gpt-6-luna` / `gpt-6.1-sol`, per-task output cap + reasoning effort, static instructions first + per-task `prompt_cache_key`, `store: false`, `LlmError` retryable or not) · tracing `lib/tracing` (`Tracer`: trace / span / score / flush over Langfuse's OpenTelemetry SDK; AI SDK calls land in the active trace; every string attribute cut to 500 chars). Not wired into `index.ts` yet (5.4)
 - [x] 5.3 Generation in `pipelines/retrieval/` (pure): `buildContext` (dedupe, [n] numbering, `retrieval.contextMaxTokens` budget) · `prompt.ts` (static `CHAT_ANSWER_INSTRUCTIONS`, summary + history before the sources and question, old `[n]` stripped from history) · `citations.ts` (markers → snapshots via the shared schema) · `generateAnswer` (streams; no chunks → `NOT_IN_SOURCES_ANSWER` without a model call) · `test/fakes/llm.ts`
 - [x] 5.4 Chat API: the 9 chat endpoints (`routes/chat.routes.ts` → `chat.controller` → `chat.service` → `chat.repository`) · streaming send/retry as AI SDK UI message SSE · Upstash busy lock (`lib/locks`) + rate limits (`lib/rate-limit`, chat 20/min + 200/day, source adds 50/day) · resend = no duplicate · continue on disconnect · retry replaces `ERROR` · feedback → Langfuse score · tracing + Upstash wired in `index.ts`; Langfuse/Upstash env vars now required
-- [ ] 5.5 Frontend: chat UI, streaming, status events, citations open the exact spot, 👍 / 👎
+- [x] 5.5 Frontend (`apps/web/src/features/chat/`): chat beside sources on the notebook page · conversation picker, new chat, rename, delete · streamed answers with the status line · Markdown answers with `[n]` chips + a sources list under each answer · citations open PDF at the page (signed URL `#page=N`), YouTube at `t=`, website/text in the viewer with the passage highlighted · 👍 / 👎 · retry on a failed answer
 - [ ] 5.6 Eval runner: answer metrics (faithfulness, correctness, citation accuracy, refusal accuracy) with Sol as judge → full baseline
 
 ## Phase 4 steps (done)
@@ -53,7 +53,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 5
-0. **5.4 done; next is 5.5.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+0. **5.5 done; next is 5.6.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
 2. **5.2 notes:**
    - Owner chose the SDK route (2026-10-01): `ai`, `@ai-sdk/openai`, `@langfuse/tracing`, `@langfuse/otel`, `@langfuse/client`, `@langfuse/vercel-ai-sdk`, `@opentelemetry/sdk-node`, `@opentelemetry/api`. `02-system-design.md` §2 now names OpenTelemetry.
@@ -76,11 +76,17 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - **Disconnect:** the handler awaits the whole run, and writes to a closed stream are dropped, so the answer is saved (tested locally with a real socket). On Vercel this depends on the function running until the handler finishes after the client leaves; **check once live** (send, close the tab mid-answer, reload: the answer should be there).
    - Feedback score: `user-feedback` (UP = 1, DOWN = 0), id `feedback-<messageId>`, so changing it overwrites; `null` deletes it.
    - Summary / memory thresholds (API doc steps 10) are Phase 7.
-5. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
-6. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
-7. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
-8. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
-9. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
+5. **5.5 notes:**
+   - Owner chose `react-markdown` + `remark-gfm` for answers (2026-10-01); `02-system-design.md` §2 names it. `ai` is used in the web app only for its stream parser (`parseJsonEventStream` + `uiMessageChunkSchema`); `useChat` isn't used because errors before the stream are JSON, retry is its own endpoint and only the new message may be sent (`features/chat/use-answer-stream.ts`).
+   - Logic lives in tested pure modules: `stream.ts` (chunk → answer state), `citations.ts` (targets, links, `[n]` → chips; markers with no citation are hidden), `display.ts` (saved messages + streaming turn).
+   - A citation whose source was deleted or is being reprocessed only shows its saved snippet (with a notice).
+   - Checked in the browser pane against the local dev servers (desktop + mobile): layout, empty state, composer. **No message was sent** (that would call the real model), so the streamed answer, citations and feedback have not been seen on screen yet: that is the owner's live check.
+   - `.claude/launch.json` `dev` passes `PORT=3000` to every process, so the API also tries port 3000; use the separate `api` + `web` configs.
+6. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
+7. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
+8. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
+9. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
+10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
@@ -309,6 +315,10 @@ What it says for Phase 6:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (5.5)
+- Done: 5.5 chat frontend. New web packages: `ai`, `react-markdown`, `remark-gfm` (owner approved Markdown rendering)
+- Notes: first live chat check pending on the owner (see Resume here)
 
 ### 2026-10-01 (5.4)
 - Done: 5.4 chat API (see Resume here). New packages: `@upstash/redis`, `@upstash/ratelimit` (Upstash is in the design)
