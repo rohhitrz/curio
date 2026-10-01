@@ -52,7 +52,10 @@ import { understandQuery } from '../../apps/server/src/pipelines/retrieval/under
 import type { RetrievedChunk } from '../../apps/server/src/pipelines/retrieval/retrieve.js';
 import { createIngestionRepository } from '../../apps/server/src/repositories/ingestion.repository.js';
 import { createRetrievalRepository } from '../../apps/server/src/repositories/retrieval.repository.js';
-import { createIngestionService } from '../../apps/server/src/services/ingestion.service.js';
+import {
+  createIngestionService,
+  type StepAttempt,
+} from '../../apps/server/src/services/ingestion.service.js';
 import {
   canonicalYouTubeUrl,
   parseYouTubeVideoId,
@@ -281,16 +284,16 @@ async function main() {
       const sourceId = await insertSource(document, user.id, notebook.id);
       documentBySource.set(sourceId, document);
 
-      // One job run per source, as Inngest would do it.
+      // One job run per source, as Inngest would do it: a step that throws (a transient failure)
+      // is retried, and only its last attempt marks the source failed.
       const ref = { userId: user.id, sourceId, runId: `eval-${randomUUID()}` };
-      const attempt = { isLastAttempt: true };
       for (const [step, run] of [
         ['start', () => service.start(ref)],
-        ['extract', () => service.extract(ref, attempt)],
-        ['chunk', () => service.chunk(ref, attempt)],
-        ['embed-and-commit', () => service.embedAndCommit(ref, attempt)],
+        ['extract', (attempt: StepAttempt) => service.extract(ref, attempt)],
+        ['chunk', (attempt: StepAttempt) => service.chunk(ref, attempt)],
+        ['embed-and-commit', (attempt: StepAttempt) => service.embedAndCommit(ref, attempt)],
       ] as const) {
-        const result = await run();
+        const result = await runStep(document.id, step, run);
         if (result.status !== 'ok') {
           throw new Error(`${document.id}: ${step} stopped: ${JSON.stringify(result)}`);
         }
@@ -450,6 +453,24 @@ async function main() {
     console.log(`cost ≈ $${String(results.cost.usd)} · ${String(results.durationSeconds)}s`);
   } finally {
     await pool.end();
+  }
+
+  /** Runs a job step with Inngest's attempts (`ingestion.retries` after the first). */
+  async function runStep<T>(
+    documentId: string,
+    step: string,
+    run: (attempt: StepAttempt) => Promise<T>,
+  ): Promise<T> {
+    const attempts = ingestion.retries + 1;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await run({ isLastAttempt: attempt === attempts });
+      } catch (error) {
+        if (attempt === attempts) throw error;
+        console.warn(`\n${documentId}: ${step} attempt ${String(attempt)} failed; retrying`);
+        await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt));
+      }
+    }
   }
 
   /** Inserts a document as a `PENDING` source, the way the sources API would. */
