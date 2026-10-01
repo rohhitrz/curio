@@ -383,7 +383,17 @@ async function main() {
     const results = {
       date,
       gitCommit: git('rev-parse', '--short', 'HEAD'),
-      gitDirty: git('status', '--porcelain', '--', '.', ':!evals/results').length > 0,
+      // The whole repo (the runner measures server code too), not the cwd; results and the local
+      // `.claude/` folder don't count.
+      gitDirty:
+        git(
+          'status',
+          '--porcelain',
+          '--',
+          ':(top)',
+          ':(top,exclude)evals/results',
+          ':(top,exclude).claude',
+        ).length > 0,
       config: { label, ...args.flags },
       models: {
         embedding: embeddings.model,
