@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 5 (Basic RAG chat), in progress
-- **Current step:** 5.5 done
-- **Blocked on:** nothing (Langfuse and Upstash keys are in `.env`)
-- **Next step:** 5.6 Eval runner: answer metrics (faithfulness, correctness, citation accuracy, refusal accuracy) with Sol as judge → full baseline
+- **Phase:** 5 (Basic RAG chat), all steps built: 🛑 **waiting for owner approval**
+- **Current step:** 5.6 done (full baseline committed)
+- **Blocked on:** owner approval of Phase 5
+- **Next step:** Phase 6 (advanced retrieval), 6.1 feature flags, once Phase 5 is approved
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -34,7 +34,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 5.3 Generation in `pipelines/retrieval/` (pure): `buildContext` (dedupe, [n] numbering, `retrieval.contextMaxTokens` budget) · `prompt.ts` (static `CHAT_ANSWER_INSTRUCTIONS`, summary + history before the sources and question, old `[n]` stripped from history) · `citations.ts` (markers → snapshots via the shared schema) · `generateAnswer` (streams; no chunks → `NOT_IN_SOURCES_ANSWER` without a model call) · `test/fakes/llm.ts`
 - [x] 5.4 Chat API: the 9 chat endpoints (`routes/chat.routes.ts` → `chat.controller` → `chat.service` → `chat.repository`) · streaming send/retry as AI SDK UI message SSE · Upstash busy lock (`lib/locks`) + rate limits (`lib/rate-limit`, chat 20/min + 200/day, source adds 50/day) · resend = no duplicate · continue on disconnect · retry replaces `ERROR` · feedback → Langfuse score · tracing + Upstash wired in `index.ts`; Langfuse/Upstash env vars now required
 - [x] 5.5 Frontend (`apps/web/src/features/chat/`): chat beside sources on the notebook page · conversation picker, new chat, rename, delete · streamed answers with the status line · Markdown answers with `[n]` chips + a sources list under each answer · citations open PDF at the page (signed URL `#page=N`), YouTube at `t=`, website/text in the viewer with the passage highlighted · 👍 / 👎 · retry on a failed answer
-- [ ] 5.6 Eval runner: answer metrics (faithfulness, correctness, citation accuracy, refusal accuracy) with Sol as judge → full baseline
+- [x] 5.6 Eval runner: answer metrics (faithfulness and correctness by the judge, `evals/judges/`; citation accuracy and refusals in code), 2 runs averaged, cost per model · LLM provider `generateObject` (schema-checked JSON) · full baseline `evals/results/2026-10-01-vector.json` (commit `d0ff7d3`)
+- [ ] 🛑 Owner approves Phase 5
 
 ## Phase 4 steps (done)
 - [x] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
@@ -53,7 +54,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 5
-0. **5.5 done; next is 5.6.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+0. **Phase 5 is built; waiting for owner approval before Phase 6.** For Phase 6 read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
 2. **5.2 notes:**
    - Owner chose the SDK route (2026-10-01): `ai`, `@ai-sdk/openai`, `@langfuse/tracing`, `@langfuse/otel`, `@langfuse/client`, `@langfuse/vercel-ai-sdk`, `@opentelemetry/sdk-node`, `@opentelemetry/api`. `02-system-design.md` §2 now names OpenTelemetry.
@@ -89,6 +90,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Approve Phase 5** (see the summary in the 5.6 session log). How to verify: chat on the live app (done 2026-10-01: answers, citations at the PDF page, Langfuse traces, feedback); `evals/results/2026-10-01-vector.json` for the numbers.
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
@@ -308,6 +310,26 @@ What it says for Phase 6:
 - **A score threshold alone can't refuse:** top similarity for unanswerable questions reaches 0.68 while some answerable ones sit at 0.24. The relevance gate will need rerank scores, not raw cosine.
 - The numbers are high overall: questions tend to reuse the documents' wording. The ablation still has room at MRR and on follow-ups; a few harder paraphrased questions would make later gains clearer.
 
+**Answer baseline, vector only** (`evals/results/2026-10-01-vector.json`, commit `d0ff7d3`, generator `gpt-6-luna`, judge `gpt-6.1-sol`, top 8 chunks to the model, 2 runs averaged; retrieval numbers identical to the table above; cost $0.58, 8 min):
+
+| | Faithfulness | Correctness (1–5) | ≥ 4 | Citation accuracy | Refusal accuracy | False refusals |
+|---|---|---|---|---|---|---|
+| **Overall** | **0.980** | **4.38** | **0.83** | **0.821** | **0.95** | **0** |
+| factual | 0.986 | 4.71 | 0.97 | 0.917 | | 0 |
+| exact-term | 1.000 | 4.73 | 0.93 | 1.000 | | 0 |
+| multi-part | 0.937 | 2.50 | 0.08 | 0.583 | | 0 |
+| follow-up | 1.000 | 3.50 | 0.58 | 0.472 | | 0 |
+| unanswerable | 1.000 | | | | 0.95 | |
+
+What it says:
+- **Grounding is already strong:** almost every claim is supported by what it cites, and no answerable question was refused. The gains left are in *finding* the right chunks, which is Phase 6's job.
+- **Multi-part answers cover one part** (correctness 2.5, only 1 in 12 scores ≥ 4): retrieval brings back one side of "compare X and Y". Sub-queries target this.
+- **Follow-ups** (3.5, citation accuracy 0.47): the search uses the raw follow-up ("Is it deterministic?"). Query rewrite targets this.
+- **The one missed refusal is a partial one** (q-066, BERT warmup steps, 1 of the 2 runs): "the sources don't say … but the Transformer used 4,000 warmup steps [1]". Refusals are detected by the exact reply, so a hedge with a citation counts as an answer. The relevance gate (6.5) should stop these before the model sees unrelated chunks.
+- **Citation accuracy is strict:** a citation to a correct passage that isn't one of the question's expected locations counts as wrong, so the number is a lower bound.
+- **Run-to-run noise:** the two runs differ by ~0.08 in correctness and ~0.01 in faithfulness, and a run before the final one gave 4.29 / 0.971. Treat answer-metric changes under ~0.1 correctness / ~0.02 faithfulness as noise in the ablation.
+- **Cost:** Sol (judging) is 95% of the $0.58; Luna's prompt caching worked (52% of its input tokens cached). The judge prompts are too short for OpenAI's cache.
+
 ## Session log
 <!-- Newest first. One entry per session:
 ### YYYY-MM-DD
@@ -315,6 +337,11 @@ What it says for Phase 6:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (5.6, Phase 5 built)
+- Done: 5.6 answer metrics + full baseline (see "Eval results so far"); `06-test-plan.md` §6.4 now says GPT-6 models take no temperature (variance handled by fixed prompts + 2 averaged runs)
+- Commits: `d8dbb02` (answer metrics), `d0ff7d3` (README format), then the baseline results from `d0ff7d3`
+- Notes: 601 tests passing (500 server, 77 web, 24 evals). A first baseline run from an uncommitted tree was discarded and rerun from the clean commit so `gitCommit` is exact. First real LLM calls: smoke test ($0.007) + 2 full runs ($0.61 + $0.58)
 
 ### 2026-10-01 (5.5)
 - Done: 5.5 chat frontend. New web packages: `ai`, `react-markdown`, `remark-gfm` (owner approved Markdown rendering)
