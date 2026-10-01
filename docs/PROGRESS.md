@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 5 (Basic RAG chat), all steps built: 🛑 **waiting for owner approval**
-- **Current step:** 5.6 done (full baseline committed)
-- **Blocked on:** owner approval of Phase 5
-- **Next step:** Phase 6 (advanced retrieval), 6.1 feature flags, once Phase 5 is approved
+- **Phase:** 6 (Advanced retrieval)
+- **Current step:** 6.1 done (feature flags wired through the pipeline)
+- **Blocked on:** nothing (Cohere key in `.env` for 6.4)
+- **Next step:** 6.2 query understanding → eval
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -18,8 +18,8 @@
 | 2 | Sources (no processing) | ✅ Done (owner approved) |
 | 3 | Ingestion pipeline | ✅ Done (owner approved) |
 | 4 | Eval foundation | ✅ Done (owner approved) |
-| 5 | Basic RAG chat | 🔨 In progress |
-| 6 | Advanced retrieval | ⏳ Not started |
+| 5 | Basic RAG chat | ✅ Done (owner approved) |
+| 6 | Advanced retrieval | 🔨 In progress |
 | 7 | Memory | ⏳ Not started |
 | 8 | Learning paths | ⏳ Not started |
 | 9 | Lessons | ⏳ Not started |
@@ -28,14 +28,25 @@
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 5
+## Current phase steps: Phase 6
+- [x] 6.1 Feature flags through the pipeline: `pipelines/retrieval/pipeline.ts` `runRetrieval` (understand → vector (+ keyword) search per query → RRF fusion when there is more than one list → rerank → top `rerankTopK`), each step behind its flag in `config/flags.ts`, injected as optional deps (flag on without its dep throws) · RRF in `fusion.ts` (`retrieval.rrfK` = 60) · chat traces each step as a span under `retrieve` · eval runner uses `runRetrieval`, `--flags=a,b` for ablations, `-retrieval` suffix on retrieval-only results
+- [ ] 6.2 Query understanding: one structured call → rewrite + route + sub-queries → **eval**
+- [ ] 6.3 Keyword search + RRF fusion → **eval**
+- [ ] 6.4 Rerank provider; compare Cohere vs Jina → pick → **eval** (needs keys)
+- [ ] 6.5 Relevance gate; threshold tuned on the unanswerable questions → **eval**
+- [ ] 6.6 Citation check (deterministic)
+- [ ] 6.7 Eval-gated trials: HyDE, chunk size tuning → kept only if they improve results; outcome in `07-decisions.md`
+- [ ] 6.8 Timeouts on every external call + graceful degradation (rerank down → skip, etc.)
+- [ ] 🛑 Owner approves Phase 6
+
+## Phase 5 steps (done)
 - [x] 5.1 Migration `0008_conversations_messages` (on all three branches; prod run by the owner, 2026-10-01) · shared chat enums + `citationSnapshotSchema` in `packages/shared/src/chat.ts`
 - [x] 5.2 LLM provider `lib/llm` (AI SDK + `@ai-sdk/openai`, Responses API: `gpt-6-luna` / `gpt-6.1-sol`, per-task output cap + reasoning effort, static instructions first + per-task `prompt_cache_key`, `store: false`, `LlmError` retryable or not) · tracing `lib/tracing` (`Tracer`: trace / span / score / flush over Langfuse's OpenTelemetry SDK; AI SDK calls land in the active trace; every string attribute cut to 500 chars). Not wired into `index.ts` yet (5.4)
 - [x] 5.3 Generation in `pipelines/retrieval/` (pure): `buildContext` (dedupe, [n] numbering, `retrieval.contextMaxTokens` budget) · `prompt.ts` (static `CHAT_ANSWER_INSTRUCTIONS`, summary + history before the sources and question, old `[n]` stripped from history) · `citations.ts` (markers → snapshots via the shared schema) · `generateAnswer` (streams; no chunks → `NOT_IN_SOURCES_ANSWER` without a model call) · `test/fakes/llm.ts`
 - [x] 5.4 Chat API: the 9 chat endpoints (`routes/chat.routes.ts` → `chat.controller` → `chat.service` → `chat.repository`) · streaming send/retry as AI SDK UI message SSE · Upstash busy lock (`lib/locks`) + rate limits (`lib/rate-limit`, chat 20/min + 200/day, source adds 50/day) · resend = no duplicate · continue on disconnect · retry replaces `ERROR` · feedback → Langfuse score · tracing + Upstash wired in `index.ts`; Langfuse/Upstash env vars now required
 - [x] 5.5 Frontend (`apps/web/src/features/chat/`): chat beside sources on the notebook page · conversation picker, new chat, rename, delete · streamed answers with the status line · Markdown answers with `[n]` chips + a sources list under each answer · citations open PDF at the page (signed URL `#page=N`), YouTube at `t=`, website/text in the viewer with the passage highlighted · 👍 / 👎 · retry on a failed answer
 - [x] 5.6 Eval runner: answer metrics (faithfulness and correctness by the judge, `evals/judges/`; citation accuracy and refusals in code), 2 runs averaged, cost per model · LLM provider `generateObject` (schema-checked JSON) · full baseline `evals/results/2026-10-01-vector.json` (commit `d0ff7d3`)
-- [ ] 🛑 Owner approves Phase 5
+- [x] 🛑 Owner approves Phase 5 (2026-10-01: "Start Phase 6")
 
 ## Phase 4 steps (done)
 - [x] 4.1 Retrieval module v0 (pure, callable without HTTP): vector-only search, notebook filter, iterative scan enabled
@@ -53,8 +64,16 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.6 Sweeper cron (every 5 min) · `POST /sources/:id/reprocess` · `GET /sources/:id/content` + `/chunks` · `notebook/deleted` R2 cleanup job
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
-## Resume here: Phase 5
-0. **Phase 5 is built; waiting for owner approval before Phase 6.** For Phase 6 read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+## Resume here: Phase 6
+0. **6.1 notes (read before 6.2).** For Phase 6 read `02-system-design.md` §7, `07-decisions.md` R-01–R-08 and the Phase 6 rows of `06-test-plan.md`.
+   - `runRetrieval` (`pipelines/retrieval/pipeline.ts`) is the one entry point for chat and the eval; `retrieve` is now just the vector-search half. With every flag off it is the vector baseline (same top chunks, cosine scores kept since fusion doesn't run on one list).
+   - Flag → step: `queryRewrite` or `subQueries` turns on the understanding call; `queryRewrite` searches `standaloneQuery` (blank → raw question) **and owns routing** (`needsRetrieval: false` → `retrieved: false`, no search); `subQueries` adds one search per sub-query (deduped against the main query). `hybridSearch` adds `keywordSearch` next to each vector search. `rerank` reorders the fused candidates; off → top `rerankTopK` in fused order. `hyde` is not wired yet (6.7).
+   - Steps to build plug in as deps: `understandQuery` (6.2), `keywordSearch` returning `RetrievedChunk[]` (6.3; RRF already exists, so 6.3 is the search + repository + eval), `rerank` (6.4). Wire each in `create-app.ts` **and** `evals/scripts/run-eval.ts`.
+   - **6.2 must handle `retrieved: false` in chat:** today `generateAnswer` with no chunks gives the "not in your sources" reply, which is wrong for "thanks!". It needs a short no-sources reply path.
+   - Chat now asks vector search for `vectorCandidates` (40) and keeps 8 (was 8 directly); same results, since search is exactly ordered.
+   - Eval: `pnpm eval -- --flags=queryRewrite` etc. for ablations; the label and `config` in the results file come from the flags actually used. Each question records the `queries` it searched.
+   - 6.1 has no eval in the build plan; no eval run was made (no LLM call). The vector config is unchanged, so `2026-10-01-vector.json` stays the baseline.
+   - Lesson-scoped chat (search only some sources, test-plan Phase 6 row) needs a `sourceIds` filter on both searches; it arrives with lessons (9.4).
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
 2. **5.2 notes:**
    - Owner chose the SDK route (2026-10-01): `ai`, `@ai-sdk/openai`, `@langfuse/tracing`, `@langfuse/otel`, `@langfuse/client`, `@langfuse/vercel-ai-sdk`, `@opentelemetry/sdk-node`, `@opentelemetry/api`. `02-system-design.md` §2 now names OpenTelemetry.
@@ -90,7 +109,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Approve Phase 5** (see the summary in the 5.6 session log). How to verify: chat on the live app (done 2026-10-01: answers, citations at the PDF page, Langfuse traces, feedback); `evals/results/2026-10-01-vector.json` for the numbers.
+- **Jina key (optional, 6.4):** the build plan compares Cohere vs Jina; only `COHERE_API_KEY` is in `.env`. Without `JINA_API_KEY` the comparison is Cohere only.
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
@@ -116,7 +135,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | Supadata (transcripts) | 3 | ✅ Key in local `.env` (`TRANSCRIPT_API_KEY`, works, smoke-tested) and on Vercel (Production) |
 | Langfuse | 5 | ✅ Keys in local `.env` (`LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_BASE_URL`) and on Vercel `curio-server` (owner, 2026-10-01) |
 | Upstash | 5 | 🔶 Redis database `curio` (AWS us-west-2, free plan, eviction off); `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` in local `.env` (PING works, 2026-10-01) and on Vercel `curio-server` (owner, 2026-10-01) |
-| Cohere / Jina | 6 | ⬜ Not set up |
+| Cohere / Jina | 6 | 🔶 `COHERE_API_KEY` in local `.env` (owner, 2026-10-01); no Jina key yet; not on Vercel |
 | Tavily | 8 | 🔶 Key already in local `.env` (`TAVILY_API_KEY`); unused until Phase 8 |
 
 ## Blockers
@@ -337,6 +356,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (6.1, Phase 5 approved)
+- Done: owner approved Phase 5 ("Start Phase 6"); 6.1 feature flags through the retrieval pipeline (see Resume here)
+- Notes: 615 tests passing (514 server, 77 web, 24 evals); server suite took ~23 min. No eval run (6.1 has none). Owner added `COHERE_API_KEY` to local `.env` for 6.4
 
 ### 2026-10-01 (5.6, Phase 5 built)
 - Done: 5.6 answer metrics + full baseline (see "Eval results so far"); `06-test-plan.md` §6.4 now says GPT-6 models take no temperature (variance handled by fixed prompts + 2 averaged runs)

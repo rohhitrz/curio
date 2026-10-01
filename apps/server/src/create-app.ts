@@ -1,7 +1,7 @@
 import cors from 'cors';
 import express, { Router, type Express, type RequestHandler } from 'express';
 import type { Logger } from 'pino';
-import { requests } from './config/index.js';
+import { requests, retrievalFlags } from './config/index.js';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
 import type { EmbeddingsProvider } from './lib/embeddings/index.js';
@@ -72,7 +72,11 @@ export function createApp({
   const retrievalRepository = createRetrievalRepository(db);
   const chatService = createChatService({
     repository: createChatRepository(db),
-    retrieval: { embeddings, vectorSearch: (params) => retrievalRepository.vectorSearch(params) },
+    retrieval: {
+      flags: retrievalFlags,
+      embeddings,
+      vectorSearch: (params) => retrievalRepository.vectorSearch(params),
+    },
     llm,
     tracer,
     locks,

@@ -38,13 +38,18 @@ pnpm eval                          # retrieval + answer metrics (answers average
 pnpm eval -- --retrieval-only      # retrieval metrics only: no LLM calls, under a cent
 pnpm eval -- --runs=1              # one answer run
 pnpm eval -- --only=q-001,q-061    # smoke test: these questions only, printed, no results file
+pnpm eval -- --flags=queryRewrite  # ablation: exactly these retrieval flags on (default: the app's)
 ```
+
+Results go to `results/<date>-<config>.json`, where `<config>` is `vector` plus every flag that
+was on (`vector+queryRewrite+hybridSearch`). A `--retrieval-only` run adds `-retrieval`, so it
+never overwrites that day's full run.
 
 1. Replaces the eval notebook (owner `eval_runner`) in the Neon `dev` database; refuses to run if
    `DATABASE_URL` is the production or test database.
 2. Ingests every document through the real ingestion service (extract → chunk → embed → commit),
    with R2, Firecrawl and Supadata replaced by the local cache. Embeddings are real OpenAI calls.
-3. Asks every question through the real retrieval module (top 10) and marks each retrieved chunk
+3. Asks every question through the real retrieval pipeline (`runRetrieval`, with the run's flags; top 10) and marks each retrieved chunk
    relevant or not by location.
 4. Answers every question through the real generation step (the top 8 chunks, as chat uses
    them; follow-ups get their `history`), twice by default, and grades each answer:

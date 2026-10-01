@@ -7,7 +7,7 @@ import type {
   SendMessageInput,
 } from '@curio/shared';
 import type { Logger } from 'pino';
-import { conversation as conversationLimits, locks, retrieval } from '../config/index.js';
+import { conversation as conversationLimits, locks } from '../config/index.js';
 import { AppError, NotFoundError, ServiceUnavailableError } from '../errors/app-error.js';
 import { LlmError } from '../errors/llm-error.js';
 import type { LlmMessage, LlmProvider } from '../lib/llm/index.js';
@@ -20,7 +20,7 @@ import {
   toPage,
 } from '../pagination/cursor.js';
 import { generateAnswer } from '../pipelines/retrieval/generate.js';
-import { retrieve, type RetrievalDeps } from '../pipelines/retrieval/retrieve.js';
+import { runRetrieval, type RetrievalPipelineDeps } from '../pipelines/retrieval/pipeline.js';
 import type {
   ChatRepository,
   ConversationRow,
@@ -49,7 +49,8 @@ export interface ChatRun {
 
 export interface ChatServiceDeps {
   repository: ChatRepository;
-  retrieval: RetrievalDeps;
+  /** Flags and steps; `step` is set here to trace each one. */
+  retrieval: Omit<RetrievalPipelineDeps, 'step'>;
   llm: LlmProvider;
   tracer: Tracer;
   locks: LockProvider;
@@ -213,21 +214,31 @@ export function createChatService(deps: ChatServiceDeps) {
                 question.seq,
                 conversationLimits.recentMessages,
               );
-              const chunks = await tracer.span(
+              const { chunks } = await tracer.span(
                 'retrieve',
                 { query: question.content },
                 () =>
-                  retrieve(
+                  runRetrieval(
                     {
                       userId,
                       notebookId: conversation.notebookId,
-                      query: question.content,
-                      limit: retrieval.rerankTopK,
+                      question: question.content,
+                      history: toHistory(history),
                     },
-                    deps.retrieval,
+                    {
+                      ...deps.retrieval,
+                      step: (name, input, fn) => tracer.span(name, input, fn),
+                    },
                   ),
-                (found) =>
-                  found.map((c) => ({ chunkId: c.chunkId, sourceId: c.sourceId, score: c.score })),
+                (found) => ({
+                  queries: found.queries,
+                  steps: found.steps,
+                  chunks: found.chunks.map((c) => ({
+                    chunkId: c.chunkId,
+                    sourceId: c.sourceId,
+                    score: c.score,
+                  })),
+                }),
               );
 
               sink({ type: 'status', message: status.writing });

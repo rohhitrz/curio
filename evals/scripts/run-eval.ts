@@ -8,6 +8,8 @@
  *   pnpm eval -- --retrieval-only     # retrieval metrics only (no LLM calls, < 1 cent)
  *   pnpm eval -- --runs=1             # one answer run instead of the default
  *   pnpm eval -- --only=q-001,q-061   # smoke test: just these questions, printed, no results file
+ *   pnpm eval -- --flags=queryRewrite,hybridSearch   # these retrieval flags on, all others off
+ *                                                    # (default: the app's `retrievalFlags`)
  *
  * Runs against the Neon `dev` branch (`DATABASE_URL`) and refuses to touch production or the
  * test branch. Each run replaces the previous eval notebook, so runs are independent.
@@ -30,6 +32,7 @@ import {
   llmTasks,
   retrieval,
   retrievalFlags,
+  type RetrievalFlags,
 } from '../../apps/server/src/config/index.js';
 import { createDb } from '../../apps/server/src/db/client.js';
 import { notebooks, sources, users } from '../../apps/server/src/db/schema/index.js';
@@ -43,10 +46,8 @@ import { createUnpdfParser } from '../../apps/server/src/lib/pdf/index.js';
 import { createLogger } from '../../apps/server/src/logger.js';
 import { countTokens } from '../../apps/server/src/pipelines/ingestion/tokens.js';
 import { generateAnswer } from '../../apps/server/src/pipelines/retrieval/generate.js';
-import {
-  retrieve,
-  type RetrievedChunk,
-} from '../../apps/server/src/pipelines/retrieval/retrieve.js';
+import { runRetrieval } from '../../apps/server/src/pipelines/retrieval/pipeline.js';
+import type { RetrievedChunk } from '../../apps/server/src/pipelines/retrieval/retrieve.js';
 import { createIngestionRepository } from '../../apps/server/src/repositories/ingestion.repository.js';
 import { createRetrievalRepository } from '../../apps/server/src/repositories/retrieval.repository.js';
 import { createIngestionService } from '../../apps/server/src/services/ingestion.service.js';
@@ -76,7 +77,7 @@ import {
 import { readQuestions, type Question } from '../src/questions.js';
 import { isRelevant } from '../src/relevance.js';
 
-/** `--retrieval-only`, `--runs=N` and `--only=<ids>` (see the header). */
+/** `--retrieval-only`, `--runs=N`, `--only=<ids>` and `--flags=<names>` (see the header). */
 function parseArgs(argv: string[]) {
   const value = (name: string) =>
     argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -87,7 +88,31 @@ function parseArgs(argv: string[]) {
     ?.split(',')
     .map((id) => id.trim())
     .filter(Boolean);
-  return { answers: !argv.includes('--retrieval-only'), runs, only: only ?? null };
+  const flagsArg = value('flags');
+  return {
+    answers: !argv.includes('--retrieval-only'),
+    runs,
+    only: only ?? null,
+    flags: flagsArg === undefined ? retrievalFlags : parseFlags(flagsArg),
+  };
+}
+
+/** `--flags=a,b`: exactly these on. An unknown name fails, so a typo can't run the baseline. */
+function parseFlags(arg: string): RetrievalFlags {
+  const names = arg
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const flags = Object.fromEntries(
+    Object.keys(retrievalFlags).map((name) => [name, false]),
+  ) as unknown as RetrievalFlags;
+  for (const name of names) {
+    if (!(name in flags)) {
+      throw new Error(`--flags: unknown flag ${name} (known: ${Object.keys(flags).join(', ')})`);
+    }
+    flags[name as keyof RetrievalFlags] = true;
+  }
+  return flags;
 }
 
 /** Runs `fn` over `items`, at most `limit` at a time, keeping the order of the results. */
@@ -167,8 +192,8 @@ function git(...args: string[]): string {
 }
 
 /** "vector" for the baseline; each retrieval flag that is on is appended. */
-function configLabel(): string {
-  const on = Object.entries(retrievalFlags)
+function configLabel(flags: RetrievalFlags): string {
+  const on = Object.entries(flags)
     .filter(([, enabled]) => enabled)
     .map(([name]) => name);
   return ['vector', ...on].join('+');
@@ -271,9 +296,19 @@ async function main() {
     const retrievedByQuestion = new Map<string, RetrievedChunk[]>();
     for (const question of questions) {
       embeddedTokens += countTokens(question.question);
-      const results = await retrieve(
-        { userId: user.id, notebookId: notebook.id, query: question.question, limit: maxK },
-        { embeddings, vectorSearch: (params) => retrievalRepository.vectorSearch(params) },
+      const { queries, chunks: results } = await runRetrieval(
+        {
+          userId: user.id,
+          notebookId: notebook.id,
+          question: question.question,
+          history: question.history,
+          topK: maxK,
+        },
+        {
+          flags: args.flags,
+          embeddings,
+          vectorSearch: (params) => retrievalRepository.vectorSearch(params),
+        },
       );
       retrievedByQuestion.set(question.id, results);
       const scored = results.map((result) =>
@@ -285,6 +320,7 @@ async function main() {
         answerable: question.answerable,
         relevantRanks: scored.filter((r) => r.relevant).map((r) => r.rank),
         topScore: scored[0]?.score ?? null,
+        queries,
         retrieved: scored,
       });
     }
@@ -304,13 +340,13 @@ async function main() {
     // ── Metrics and the results file ──
     const overall = retrievalMetrics(outcomes, evalConfig.hitRateKs);
     const byCategory = metricsByCategory(outcomes, evalConfig.hitRateKs);
-    const label = configLabel();
+    const label = configLabel(args.flags);
     const date = new Date().toISOString().slice(0, 10);
     const results = {
       date,
       gitCommit: git('rev-parse', '--short', 'HEAD'),
       gitDirty: git('status', '--porcelain', '--', '.', ':!evals/results').length > 0,
-      config: { label, ...retrievalFlags },
+      config: { label, ...args.flags },
       models: {
         embedding: embeddings.model,
         ...(answers
@@ -344,11 +380,12 @@ async function main() {
       ),
       cost: costReport(embeddedTokens, usage),
       durationSeconds: Math.round((Date.now() - startedAt) / 1000),
-      questions: outcomes.map(({ id, category, relevantRanks, topScore, retrieved }) => ({
+      questions: outcomes.map(({ id, category, relevantRanks, topScore, queries, retrieved }) => ({
         id,
         category,
         firstRelevantRank: relevantRanks[0] ?? null,
         topScore,
+        queries,
         retrieved,
         ...(answers ? { answers: answers.byQuestion.get(id as string) ?? [] } : {}),
       })),
@@ -359,7 +396,9 @@ async function main() {
       console.log(JSON.stringify(results.questions, null, 2));
     } else {
       await mkdir(evalConfig.resultsDir, { recursive: true });
-      const path = `${evalConfig.resultsDir}${date}-${label}.json`;
+      // A retrieval-only run must not overwrite the same day's full run of this config.
+      const suffix = answers ? '' : '-retrieval';
+      const path = `${evalConfig.resultsDir}${date}-${label}${suffix}.json`;
       await writeFile(path, `${JSON.stringify(results, null, 2)}\n`);
       console.log(`wrote ${path}`);
     }
