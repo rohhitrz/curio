@@ -53,7 +53,9 @@ try {
 }
 
 const logger = createLogger({ level: env.LOG_LEVEL, pretty: env.NODE_ENV === 'development' });
-const { db } = createDb(env.DATABASE_URL);
+const { db } = createDb(env.DATABASE_URL, (err) => {
+  logger.warn({ err }, 'database: idle connection closed');
+});
 const auth = createClerkAuthProvider({
   secretKey: env.CLERK_SECRET_KEY,
   publishableKey: env.CLERK_PUBLISHABLE_KEY,
