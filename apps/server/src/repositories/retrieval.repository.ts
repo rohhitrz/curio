@@ -1,5 +1,5 @@
 import { and, cosineDistance, desc, eq, sql } from 'drizzle-orm';
-import { retrieval } from '../config/index.js';
+import { chatTimeouts, retrieval } from '../config/index.js';
 import type { Db } from '../db/client.js';
 import { sourceChunks, sources } from '../db/schema/index.js';
 
@@ -32,6 +32,13 @@ const chunkColumns = {
   charEnd: sourceChunks.charEnd,
 };
 
+/** `SET LOCAL statement_timeout` for a search: a slow query fails instead of holding up chat. */
+async function setStatementTimeout(tx: Tx) {
+  await tx.execute(
+    sql`select set_config('statement_timeout', ${String(chatTimeouts.searchStatementMs)}, true)`,
+  );
+}
+
 export type VectorSearchRow = Awaited<ReturnType<typeof nearestChunks>>[number];
 
 /**
@@ -47,6 +54,7 @@ export async function nearestChunks(
   iterativeScan: HnswIterativeScan = retrieval.hnswIterativeScan,
 ) {
   await tx.execute(sql`select set_config('hnsw.iterative_scan', ${iterativeScan}, true)`);
+  await setStatementTimeout(tx);
 
   const distance = cosineDistance(sourceChunks.embedding, embedding);
   return tx
@@ -112,7 +120,10 @@ export function createRetrievalRepository(db: Db) {
       return db.transaction((tx) => nearestChunks(tx, params));
     },
     keywordSearch(params: KeywordSearchParams): Promise<KeywordSearchRow[]> {
-      return keywordChunks(db, params);
+      return db.transaction(async (tx) => {
+        await setStatementTimeout(tx);
+        return keywordChunks(tx, params);
+      });
     },
   };
 }

@@ -122,6 +122,30 @@ export const embeddingRequests = {
   timeoutMs: 30_000,
 } as const;
 
+/**
+ * Chat-path deadlines (6.8, latency budget in docs/02-system-design.md §7: ~3s to first token).
+ * An optional step past its deadline is skipped; a required one fails the answer.
+ */
+export const chatTimeouts = {
+  /** Query understanding (optional): past this, the raw question is searched. */
+  understandMs: 3_000,
+  /** HyDE (optional): past this, it is skipped. */
+  hydeMs: 3_000,
+  /** Embedding the question (one short text). */
+  queryEmbeddingMs: 5_000,
+  /** Each search query in Postgres (`statement_timeout`); a failed search leaves the other one. */
+  searchStatementMs: 5_000,
+} as const;
+
+/** Clients outside the chat pipeline that had no timeout of their own. */
+export const serviceTimeouts = {
+  /** Each Upstash request (lock, rate limit); failures are already handled (503 / allowed). */
+  redisMs: 2_000,
+  /** R2: connecting, and each request (signed URLs need none; deletes and reads do). */
+  storageConnectMs: 5_000,
+  storageRequestMs: 15_000,
+} as const;
+
 export const rerankRequests = {
   /**
    * Whole call. The latency budget gives rerank ~0.3–0.5s; past this, chat answers from the

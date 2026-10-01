@@ -13,6 +13,9 @@ export interface R2Config {
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
+  /** Without these the SDK waits indefinitely on a hung connection. */
+  connectTimeoutMs: number;
+  requestTimeoutMs: number;
 }
 
 function isNotFound(error: unknown): boolean {
@@ -28,6 +31,10 @@ export function createR2StorageProvider(config: R2Config): StorageProvider {
     // Default flexible checksums add headers that break R2 presigned uploads (decision A-10).
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
+    requestHandler: {
+      connectionTimeout: config.connectTimeoutMs,
+      requestTimeout: config.requestTimeoutMs,
+    },
   });
   const Bucket = config.bucket;
 

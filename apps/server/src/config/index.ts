@@ -1,6 +1,7 @@
 export { EnvError, loadEnv, type Env } from './env.js';
 export { retrievalFlags, type RetrievalFlags } from './flags.js';
 export {
+  chatTimeouts,
   chunking,
   citations,
   conversation,
@@ -14,6 +15,7 @@ export {
   requests,
   rerankRequests,
   retrieval,
+  serviceTimeouts,
   tracing,
   uploads,
 } from './limits.js';

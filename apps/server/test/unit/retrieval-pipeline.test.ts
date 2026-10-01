@@ -154,7 +154,13 @@ describe('runRetrieval', () => {
 
     const result = await runRetrieval(input, deps);
 
-    expect(calls.understand).toEqual([{ question: input.question, history: input.history }]);
+    expect(calls.understand).toEqual([
+      {
+        question: input.question,
+        history: input.history,
+        abortSignal: expect.any(AbortSignal) as unknown,
+      },
+    ]);
     expect(searchedText).toEqual(['rewritten question']);
     expect(result.queries).toEqual(['rewritten question']);
     expect(result.steps.understand).toBe(true);
@@ -366,6 +372,72 @@ describe('runRetrieval', () => {
 
     expect(searchedText).toEqual([input.question]);
     expect(result).toMatchObject({ failed: ['hyde'], steps: { hyde: false, fusion: false } });
+  });
+
+  describe('timeouts and degradation (6.8)', () => {
+    const never = () => new Promise<never>(() => undefined);
+    const fast = { understandMs: 20, hydeMs: 20 };
+
+    it('understanding past its deadline → raw question searched', async () => {
+      const { deps, searchedText } = setup({ queryRewrite: true });
+      let aborted: AbortSignal | undefined;
+      deps.understandQuery = ({ abortSignal }) => {
+        aborted = abortSignal;
+        return never();
+      };
+
+      const result = await runRetrieval(input, { ...deps, timeouts: fast });
+
+      expect(searchedText).toEqual([input.question]);
+      expect(result.failed).toEqual(['understand']);
+      expect(aborted?.aborted).toBe(true);
+    });
+
+    it('HyDE past its deadline → skipped', async () => {
+      const { deps, searchedText } = setup({ hyde: true });
+      deps.hypotheticalPassage = never;
+
+      const result = await runRetrieval(input, { ...deps, timeouts: fast });
+
+      expect(searchedText).toEqual([input.question]);
+      expect(result).toMatchObject({ failed: ['hyde'], steps: { hyde: false } });
+    });
+
+    it('keyword search down → vector results only, failure reported', async () => {
+      const { deps } = setup({ hybridSearch: true });
+      deps.keywordSearch = () => Promise.reject(new Error('db timeout'));
+      const reported: string[] = [];
+      deps.onStepFailed = (step) => reported.push(step);
+
+      const result = await runRetrieval(input, deps);
+
+      expect(result.chunks.map((c) => c.chunkId)).toEqual([
+        'vector:What are its disadvantages?-1',
+        'vector:What are its disadvantages?-2',
+      ]);
+      expect(result).toMatchObject({ failed: ['keywordSearch'], steps: { fusion: false } });
+      expect(reported).toEqual(['keywordSearch']);
+    });
+
+    it('vector search down (embeddings timeout) → keyword results only', async () => {
+      const { deps } = setup({ hybridSearch: true });
+      deps.embeddings = { model: 'fake', embed: () => Promise.reject(new Error('timeout')) };
+
+      const result = await runRetrieval(input, deps);
+
+      expect(result.chunks.map((c) => c.chunkId)).toEqual([
+        'keyword:What are its disadvantages?-1',
+      ]);
+      expect(result.failed).toEqual(['vectorSearch']);
+    });
+
+    it('every search down → the error is thrown (no answer without sources)', async () => {
+      const { deps } = setup({ hybridSearch: true });
+      deps.embeddings = { model: 'fake', embed: () => Promise.reject(new Error('embed down')) };
+      deps.keywordSearch = () => Promise.reject(new Error('db down'));
+
+      await expect(runRetrieval(input, deps)).rejects.toThrow('embed down');
+    });
   });
 
   it('a flag on without its step throws before calling anything', async () => {

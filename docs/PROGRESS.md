@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 6 (Advanced retrieval)
-- **Current step:** 6.7 done (trials not adopted)
+- **Phase:** 6 (Advanced retrieval), all steps built: 🛑 **waiting for owner approval**
+- **Current step:** 6.8 done (timeouts + graceful degradation)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** 6.8 timeouts on every external call + graceful degradation
+- **Next step:** Phase 7 (memory), once Phase 6 is approved
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -36,7 +36,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 6.5 Relevance gate: top rerank score < `retrieval.relevanceThreshold` (0.70) → `chunks: []` → "not in your sources" without a model call; skipped when rerank didn't run; `relevanceGate` flag (needs `rerank`) · eval prints a threshold sweep (`gateSweep`) · **eval: gate on**, refusal accuracy 0.95 → 1.0, false refusals 0 (R-05)
 - [x] 6.6 Citation check: `removeInvalidMarkers` (`citations.ts`) drops every `[n]` with no source the model saw, also inside groups; the saved answer is the checked text, so snapshots and text always agree (the live stream may still show an invented number for a moment: the web app already hides markers with no citation). Removed markers go to the trace output and each eval answer (`removedMarkers`). No eval in the build plan for this step
 - [x] 6.7 Eval-gated trials: HyDE built behind the `hyde` flag (one more vector search with a hypothetical passage; failure skipped) + `--chunk-tokens` in the eval. **Not adopted** (R-09): retrieval is at the dataset's ceiling (MRR 0.983); the owner stopped the trial runs before they finished, so no result file
-- [ ] 6.8 Timeouts on every external call + graceful degradation (rerank down → skip, etc.)
+- [x] 6.8 Timeouts + degradation: `chatTimeouts` (understanding 3s and HyDE 3s via `withDeadline`, which aborts the call and rejects even if it hangs → skipped; question embedding 5s on its own client; `statement_timeout` 5s on both searches) · `serviceTimeouts` (Upstash 2s per request, R2 connect 5s / request 15s) · searches run with `allSettled`: vector down → keyword only, keyword down → vector only, both down → error · rerank down → fused order, gate skipped (6.4/6.5)
 - [ ] 🛑 Owner approves Phase 6
 
 ## Phase 5 steps (done)
@@ -76,6 +76,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - **6.3 notes:** keyword rows (`KeywordMatch`, with `textRank`) become `RetrievedChunk`s in the pipeline; after fusion every chunk's `score` is its RRF score, so **the relevance gate (6.5) can't use these scores**: use rerank scores. `createTestApp` keeps every flag off (tests opt in).
    - **6.4 notes:** rerank reads `contextHeader + content` (same as embeddings); its query is the rewritten one. The eval paces rerank calls to 10/min (`evalConfig.rerankCallsPerMinute`) because the local key is a **Trial key**: a first pair of runs lost 12 of 70 questions each to 429s, which silently kept the fused order (discarded). With a Production key the pacing can go. For 6.5+, evaluate with `--flags=queryRewrite,hybridSearch,rerank` (rerank is off in the app config). Rerank lowers pro's refusal accuracy (0.85; fast 0.95): unrelated-but-close chunks reach the model, which is the gate's job (6.5).
    - **6.5 notes:** the gate needs rerank (wiring check throws otherwise) and is skipped when rerank fails, e.g. a 429 on the Trial key: then a weak match can reach the model, which still has the prompt rule. `gated` and `gateScore` are in the `retrieve` span and in each eval question (`rerankTopScore`). Gated questions get no chunks, so in the eval they count as retrieval misses; fine at 0.70 (none of the answerable ones are gated).
+   - **6.8 notes:** timeouts live in `config/limits.ts` (`chatTimeouts`, `serviceTimeouts`). The pipeline reports every skipped step in `failed` (`understand`, `hyde`, `vectorSearch`, `keywordSearch`, `rerank`), logged as "retrieval step failed; skipped" and shown in the `retrieve` span. The answer stream itself keeps the 90s LLM timeout (it is streaming, not waiting). Ingestion keeps its own longer timeouts.
+   - **Phase 6 "done when"** (build plan): ablation table ✅ (Eval results) · tests ✅ (checkpoint run) · **first token < ~3s in Langfuse: owner to check live** (rerank was added after the last live check).
    - **Judge is Luna** (owner, 2026-10-01, decision O-04). Never compare a Sol-judged result with a Luna-judged one.
    - **Timeouts (6.8):** the understanding call has only the general 90s LLM timeout. In the eval one Luna understanding call hit it (q-066, fell back correctly); chat needs a short per-step timeout (~2–3s) so a slow rewrite can't stall the answer.
    - Lesson-scoped chat (search only some sources, test-plan Phase 6 row) needs a `sourceIds` filter on both searches; it arrives with lessons (9.4).
@@ -114,6 +116,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Approve Phase 6.** How to verify: ask a few questions on the live app, including a follow-up ("what are its disadvantages?") and something not in your sources (should say "not in your sources" right away); in Langfuse, a `chat` trace shows `understand` → `search` → `rerank` under `retrieve` and **time to first token under ~3s**; numbers in "Eval results so far" (ablation table).
+- **Re-process the YouTube source that came out in Arabic** (Process again), now that transcripts ask for English.
 - **Later:** swap Vercel `COHERE_API_KEY` for a Cohere Production key once other people use Curio (Trial keys: 10 calls/min, not for production; the variable name stays the same).
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
@@ -386,6 +390,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-02 (6.5–6.8, Phase 6 built)
+- Done: 6.5 relevance gate (on, 0.70), 6.6 citation check, 6.7 HyDE / chunk size (not adopted, R-09; owner stopped the trial runs), 6.8 timeouts + degradation
+- Notes: new test policy in use (targeted tests per step, full suite at the checkpoint before this push)
 
 ### 2026-10-02 (6.4)
 - Done: 6.4 Cohere rerank + eval; `rerank-v4.0-fast` picked; flag off until a Production key is on Vercel

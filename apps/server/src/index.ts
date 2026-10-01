@@ -1,5 +1,6 @@
 import type { Express } from 'express';
 import {
+  chatTimeouts,
   chunking,
   embeddingRequests,
   embeddings as embeddingModel,
@@ -12,6 +13,7 @@ import {
   loadEnv,
   rerankModels,
   rerankRequests,
+  serviceTimeouts,
   tracing,
   type Env,
 } from './config/index.js';
@@ -69,6 +71,8 @@ const storage = createR2StorageProvider({
   accessKeyId: env.R2_ACCESS_KEY_ID,
   secretAccessKey: env.R2_SECRET_ACCESS_KEY,
   bucket: env.R2_BUCKET,
+  connectTimeoutMs: serviceTimeouts.storageConnectMs,
+  requestTimeoutMs: serviceTimeouts.storageRequestMs,
 });
 const inngest = createInngestClient({
   isDev: env.INNGEST_DEV,
@@ -83,6 +87,15 @@ const embeddings = createOpenAiEmbeddings({
   dimensions: embeddingModel.dimensions,
   batchSize: embeddingRequests.batchSize,
   timeoutMs: embeddingRequests.timeoutMs,
+});
+// Chat embeds one short question on the way to the first token: a much tighter deadline than
+// ingestion's batches.
+const queryEmbeddings = createOpenAiEmbeddings({
+  apiKey: env.OPENAI_API_KEY,
+  model: embeddingModel.model,
+  dimensions: embeddingModel.dimensions,
+  batchSize: embeddingRequests.batchSize,
+  timeoutMs: chatTimeouts.queryEmbeddingMs,
 });
 const llm = createOpenAiLlm({
   apiKey: env.OPENAI_API_KEY,
@@ -110,7 +123,12 @@ const { tracer } = startLangfuseTracing({
   // A Vercel function can freeze right after the response, so spans go out as they end.
   exportMode: process.env.VERCEL ? 'immediate' : 'batched',
 });
-const redis = new Redis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN });
+const redis = new Redis({
+  url: env.UPSTASH_REDIS_REST_URL,
+  token: env.UPSTASH_REDIS_REST_TOKEN,
+  // A fresh deadline per request; lock and rate-limit failures are already handled.
+  signal: () => AbortSignal.timeout(serviceTimeouts.redisMs),
+});
 
 const ingestionService = createIngestionService({
   repository: createIngestionRepository(db, ingestion.chunkInsertBatchSize),
@@ -152,7 +170,7 @@ const app: Express = createApp({
   auth,
   storage,
   jobs,
-  embeddings,
+  embeddings: queryEmbeddings,
   llm,
   ...(reranker ? { reranker } : {}),
   tracer,

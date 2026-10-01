@@ -1,6 +1,7 @@
 import type { RetrievalFlags } from '../../config/index.js';
-import { retrieval } from '../../config/index.js';
+import { chatTimeouts, retrieval } from '../../config/index.js';
 import type { LlmMessage } from '../../lib/llm/index.js';
+import { withDeadline } from './deadline.js';
 import { fuseRankLists } from './fusion.js';
 import {
   retrieve,
@@ -22,12 +23,14 @@ export interface QueryUnderstanding {
 
 /** Steps 1, 2 (keyword half) and 4: built in 6.2–6.4, each used only when its flag is on. */
 export interface RetrievalStepDeps {
+  /** Gets a signal that aborts at `chatTimeouts.understandMs`; pass it to the LLM call. */
   understandQuery?: (input: {
     question: string;
     history: LlmMessage[];
+    abortSignal: AbortSignal;
   }) => Promise<QueryUnderstanding>;
   /** HyDE: a hypothetical answer passage to embed and search with (eval-gated, 6.7). */
-  hypotheticalPassage?: (input: { question: string }) => Promise<string>;
+  hypotheticalPassage?: (input: { question: string; abortSignal: AbortSignal }) => Promise<string>;
   /** Best match first, scoped like `vectorSearch`. */
   keywordSearch?: (params: {
     userId: string;
@@ -51,11 +54,18 @@ export interface RetrievalPipelineDeps extends RetrievalDeps, RetrievalStepDeps 
   step?: StepRunner;
   /** Defaults to `retrieval.relevanceThreshold`; the eval passes others to tune it. */
   relevanceThreshold?: number;
+  /** Defaults to `chatTimeouts`; the eval allows more. */
+  timeouts?: { understandMs: number; hydeMs: number };
   /** An optional step failed and was skipped (graceful degradation); the caller logs it. */
   onStepFailed?: (step: OptionalStep, error: unknown) => void;
 }
 
-export type OptionalStep = 'understand' | 'hyde' | 'rerank';
+/**
+ * Steps that can fail without failing the answer. A search half (`vectorSearch` /
+ * `keywordSearch`) may fail as long as some search returned; if every one fails, the error is
+ * thrown.
+ */
+export type OptionalStep = 'understand' | 'hyde' | 'vectorSearch' | 'keywordSearch' | 'rerank';
 
 export interface RetrievalPipelineInput {
   userId: string;
@@ -112,8 +122,9 @@ const runDirectly: StepRunner = (_name, _input, fn) => fn();
  *   the answer is "not in your sources" without a model call. Skipped if rerank failed.
  *
  * Flag on without its step's dep is a wiring bug: it throws before anything is called.
- * A failing understanding call doesn't fail the request: the raw question is searched. A
- * failing rerank doesn't either: the fused order is kept.
+ * Graceful degradation (6.8): understanding and HyDE have deadlines (`chatTimeouts`); past them,
+ * or failing, they're skipped and the raw question is searched. A failing search half leaves the
+ * other's results. A failing rerank keeps the fused order (and the gate stays out).
  */
 export async function runRetrieval(
   input: RetrievalPipelineInput,
@@ -124,6 +135,7 @@ export async function runRetrieval(
   const topK = input.topK ?? retrieval.rerankTopK;
   requireStepDeps(deps);
 
+  const timeouts = deps.timeouts ?? chatTimeouts;
   const understandOn = flags.queryRewrite || flags.subQueries;
   const steps = {
     understand: false,
@@ -140,7 +152,9 @@ export async function runRetrieval(
   if (understandOn && deps.understandQuery) {
     const understandQuery = deps.understandQuery;
     const understood = await step('understand', { question: input.question }, () =>
-      understandQuery({ question: input.question, history: input.history }),
+      withDeadline(timeouts.understandMs, (abortSignal) =>
+        understandQuery({ question: input.question, history: input.history, abortSignal }),
+      ),
     ).catch((error: unknown) => {
       failed.push('understand');
       deps.onStepFailed?.('understand', error);
@@ -175,7 +189,9 @@ export async function runRetrieval(
   if (flags.hyde && deps.hypotheticalPassage) {
     const hypotheticalPassage = deps.hypotheticalPassage;
     passage = await step('hyde', { question: searchQuery }, () =>
-      hypotheticalPassage({ question: searchQuery }),
+      withDeadline(timeouts.hydeMs, (abortSignal) =>
+        hypotheticalPassage({ question: searchQuery, abortSignal }),
+      ),
     ).catch((error: unknown) => {
       failed.push('hyde');
       deps.onStepFailed?.('hyde', error);
@@ -184,49 +200,58 @@ export async function runRetrieval(
     steps.hyde = passage !== null && passage.trim() !== '';
   }
 
-  const lists = await step('search', { queries }, () =>
-    Promise.all(
-      queries
-        .flatMap((query) => [
-          retrieve(
-            {
-              userId: input.userId,
-              notebookId: input.notebookId,
-              query,
-              limit: retrieval.vectorCandidates,
-            },
-            deps,
+  // Every search runs at once; one that fails is dropped (vector down → keyword results only,
+  // and the other way round), unless none returned anything.
+  const vectorSearch = (query: string) =>
+    retrieve(
+      {
+        userId: input.userId,
+        notebookId: input.notebookId,
+        query,
+        limit: retrieval.vectorCandidates,
+      },
+      deps,
+    );
+  const searches: { kind: OptionalStep; run: () => Promise<RetrievedChunk[]> }[] = [];
+  for (const query of queries) {
+    searches.push({ kind: 'vectorSearch', run: () => vectorSearch(query) });
+    if (keywordSearch) {
+      searches.push({
+        kind: 'keywordSearch',
+        run: () =>
+          keywordSearch({
+            userId: input.userId,
+            notebookId: input.notebookId,
+            query,
+            limit: retrieval.keywordCandidates,
+          }).then((matches) =>
+            matches.map((match, index) => toRetrievedChunk(match, index + 1, match.textRank)),
           ),
-          ...(keywordSearch
-            ? [
-                keywordSearch({
-                  userId: input.userId,
-                  notebookId: input.notebookId,
-                  query,
-                  limit: retrieval.keywordCandidates,
-                }).then((matches) =>
-                  matches.map((match, index) => toRetrievedChunk(match, index + 1, match.textRank)),
-                ),
-              ]
-            : []),
-        ])
-        .concat(
-          steps.hyde && passage
-            ? [
-                retrieve(
-                  {
-                    userId: input.userId,
-                    notebookId: input.notebookId,
-                    query: passage,
-                    limit: retrieval.vectorCandidates,
-                  },
-                  deps,
-                ),
-              ]
-            : [],
-        ),
-    ),
+      });
+    }
+  }
+  if (steps.hyde && passage) {
+    const hydePassage = passage;
+    searches.push({ kind: 'hyde', run: () => vectorSearch(hydePassage) });
+  }
+  const settled = await step('search', { queries }, () =>
+    Promise.allSettled(searches.map((search) => search.run())),
   );
+  const lists: RetrievedChunk[][] = [];
+  const errors: unknown[] = [];
+  settled.forEach((outcome, index) => {
+    if (outcome.status === 'fulfilled') {
+      lists.push(outcome.value);
+      return;
+    }
+    errors.push(outcome.reason);
+    const kind = searches[index]?.kind ?? 'vectorSearch';
+    if (!failed.includes(kind)) {
+      failed.push(kind);
+      deps.onStepFailed?.(kind, outcome.reason);
+    }
+  });
+  if (lists.length === 0) throw errors[0];
 
   let candidates: RetrievedChunk[];
   if (lists.length > 1) {

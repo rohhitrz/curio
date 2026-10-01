@@ -7,7 +7,7 @@ import {
   users,
   type NewSourceChunk,
 } from '../../src/db/schema/index.js';
-import { retrieval, type RetrievalFlags } from '../../src/config/index.js';
+import { chatTimeouts, retrieval, type RetrievalFlags } from '../../src/config/index.js';
 import { runRetrieval } from '../../src/pipelines/retrieval/pipeline.js';
 import { retrieve } from '../../src/pipelines/retrieval/retrieve.js';
 import {
@@ -267,12 +267,15 @@ describe('vector search (retrieval repository)', () => {
         embedding: fakeVector('alpha'),
         limit: 1,
       });
-      const result = await tx.execute<{ value: string }>(
-        sql`select current_setting('hnsw.iterative_scan') as value`,
+      // Compared as durations: Postgres prints 5000 ms as "5s".
+      const result = await tx.execute<{ value: string; timeout: boolean }>(
+        sql`select current_setting('hnsw.iterative_scan') as value,
+                   current_setting('statement_timeout')::interval
+                     = make_interval(secs => ${chatTimeouts.searchStatementMs / 1000}) as timeout`,
       );
-      return result.rows[0]?.value;
+      return result.rows[0];
     });
-    expect(setting).toBe('strict_order');
+    expect(setting).toEqual({ value: 'strict_order', timeout: true });
 
     // `SET LOCAL` ends with the transaction. (The vector literal loads pgvector, which defines the
     // setting, in case this query lands on a fresh pooled connection.)
@@ -280,6 +283,11 @@ describe('vector search (retrieval repository)', () => {
       sql`select current_setting('hnsw.iterative_scan') as value, '[1]'::vector as loaded`,
     );
     expect(after.rows[0]?.value).toBe('off');
+    const timeout = await db.execute<{ leaked: boolean }>(
+      sql`select current_setting('statement_timeout')::interval
+               = make_interval(secs => ${chatTimeouts.searchStatementMs / 1000}) as leaked`,
+    );
+    expect(timeout.rows[0]?.leaked).toBe(false);
   });
 });
 

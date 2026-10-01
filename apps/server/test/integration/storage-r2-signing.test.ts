@@ -7,6 +7,8 @@ const provider = createR2StorageProvider({
   accessKeyId: 'key',
   secretAccessKey: 'secret',
   bucket: 'bucket',
+  connectTimeoutMs: 5_000,
+  requestTimeoutMs: 15_000,
 });
 
 describe('r2 provider signing', () => {
