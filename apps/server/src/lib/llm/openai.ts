@@ -1,6 +1,7 @@
 import { createOpenAI, type OpenAILanguageModelResponsesOptions } from '@ai-sdk/openai';
 import {
   APICallError,
+  NoObjectGeneratedError,
   generateText,
   Output,
   RetryError,
@@ -45,10 +46,13 @@ export function toLlmError(error: unknown): LlmError {
       { cause: error },
     );
   }
-  // Timeouts and network failures can pass; anything else (bad response shape) won't.
+  // Timeouts and network failures can pass, and so can structured output the model garbled or
+  // cut off (seen: a judge reply that degenerated into repeated escape codes); a new sample
+  // usually parses. Anything else won't.
   const transient =
-    last instanceof Error &&
-    (last.name === 'TimeoutError' || last.name === 'AbortError' || last instanceof TypeError);
+    NoObjectGeneratedError.isInstance(last) ||
+    (last instanceof Error &&
+      (last.name === 'TimeoutError' || last.name === 'AbortError' || last instanceof TypeError));
   const detail = last instanceof Error ? last.message : String(last);
   return new LlmError(transient, `LLM call failed: ${detail}`, { cause: error });
 }

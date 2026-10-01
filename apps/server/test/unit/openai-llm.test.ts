@@ -194,7 +194,7 @@ describe('OpenAI LLM', () => {
     expect(body.text?.format?.type).toBe('json_schema');
   });
 
-  it('generateObject rejects a reply that does not match the schema', async () => {
+  it('generateObject rejects a reply that does not match the schema, as retryable', async () => {
     const { provider } = llm(json(responseBody('{"score":"high"}')));
 
     const error = await provider
@@ -202,7 +202,21 @@ describe('OpenAI LLM', () => {
       .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(LlmError);
-    expect((error as LlmError).retryable).toBe(false);
+    // A new sample usually parses.
+    expect((error as LlmError).retryable).toBe(true);
+  });
+
+  it('generateObject rejects garbled or cut-off JSON as retryable', async () => {
+    const { provider } = llm(
+      json(responseBody('{"score":5,"reason":"It correctly \u001b[0m\u001b[0m')),
+    );
+
+    const error = await provider
+      .generateObject(request(), z.object({ score: z.number(), reason: z.string() }))
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(LlmError);
+    expect((error as LlmError).retryable).toBe(true);
   });
 
   it('streams text deltas and resolves the result with usage', async () => {
