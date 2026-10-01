@@ -6,11 +6,21 @@ export {
   embeddingRequests,
   extraction,
   ingestion,
+  llmRequests,
   locks,
   quotas,
   rateLimits,
   requests,
   retrieval,
+  tracing,
   uploads,
 } from './limits.js';
-export { embeddings, llmTasks, type LlmTask, type LlmTier } from './models.js';
+export {
+  embeddings,
+  llmModels,
+  llmTasks,
+  type LlmTask,
+  type LlmTaskConfig,
+  type LlmTier,
+  type ReasoningEffort,
+} from './models.js';

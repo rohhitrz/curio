@@ -268,7 +268,7 @@ A small test account is used, and smoke tests clean up after themselves.
   "date": "2026-10-15",
   "gitCommit": "a1b2c3d",
   "config": { "rewrite": true, "hybrid": true, "rerank": true, "subQueries": false },
-  "models": { "generator": "gpt-6-luna", "judge": "gpt-6-sol", "embedding": "text-embedding-3-small" },
+  "models": { "generator": "gpt-6-luna", "judge": "gpt-6.1-sol", "embedding": "text-embedding-3-small" },
   "retrieval": { "hitRate@5": 0.84, "hitRate@10": 0.91, "mrr": 0.71 },
   "answers": { "faithfulness": 0.93, "correctness": 4.2, "citationAccuracy": 0.88,
                "refusalAccuracy": 0.9, "falseRefusalRate": 0.04 },

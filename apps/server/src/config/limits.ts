@@ -94,6 +94,19 @@ export const embeddingRequests = {
   timeoutMs: 30_000,
 } as const;
 
+export const llmRequests = {
+  /** Whole call, including streaming. The chat's first-token budget is ~3s; this is the hard stop. */
+  timeoutMs: 90_000,
+  /** Retries of a failed call (rate limit, 5xx) with the SDK's backoff; never mid-stream. */
+  maxRetries: 2,
+} as const;
+
+/** Langfuse traces (docs/02-system-design.md §12). */
+export const tracing = {
+  /** Chunk text and prompts are cut to this many characters: no full source content in traces. */
+  maxTextChars: 500,
+} as const;
+
 export const requests = {
   /** JSON body cap. Pasted text can be 100k chars, which is up to ~400 KB of UTF-8. */
   jsonBodyLimit: '1mb',

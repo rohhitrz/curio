@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 5 (Basic RAG chat), in progress
-- **Current step:** 5.1 done
+- **Current step:** 5.2 done
 - **Blocked on:** nothing (Langfuse and Upstash keys are in `.env`)
-- **Next step:** 5.2 LLM provider (Luna, per-task config, static prompt prefix first) + Langfuse tracing wrapper
+- **Next step:** 5.3 Generation: grounded prompt, context building, `[n]` citations → citation snapshots
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 5
 - [x] 5.1 Migration `0008_conversations_messages` (on all three branches; prod run by the owner, 2026-10-01) · shared chat enums + `citationSnapshotSchema` in `packages/shared/src/chat.ts`
-- [ ] 5.2 LLM provider (Luna, per-task config, static prompt prefix first) + Langfuse tracing wrapper
+- [x] 5.2 LLM provider `lib/llm` (AI SDK + `@ai-sdk/openai`, Responses API: `gpt-6-luna` / `gpt-6.1-sol`, per-task output cap + reasoning effort, static instructions first + per-task `prompt_cache_key`, `store: false`, `LlmError` retryable or not) · tracing `lib/tracing` (`Tracer`: trace / span / score / flush over Langfuse's OpenTelemetry SDK; AI SDK calls land in the active trace; every string attribute cut to 500 chars). Not wired into `index.ts` yet (5.4)
 - [ ] 5.3 Generation: grounded prompt, context building, `[n]` citations → citation snapshots
 - [ ] 5.4 Chat API: conversations CRUD, messages (newest first), streaming send, Redis busy lock, continue on disconnect, retry, feedback → Langfuse
 - [ ] 5.5 Frontend: chat UI, streaming, status events, citations open the exact spot, 👍 / 👎
@@ -53,13 +53,20 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 5
-0. **5.1 done; next is 5.2.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+0. **5.2 done; next is 5.3.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
-2. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
-3. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
-4. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
-5. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
-6. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
+2. **5.2 notes:**
+   - Owner chose the SDK route (2026-10-01): `ai`, `@ai-sdk/openai`, `@langfuse/tracing`, `@langfuse/otel`, `@langfuse/client`, `@langfuse/vercel-ai-sdk`, `@opentelemetry/sdk-node`, `@opentelemetry/api`. `02-system-design.md` §2 now names OpenTelemetry.
+   - `startLangfuseTracing` is process-wide (OpenTelemetry + `registerTelemetry`): call it once in `index.ts`. Use `exportMode: 'immediate'` on Vercel and `await tracer.flush()` before the response ends.
+   - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` and the Upstash pair are on Vercel `curio-server` (owner, 2026-10-01), so 5.4 can make them required in `config/env.ts`.
+   - Langfuse's own `mask` only covers its input/output attributes; the AI SDK writes whole prompts into `gen_ai.*` attributes, so a span processor in front of the exporter cuts every string attribute (`tracing.maxTextChars`).
+   - Sol is `gpt-6.1-sol` (owner's choice, 2026-10-01); Luna stays `gpt-6-luna`.
+   - No real LLM or Langfuse call was made (CLAUDE.md); tests use a stub `fetch` and an in-memory span exporter. The first real call is `pnpm eval` in 5.6.
+3. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
+4. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
+5. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
+6. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
+7. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
@@ -85,8 +92,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 | OpenAI | 3 | ✅ Key in local `.env` and on Vercel (Production); embeddings work live (first real run 2026-09-30) |
 | Firecrawl | 3 | ✅ Key in local `.env` (works, smoke-tested) and on Vercel (Production) |
 | Supadata (transcripts) | 3 | ✅ Key in local `.env` (`TRANSCRIPT_API_KEY`, works, smoke-tested) and on Vercel (Production) |
-| Langfuse | 5 | 🔶 Keys in local `.env` (`LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_BASE_URL`); not on Vercel yet |
-| Upstash | 5 | 🔶 Redis database `curio` (AWS us-west-2, free plan, eviction off); `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` in local `.env` (PING works, 2026-10-01); not on Vercel yet |
+| Langfuse | 5 | ✅ Keys in local `.env` (`LANGFUSE_SECRET_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_BASE_URL`) and on Vercel `curio-server` (owner, 2026-10-01) |
+| Upstash | 5 | 🔶 Redis database `curio` (AWS us-west-2, free plan, eviction off); `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` in local `.env` (PING works, 2026-10-01) and on Vercel `curio-server` (owner, 2026-10-01) |
 | Cohere / Jina | 6 | ⬜ Not set up |
 | Tavily | 8 | 🔶 Key already in local `.env` (`TAVILY_API_KEY`); unused until Phase 8 |
 
@@ -288,6 +295,10 @@ What it says for Phase 6:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (5.2)
+- Done: 5.2 LLM provider + Langfuse tracing wrapper (see Resume here)
+- Notes: owner approved the new packages; Sol switched to `gpt-6.1-sol`; Langfuse + Upstash keys on Vercel. Nothing wired into the app yet. 447 tests in total (17 new). One full run failed `ingestion.test.ts` › "failure during a reprocess commit" (7.8s) and it passed on rerun: watch for flakiness
 
 ### 2026-10-01 (5.1)
 - Done: 5.1 migration `0008_conversations_messages` (`conversations`, `messages`, enums `message_role` / `generation_status` / `feedback`), applied on `dev` + `test`; shared chat enums and citation snapshot schema

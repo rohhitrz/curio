@@ -62,14 +62,14 @@
 | **Files** | Cloudflare R2 via AWS SDK v3 (`@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`) | S3-standard, free egress; official SDK for signed URLs |
 | **Jobs** | Inngest | Step-based retries, fits Vercel time limits, pause/resume |
 | **Rate limits** | Upstash Redis | Shared counters across serverless instances |
-| **LLM** | GPT-6 Luna (default), configurable per task | Cheap; heavier tasks upgradable to Sol if evals demand |
+| **LLM** | GPT-6 Luna (`gpt-6-luna`, default), configurable per task; Sol = GPT-6.1 Sol (`gpt-6.1-sol`) | Cheap; heavier tasks upgradable to Sol if evals demand |
 | **Embeddings** | OpenAI `text-embedding-3-small` | Cheap, strong; model name stored per chunk (check for newer at build time) |
 | **Reranker** | Cohere or Jina rerank API | Final pick compared in evals |
 | **Web search** | Tavily | Finds resources for learning paths |
 | **Scraping** | Firecrawl | Clean markdown + headings |
 | **YouTube** | Supadata transcript API | Not blocked on cloud servers |
 | **PDF parsing** | `unpdf` | Page-by-page text, serverless-friendly |
-| **Observability** | Langfuse + `pino` logs | Per-step traces, cost, latency |
+| **Observability** | Langfuse + `pino` logs | Per-step traces, cost, latency. Langfuse's SDK sends traces over OpenTelemetry (`@opentelemetry/sdk-node`); the AI SDK records each LLM call in the active trace |
 | **Evals** | TypeScript eval runner | One language; standard metrics |
 | **Hosting** | Vercel (two projects) | Frontend + backend |
 
