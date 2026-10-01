@@ -51,6 +51,12 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   FIRECRAWL_API_KEY: z.string().min(1),
   TRANSCRIPT_API_KEY: z.string().min(1),
+  // Chat (Phase 5): traces, and the busy lock + rate limits.
+  LANGFUSE_PUBLIC_KEY: z.string().min(1),
+  LANGFUSE_SECRET_KEY: z.string().min(1),
+  LANGFUSE_BASE_URL: z.url({ protocol: /^https?$/ }),
+  UPSTASH_REDIS_REST_URL: z.url({ protocol: /^https$/ }),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
 });
 
 const INNGEST_KEYS = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY'] as const;

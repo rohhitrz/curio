@@ -44,6 +44,8 @@ export interface Tracer {
   ): Promise<T>;
   /** Sends a score (👍 / 👎). Resolves once it is sent. */
   score(score: Score): Promise<void>;
+  /** Removes a score sent with `id` (feedback taken back). */
+  deleteScore(id: string): Promise<void>;
   /** Sends everything still buffered. Call before a serverless function finishes. */
   flush(): Promise<void>;
 }

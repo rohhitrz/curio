@@ -4,19 +4,29 @@ import type { Logger } from 'pino';
 import { requests } from './config/index.js';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
+import type { EmbeddingsProvider } from './lib/embeddings/index.js';
 import type { JobsProvider } from './lib/jobs/index.js';
+import type { LlmProvider } from './lib/llm/index.js';
+import type { LockProvider } from './lib/locks/index.js';
+import type { RateLimiter } from './lib/rate-limit/index.js';
 import type { StorageProvider } from './lib/storage/index.js';
+import type { Tracer } from './lib/tracing/index.js';
 import { requireAuth } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { notFound } from './middleware/not-found.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security-headers.js';
+import { countTokens } from './pipelines/ingestion/tokens.js';
+import { createChatRepository } from './repositories/chat.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
+import { createRetrievalRepository } from './repositories/retrieval.repository.js';
 import { createSourcesRepository } from './repositories/sources.repository.js';
 import { createUsersRepository } from './repositories/users.repository.js';
+import { createChatRouter } from './routes/chat.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createNotebooksRouter } from './routes/notebooks.routes.js';
 import { createSourcesRouter } from './routes/sources.routes.js';
+import { createChatService } from './services/chat.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
 import { createSourcesService } from './services/sources.service.js';
 import { createUsersService } from './services/users.service.js';
@@ -28,6 +38,11 @@ export interface AppOptions {
   auth: AuthProvider;
   storage: StorageProvider;
   jobs: JobsProvider;
+  embeddings: EmbeddingsProvider;
+  llm: LlmProvider;
+  tracer: Tracer;
+  locks: LockProvider;
+  rateLimiter: RateLimiter;
   /** Serves `/api/inngest`. It checks Inngest's request signature itself; there is no user auth. */
   jobsHandler: RequestHandler;
 }
@@ -39,6 +54,11 @@ export function createApp({
   auth,
   storage,
   jobs,
+  embeddings,
+  llm,
+  tracer,
+  locks,
+  rateLimiter,
   jobsHandler,
 }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
@@ -49,11 +69,22 @@ export function createApp({
     logger,
   );
   const sourcesService = createSourcesService(createSourcesRepository(db), storage, jobs, logger);
+  const retrievalRepository = createRetrievalRepository(db);
+  const chatService = createChatService({
+    repository: createChatRepository(db),
+    retrieval: { embeddings, vectorSearch: (params) => retrievalRepository.vectorSearch(params) },
+    llm,
+    tracer,
+    locks,
+    countTokens,
+    logger,
+  });
 
   const api = Router();
   api.use(requireAuth(auth, usersService));
   api.use(createNotebooksRouter(notebooksService));
-  api.use(createSourcesRouter(sourcesService));
+  api.use(createSourcesRouter(sourcesService, rateLimiter));
+  api.use(createChatRouter(chatService, rateLimiter));
 
   const app = express();
 

@@ -6,7 +6,11 @@ import {
   EnvError,
   extraction,
   ingestion,
+  llmModels,
+  llmRequests,
+  llmTasks,
   loadEnv,
+  tracing,
   type Env,
 } from './config/index.js';
 import { createApp } from './create-app.js';
@@ -14,6 +18,7 @@ import { createDb } from './db/client.js';
 import { createCleanupNotebookFilesFunction } from './inngest/cleanup-notebook-files.js';
 import { createProcessSourceFunction } from './inngest/process-source.js';
 import { createSweepStuckSourcesFunction } from './inngest/sweep-stuck-sources.js';
+import { Redis } from '@upstash/redis';
 import { createClerkAuthProvider } from './lib/auth/index.js';
 import { createOpenAiEmbeddings } from './lib/embeddings/index.js';
 import {
@@ -21,9 +26,13 @@ import {
   createInngestHandler,
   createInngestJobsProvider,
 } from './lib/jobs/index.js';
+import { createOpenAiLlm } from './lib/llm/index.js';
+import { createUpstashLocks } from './lib/locks/index.js';
 import { createUnpdfParser } from './lib/pdf/index.js';
+import { createUpstashRateLimiter } from './lib/rate-limit/index.js';
 import { createFirecrawlScraper } from './lib/scraper/index.js';
 import { createR2StorageProvider } from './lib/storage/index.js';
+import { startLangfuseTracing } from './lib/tracing/index.js';
 import { createSupadataTranscriptProvider } from './lib/transcript/index.js';
 import { createLogger } from './logger.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
@@ -63,6 +72,31 @@ const inngest = createInngestClient({
   logger,
 });
 const jobs = createInngestJobsProvider(inngest);
+const embeddings = createOpenAiEmbeddings({
+  apiKey: env.OPENAI_API_KEY,
+  model: embeddingModel.model,
+  dimensions: embeddingModel.dimensions,
+  batchSize: embeddingRequests.batchSize,
+  timeoutMs: embeddingRequests.timeoutMs,
+});
+const llm = createOpenAiLlm({
+  apiKey: env.OPENAI_API_KEY,
+  models: llmModels,
+  tasks: llmTasks,
+  timeoutMs: llmRequests.timeoutMs,
+  maxRetries: llmRequests.maxRetries,
+});
+// Process-wide (OpenTelemetry): once, before any traced call.
+const { tracer } = startLangfuseTracing({
+  publicKey: env.LANGFUSE_PUBLIC_KEY,
+  secretKey: env.LANGFUSE_SECRET_KEY,
+  baseUrl: env.LANGFUSE_BASE_URL,
+  environment: process.env.VERCEL_ENV ?? env.NODE_ENV,
+  maxTextChars: tracing.maxTextChars,
+  // A Vercel function can freeze right after the response, so spans go out as they end.
+  exportMode: process.env.VERCEL ? 'immediate' : 'batched',
+});
+const redis = new Redis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN });
 
 const ingestionService = createIngestionService({
   repository: createIngestionRepository(db, ingestion.chunkInsertBatchSize),
@@ -78,13 +112,7 @@ const ingestionService = createIngestionService({
     jobPollAttempts: extraction.transcriptJobPollAttempts,
     jobPollIntervalMs: extraction.transcriptJobPollIntervalMs,
   }),
-  embeddings: createOpenAiEmbeddings({
-    apiKey: env.OPENAI_API_KEY,
-    model: embeddingModel.model,
-    dimensions: embeddingModel.dimensions,
-    batchSize: embeddingRequests.batchSize,
-    timeoutMs: embeddingRequests.timeoutMs,
-  }),
+  embeddings,
   jobs,
   logger,
   chunking: { ...chunking, countTokens },
@@ -109,6 +137,11 @@ const app: Express = createApp({
   auth,
   storage,
   jobs,
+  embeddings,
+  llm,
+  tracer,
+  locks: createUpstashLocks(redis),
+  rateLimiter: createUpstashRateLimiter(redis),
   jobsHandler: createInngestHandler(inngest, [
     createProcessSourceFunction(inngest, ingestionService),
     createSweepStuckSourcesFunction(inngest, ingestionService),

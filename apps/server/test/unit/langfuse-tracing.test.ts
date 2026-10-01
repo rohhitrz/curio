@@ -9,7 +9,8 @@ const MAX_CHARS = 20;
 const exporter = new otel.InMemorySpanExporter();
 const create = vi.fn();
 const flush = vi.fn(() => Promise.resolve());
-const scores = { create, flush };
+const remove = vi.fn(() => Promise.resolve());
+const scores = { create, flush, delete: remove };
 // Spans are captured in memory and scores by the stub: nothing reaches Langfuse.
 const { tracer, shutdown } = startLangfuseTracing({
   publicKey: 'pk-lf-test',
@@ -216,5 +217,11 @@ describe('Langfuse tracing', () => {
       value: 1,
     });
     expect(flush).toHaveBeenCalled();
+  });
+
+  it('deletes a score by its id', async () => {
+    await tracer.deleteScore('feedback-msg-1');
+
+    expect(remove).toHaveBeenCalledWith('feedback-msg-1');
   });
 });

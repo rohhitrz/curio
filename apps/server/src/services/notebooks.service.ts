@@ -40,8 +40,8 @@ export function createNotebooksService(
       return {
         ...toNotebook(row),
         sourceCount: await repository.countSources(row.id),
-        // Wired when conversations (Phase 5) and learning paths (Phase 8) exist.
-        conversationCount: 0,
+        conversationCount: await repository.countConversations(row.id),
+        // Wired when learning paths exist (Phase 8).
         learningPathId: null,
       };
     },

@@ -23,7 +23,26 @@ export interface LangfuseTracerConfig {
   /** Tests: capture spans instead of sending them. */
   exporter?: tracing.SpanExporter;
   /** Tests: capture scores instead of sending them. */
-  scores?: Pick<LangfuseClient['score'], 'create' | 'flush'>;
+  scores?: ScoreStore;
+}
+
+/** The part of the Langfuse client that writes scores. */
+export interface ScoreStore {
+  create: LangfuseClient['score']['create'];
+  flush: () => Promise<void>;
+  delete: (id: string) => Promise<void>;
+}
+
+function langfuseScores(client: LangfuseClient): ScoreStore {
+  return {
+    create: (body) => {
+      client.score.create(body);
+    },
+    flush: () => client.score.flush(),
+    delete: async (id) => {
+      await client.api.legacy.scoreV1.delete(id);
+    },
+  };
 }
 
 export interface LangfuseTracing {
@@ -75,11 +94,13 @@ export function startLangfuseTracing(config: LangfuseTracerConfig): LangfuseTrac
 
   const scores =
     config.scores ??
-    new LangfuseClient({
-      publicKey: config.publicKey,
-      secretKey: config.secretKey,
-      baseUrl: config.baseUrl,
-    }).score;
+    langfuseScores(
+      new LangfuseClient({
+        publicKey: config.publicKey,
+        secretKey: config.secretKey,
+        baseUrl: config.baseUrl,
+      }),
+    );
 
   const tracer: Tracer = {
     trace(options, fn) {
@@ -129,6 +150,10 @@ export function startLangfuseTracing(config: LangfuseTracerConfig): LangfuseTrac
         ...(score.comment ? { comment: score.comment } : {}),
       });
       await scores.flush();
+    },
+
+    async deleteScore(id) {
+      await scores.delete(id);
     },
 
     async flush() {

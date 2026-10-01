@@ -52,7 +52,10 @@ export const citations = {
 } as const;
 
 export const conversation = {
+  /** Earlier messages sent with each question (docs/02-system-design.md §10). */
   recentMessages: 10,
+  /** A new conversation is named after its first question, cut to about this length. */
+  autoTitleMaxChars: 80,
 } as const;
 
 export const uploads = {

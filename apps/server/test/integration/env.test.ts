@@ -19,6 +19,11 @@ const validEnv = {
   OPENAI_API_KEY: 'sk-test',
   FIRECRAWL_API_KEY: 'fc-test',
   TRANSCRIPT_API_KEY: 'sd-test',
+  LANGFUSE_PUBLIC_KEY: 'pk-lf-test',
+  LANGFUSE_SECRET_KEY: 'sk-lf-test',
+  LANGFUSE_BASE_URL: 'https://cloud.langfuse.com',
+  UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
+  UPSTASH_REDIS_REST_TOKEN: 'upstash-token',
 };
 
 describe('env validation', () => {
@@ -35,6 +40,11 @@ describe('env validation', () => {
     expect(() => loadEnv({})).toThrow('OPENAI_API_KEY is required');
     expect(() => loadEnv({})).toThrow('FIRECRAWL_API_KEY is required');
     expect(() => loadEnv({})).toThrow('TRANSCRIPT_API_KEY is required');
+    expect(() => loadEnv({})).toThrow('LANGFUSE_PUBLIC_KEY is required');
+    expect(() => loadEnv({})).toThrow('LANGFUSE_SECRET_KEY is required');
+    expect(() => loadEnv({})).toThrow('LANGFUSE_BASE_URL is required');
+    expect(() => loadEnv({})).toThrow('UPSTASH_REDIS_REST_URL is required');
+    expect(() => loadEnv({})).toThrow('UPSTASH_REDIS_REST_TOKEN is required');
   });
 
   it.each(['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY'])(

@@ -13,3 +13,8 @@ export const notebookIdParam = (req: Request) =>
   uuidParam(req, 'notebookId', 'Notebook not found.');
 
 export const sourceIdParam = (req: Request) => uuidParam(req, 'sourceId', 'Source not found.');
+
+export const conversationIdParam = (req: Request) =>
+  uuidParam(req, 'conversationId', 'Conversation not found.');
+
+export const messageIdParam = (req: Request) => uuidParam(req, 'messageId', 'Message not found.');

@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 5 (Basic RAG chat), in progress
-- **Current step:** 5.3 done
+- **Current step:** 5.4 done
 - **Blocked on:** nothing (Langfuse and Upstash keys are in `.env`)
-- **Next step:** 5.4 Chat API: conversations CRUD, messages, streaming send, Redis busy lock, retry, feedback
+- **Next step:** 5.5 Frontend: chat UI, streaming, status events, citations open the exact spot, 👍 / 👎
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -32,7 +32,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 5.1 Migration `0008_conversations_messages` (on all three branches; prod run by the owner, 2026-10-01) · shared chat enums + `citationSnapshotSchema` in `packages/shared/src/chat.ts`
 - [x] 5.2 LLM provider `lib/llm` (AI SDK + `@ai-sdk/openai`, Responses API: `gpt-6-luna` / `gpt-6.1-sol`, per-task output cap + reasoning effort, static instructions first + per-task `prompt_cache_key`, `store: false`, `LlmError` retryable or not) · tracing `lib/tracing` (`Tracer`: trace / span / score / flush over Langfuse's OpenTelemetry SDK; AI SDK calls land in the active trace; every string attribute cut to 500 chars). Not wired into `index.ts` yet (5.4)
 - [x] 5.3 Generation in `pipelines/retrieval/` (pure): `buildContext` (dedupe, [n] numbering, `retrieval.contextMaxTokens` budget) · `prompt.ts` (static `CHAT_ANSWER_INSTRUCTIONS`, summary + history before the sources and question, old `[n]` stripped from history) · `citations.ts` (markers → snapshots via the shared schema) · `generateAnswer` (streams; no chunks → `NOT_IN_SOURCES_ANSWER` without a model call) · `test/fakes/llm.ts`
-- [ ] 5.4 Chat API: conversations CRUD, messages (newest first), streaming send, Redis busy lock, continue on disconnect, retry, feedback → Langfuse
+- [x] 5.4 Chat API: the 9 chat endpoints (`routes/chat.routes.ts` → `chat.controller` → `chat.service` → `chat.repository`) · streaming send/retry as AI SDK UI message SSE · Upstash busy lock (`lib/locks`) + rate limits (`lib/rate-limit`, chat 20/min + 200/day, source adds 50/day) · resend = no duplicate · continue on disconnect · retry replaces `ERROR` · feedback → Langfuse score · tracing + Upstash wired in `index.ts`; Langfuse/Upstash env vars now required
 - [ ] 5.5 Frontend: chat UI, streaming, status events, citations open the exact spot, 👍 / 👎
 - [ ] 5.6 Eval runner: answer metrics (faithfulness, correctness, citation accuracy, refusal accuracy) with Sol as judge → full baseline
 
@@ -53,7 +53,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 5
-0. **5.3 done; next is 5.4.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+0. **5.4 done; next is 5.5.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
 2. **5.2 notes:**
    - Owner chose the SDK route (2026-10-01): `ai`, `@ai-sdk/openai`, `@langfuse/tracing`, `@langfuse/otel`, `@langfuse/client`, `@langfuse/vercel-ai-sdk`, `@opentelemetry/sdk-node`, `@opentelemetry/api`. `02-system-design.md` §2 now names OpenTelemetry.
@@ -66,11 +66,21 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - Markers with no matching source get no snapshot but **stay in the text**; removing them is the citation check (6.6). Refusal = the answer is exactly `NOT_IN_SOURCES_ANSWER` → no citations.
    - The relevance gate (6.5) isn't there yet: until then any retrieved chunks reach the model, and refusing relies on the prompt.
    - 5.4 wires it: `retrieve` (span) → `generateAnswer` (LLM call traced by the AI SDK) inside `tracer.trace`, with `countTokens` from `pipelines/ingestion/tokens.ts`.
-4. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
-5. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
-6. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
-7. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
-8. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
+4. **5.4 notes (read before 5.5):**
+   - **Stream format** (`chat.controller.ts`): AI SDK UI message chunks. `start` (messageId = the answer's ID) → `text-start` → `data-status` (transient: "Searching your sources…", "Writing the answer…") → `text-delta`… → `data-citations` (snapshots) → `text-end` → `finish` (`messageMetadata.traceId`). On failure: `data-error` `{code, message}` + `error`, then `finish`. Schemas for the frontend: `chatStreamDataSchemas`, `chatMessageMetadataSchema` in `packages/shared/src/chat.ts`.
+   - **Send body** is `{ id, content }` only (`sendMessageSchema` strips anything else, so a client-side history is ignored; test-plan row). 5.5 must send only the new message (AI SDK `prepareSendMessagesRequest`).
+   - **Resend of the same `id`**: no new user message; a saved answer is replayed without a model call; a failed or missing answer is generated. The same id in another conversation → 409 `INVALID_STATE`.
+   - **Retry** works when the last answer is `ERROR` or the last message is an unanswered question (a crash); anything else → 409 `INVALID_STATE`.
+   - **Errors before streaming** stay JSON: 404, 409 `CONVERSATION_BUSY`, 429 `RATE_LIMITED` (+ `Retry-After`), 503 when Redis can't take the lock. If the rate-limit check itself fails, the request is allowed (logged).
+   - **Titles:** new conversations are "New conversation"; the first answer renames it after the question (`conversation.autoTitleMaxChars`). `POST …/conversations` with any `lessonId` → 404 until Phase 9.
+   - **Disconnect:** the handler awaits the whole run, and writes to a closed stream are dropped, so the answer is saved (tested locally with a real socket). On Vercel this depends on the function running until the handler finishes after the client leaves; **check once live** (send, close the tab mid-answer, reload: the answer should be there).
+   - Feedback score: `user-feedback` (UP = 1, DOWN = 0), id `feedback-<messageId>`, so changing it overwrites; `null` deletes it.
+   - Summary / memory thresholds (API doc steps 10) are Phase 7.
+5. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
+6. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
+7. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
+8. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
+9. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
@@ -166,7 +176,7 @@ API and server:
   - **One upload → one source:** `UNIQUE (storage_key)` plus an in-transaction check. Reusing a key (same or other notebook) → 400 `UPLOAD_NOT_FOUND` "already added as a source" (no new error code). The insert uses a bare `ON CONFLICT DO NOTHING`, then works out which constraint won (duplicate hash → 409 first).
   - **`NODE_ENV` defaults to `production`**, not `development` (which enables the dev-only `pino-pretty` and crashed non-Vercel deploys on boot).
   - **Frontend (2.5):** `features/sources/`. One add dialog with 4 tabs; PDF = SHA-256 in the browser (Web Crypto) → `POST uploads` → XHR PUT with progress (`application/pdf`, exact file) → `POST sources`. Closing the dialog aborts only hashing/upload; once the file is in R2 the source is always registered, and the list refreshes on settle (hook-level `onSettled` runs after unmount). The PDF title follows the chosen file until the user types their own (`titleAfterFileChange`). A 409 offers "Show it", which scrolls to and highlights the existing row. "Open PDF" opens the tab during the click, then sets the signed URL (avoids pop-up blocking). Polling stops when nothing is `PENDING`/`PROCESSING`. A duplicate PDF is only detected after its upload, which leaves an orphan in R2 (post-launch cleanup job). Lucide 1.x has no brand icons, so YouTube uses `SquarePlay`.
-  - **Not yet:** the `POST /sources` rate limit (50/day) needs Upstash (Phase 5).
+  - `POST /sources` rate limit (50/day) is on since 5.4.
 - **Jobs (3.1):**
   - `inngest` 4.x, behind `JobsProvider` in `lib/jobs` (`send(name, data)`, typed by `JobEvents`). Client ID `curio`. pnpm `allowBuilds` declines `protobufjs` (its install script only prints a version warning).
   - **Env:** `INNGEST_DEV` is `1`/`true`/`0`/`false` (unset = off). Without dev mode, `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` are required and the server refuses to boot. The client always gets `isDev` from our config, so the SDK never decides the mode from the environment itself.
@@ -299,6 +309,10 @@ What it says for Phase 6:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (5.4)
+- Done: 5.4 chat API (see Resume here). New packages: `@upstash/redis`, `@upstash/ratelimit` (Upstash is in the design)
+- Notes: first deploy that starts tracing and needs the Langfuse + Upstash env vars on Vercel (owner added them; names checked). 571 tests passing (498 server, 54 web, 19 evals); the server suite now takes ~23 min at ~300 ms per Neon round trip
 
 ### 2026-10-01 (5.3)
 - Done: 5.3 generation pipeline (context, prompt, citations, streamed answer) + fake LLM
