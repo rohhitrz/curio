@@ -77,7 +77,7 @@ export function SourcesPanel({ notebookId }: { notebookId: string }) {
   }
 
   return (
-    <section className="mt-8" aria-labelledby="sources-heading">
+    <section aria-labelledby="sources-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="sources-heading" className="text-lg font-semibold tracking-tight">
           Sources

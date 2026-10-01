@@ -14,18 +14,34 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
   const notebook = useNotebook(notebookId);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:py-10">
-      <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/notebooks" />}>
-        <ArrowLeft />
-        Notebooks
-      </Button>
+    // On wide screens the page fills the window under the site header (h-14 + border): the
+    // sources and the chat scroll on their own, so the message box is always in view.
+    <main className="mx-auto flex max-w-7xl flex-col px-4 py-4 lg:h-[calc(100dvh-3.5rem-1px)]">
+      <div className="flex min-w-0 items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          aria-label="Back to notebooks"
+          nativeButton={false}
+          render={<Link href="/notebooks" />}
+        >
+          <ArrowLeft />
+        </Button>
+        {notebook.isPending ? (
+          <Skeleton className="h-7 w-64" />
+        ) : notebook.isSuccess ? (
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3">
+            <h1 className="truncate text-xl font-semibold tracking-tight">{notebook.data.title}</h1>
+            <p className="text-muted-foreground text-sm">
+              Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount}{' '}
+              {notebook.data.sourceCount === 1 ? 'source' : 'sources'}
+            </p>
+          </div>
+        ) : null}
+      </div>
 
-      {notebook.isPending ? (
-        <div className="mt-4 space-y-2">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-40" />
-        </div>
-      ) : notebook.isError ? (
+      {notebook.isPending ? null : notebook.isError ? (
         <div className="mt-6 rounded-xl border p-8 text-center">
           <p className="font-medium">
             {isApiError(notebook.error) && notebook.error.code === 'NOT_FOUND'
@@ -34,24 +50,16 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
           </p>
         </div>
       ) : (
-        <>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight break-words">
-            {notebook.data.title}
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount}{' '}
-            {notebook.data.sourceCount === 1 ? 'source' : 'sources'}
-          </p>
-          {/* Sources beside the chat on wide screens; stacked, chat first, on narrow ones */}
-          <div className="mt-2 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
-            <div className="order-2 lg:order-1">
-              <SourcesPanel notebookId={notebookId} />
-            </div>
-            <div className="order-1 mt-6 lg:sticky lg:top-6 lg:order-2 lg:mt-8">
-              <ChatPanel notebookId={notebookId} />
-            </div>
+        // Sources beside the chat on wide screens; stacked, chat first, on narrow ones.
+        <div className="mt-4 grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          <div className="order-2 lg:order-1 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+            <SourcesPanel notebookId={notebookId} />
           </div>
-        </>
+          {/* On a phone the chat is one screen tall (minus the site header and title row) */}
+          <div className="order-1 h-[calc(100dvh-10rem)] min-h-[24rem] lg:order-2 lg:h-auto lg:min-h-0">
+            <ChatPanel notebookId={notebookId} />
+          </div>
+        </div>
       )}
     </main>
   );

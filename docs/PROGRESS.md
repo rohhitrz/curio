@@ -80,7 +80,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - Owner chose `react-markdown` + `remark-gfm` for answers (2026-10-01); `02-system-design.md` §2 names it. `ai` is used in the web app only for its stream parser (`parseJsonEventStream` + `uiMessageChunkSchema`); `useChat` isn't used because errors before the stream are JSON, retry is its own endpoint and only the new message may be sent (`features/chat/use-answer-stream.ts`).
    - Logic lives in tested pure modules: `stream.ts` (chunk → answer state), `citations.ts` (targets, links, `[n]` → chips; markers with no citation are hidden), `display.ts` (saved messages + streaming turn).
    - A citation whose source was deleted or is being reprocessed only shows its saved snippet (with a notice).
-   - Checked in the browser pane against the local dev servers (desktop + mobile): layout, empty state, composer. **No message was sent** (that would call the real model), so the streamed answer, citations and feedback have not been seen on screen yet: that is the owner's live check.
+   - Owner checked the live chat (2026-10-01): streamed answers, citations, Langfuse traces and feedback work.
    - `.claude/launch.json` `dev` passes `PORT=3000` to every process, so the API also tries port 3000; use the separate `api` + `web` configs.
 6. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
 7. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
@@ -318,7 +318,7 @@ What it says for Phase 6:
 
 ### 2026-10-01 (5.5)
 - Done: 5.5 chat frontend. New web packages: `ai`, `react-markdown`, `remark-gfm` (owner approved Markdown rendering)
-- Notes: first live chat check pending on the owner (see Resume here)
+- Notes: owner checked chat live: answers, citations, Langfuse traces and feedback all work. Follow-up layout fix: the notebook page now fills the window on wide screens (sources and chat scroll on their own, the message box stays in view) and the chat is one screen tall on phones; checked at 375×812, 1024×768 and 1440×900
 
 ### 2026-10-01 (5.4)
 - Done: 5.4 chat API (see Resume here). New packages: `@upstash/redis`, `@upstash/ratelimit` (Upstash is in the design)

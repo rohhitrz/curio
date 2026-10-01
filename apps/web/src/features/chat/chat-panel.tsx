@@ -151,7 +151,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
   return (
     <section
       aria-labelledby="chat-heading"
-      className="bg-card flex h-[70dvh] min-h-[24rem] flex-col rounded-xl border lg:h-[calc(100dvh-3rem)]"
+      className="bg-card flex h-full flex-col rounded-xl border"
     >
       <header className="flex items-center gap-2 border-b px-3 py-2">
         <h2 id="chat-heading" className="sr-only">
@@ -312,7 +312,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Ask a question about your sources…"
+            placeholder="Ask about your sources…"
             aria-label="Your question"
             maxLength={MESSAGE_CONTENT_MAX}
             rows={1}
