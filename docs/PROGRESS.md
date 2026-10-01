@@ -412,7 +412,7 @@ What it says:
 ### 2026-10-02 (Phase 6 approved, 7.1)
 - Done: 7.1 conversation summary job
 - Owner: "Start Phase 7" (Phase 6 approved); stopped the checkpoint run and the targeted test runs; asked to finish 7.1 and push. Pushed with lint + typecheck + `typecheck:vercel` clean and the 15 new 7.1 tests passing (run before the last two small fixes); `chat.test.ts` and the full suite **not** run
-- Notes: the 6.5–6.8 commits went out in the same push
+- Notes: 6.5–6.8 were already on `main` and deployed (`4e62219`); this push added 7.1 only. Both Vercel deploys of `ddb3345` READY, `/health` ok
 
 ### 2026-10-02 (6.5–6.8, Phase 6 built)
 - Done: 6.5 relevance gate (on, 0.70), 6.6 citation check, 6.7 HyDE / chunk size (not adopted, R-09; owner stopped the trial runs), 6.8 timeouts + degradation
