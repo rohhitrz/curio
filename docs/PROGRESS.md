@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 5 (Basic RAG chat), in progress
-- **Current step:** 5.2 done
+- **Current step:** 5.3 done
 - **Blocked on:** nothing (Langfuse and Upstash keys are in `.env`)
-- **Next step:** 5.3 Generation: grounded prompt, context building, `[n]` citations → citation snapshots
+- **Next step:** 5.4 Chat API: conversations CRUD, messages, streaming send, Redis busy lock, retry, feedback
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -31,7 +31,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 5
 - [x] 5.1 Migration `0008_conversations_messages` (on all three branches; prod run by the owner, 2026-10-01) · shared chat enums + `citationSnapshotSchema` in `packages/shared/src/chat.ts`
 - [x] 5.2 LLM provider `lib/llm` (AI SDK + `@ai-sdk/openai`, Responses API: `gpt-6-luna` / `gpt-6.1-sol`, per-task output cap + reasoning effort, static instructions first + per-task `prompt_cache_key`, `store: false`, `LlmError` retryable or not) · tracing `lib/tracing` (`Tracer`: trace / span / score / flush over Langfuse's OpenTelemetry SDK; AI SDK calls land in the active trace; every string attribute cut to 500 chars). Not wired into `index.ts` yet (5.4)
-- [ ] 5.3 Generation: grounded prompt, context building, `[n]` citations → citation snapshots
+- [x] 5.3 Generation in `pipelines/retrieval/` (pure): `buildContext` (dedupe, [n] numbering, `retrieval.contextMaxTokens` budget) · `prompt.ts` (static `CHAT_ANSWER_INSTRUCTIONS`, summary + history before the sources and question, old `[n]` stripped from history) · `citations.ts` (markers → snapshots via the shared schema) · `generateAnswer` (streams; no chunks → `NOT_IN_SOURCES_ANSWER` without a model call) · `test/fakes/llm.ts`
 - [ ] 5.4 Chat API: conversations CRUD, messages (newest first), streaming send, Redis busy lock, continue on disconnect, retry, feedback → Langfuse
 - [ ] 5.5 Frontend: chat UI, streaming, status events, citations open the exact spot, 👍 / 👎
 - [ ] 5.6 Eval runner: answer metrics (faithfulness, correctness, citation accuracy, refusal accuracy) with Sol as judge → full baseline
@@ -53,7 +53,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 3.7 Frontend: failure reason + Retry button, "Process again", viewer with Text and Chunks tabs ("Show in text" highlights a chunk's passage)
 
 ## Resume here: Phase 5
-0. **5.2 done; next is 5.3.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
+0. **5.3 done; next is 5.4.** Read `02-system-design.md` §7 and chat sections, `03-database-design.md` §5, `04-api-design.md` §5 and the Phase 5 rows of `06-test-plan.md` first.
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
 2. **5.2 notes:**
    - Owner chose the SDK route (2026-10-01): `ai`, `@ai-sdk/openai`, `@langfuse/tracing`, `@langfuse/otel`, `@langfuse/client`, `@langfuse/vercel-ai-sdk`, `@opentelemetry/sdk-node`, `@opentelemetry/api`. `02-system-design.md` §2 now names OpenTelemetry.
@@ -62,11 +62,15 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - Langfuse's own `mask` only covers its input/output attributes; the AI SDK writes whole prompts into `gen_ai.*` attributes, so a span processor in front of the exporter cuts every string attribute (`tracing.maxTextChars`).
    - Sol is `gpt-6.1-sol` (owner's choice, 2026-10-01); Luna stays `gpt-6-luna`.
    - No real LLM or Langfuse call was made (CLAUDE.md); tests use a stub `fetch` and an in-memory span exporter. The first real call is `pnpm eval` in 5.6.
-3. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
-4. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
-5. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
-6. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
-7. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
+3. **5.3 notes:**
+   - Markers with no matching source get no snapshot but **stay in the text**; removing them is the citation check (6.6). Refusal = the answer is exactly `NOT_IN_SOURCES_ANSWER` → no citations.
+   - The relevance gate (6.5) isn't there yet: until then any retrieved chunks reach the model, and refusing relies on the prompt.
+   - 5.4 wires it: `retrieve` (span) → `generateAnswer` (LLM call traced by the AI SDK) inside `tracer.trace`, with `countTokens` from `pipelines/ingestion/tokens.ts`.
+4. Messages keep the client-generated id as their primary key, so "duplicate id = retry" is an insert with `ON CONFLICT (id) DO NOTHING` (tested).
+5. The dataset is approved (owner spot-checked a sample). If a question later turns out wrong, fix `evals/dataset/questions.jsonl` and run `pnpm --filter @curio/evals check`.
+6. On a new machine, `pnpm --filter @curio/evals fetch-docs` first: the documents live in the gitignored `evals/.cache/`.
+7. 4.3 reuses `evals/src/` (document reader, chunking, question schema, relevance rule).
+8. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
@@ -295,6 +299,10 @@ What it says for Phase 6:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (5.3)
+- Done: 5.3 generation pipeline (context, prompt, citations, streamed answer) + fake LLM
+- Notes: pure modules, not wired into an endpoint yet (5.4). Full run: 459/462 server tests passed; the 3 failures were 20s timeouts in `notebook-cleanup.test.ts` while round trips to Neon took ~300 ms each, and the file passed 10/10 on rerun. Integration tests with many requests sit close to the 20s limit on a slow connection
 
 ### 2026-10-01 (5.2)
 - Done: 5.2 LLM provider + Langfuse tracing wrapper (see Resume here)

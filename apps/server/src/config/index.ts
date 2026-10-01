@@ -2,6 +2,7 @@ export { EnvError, loadEnv, type Env } from './env.js';
 export { retrievalFlags, type RetrievalFlags } from './flags.js';
 export {
   chunking,
+  citations,
   conversation,
   embeddingRequests,
   extraction,

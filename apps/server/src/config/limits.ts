@@ -42,6 +42,13 @@ export const retrieval = {
    * `strict_order` keeps results exactly ordered by distance.
    */
   hnswIterativeScan: 'strict_order',
+  /** Numbered sources sent to the model, at most (tokens, counted like the embeddings). */
+  contextMaxTokens: 6_000,
+} as const;
+
+export const citations = {
+  /** Passage kept in a citation snapshot: enough to show, survives the source's deletion. */
+  snippetMaxChars: 300,
 } as const;
 
 export const conversation = {
