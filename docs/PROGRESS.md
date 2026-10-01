@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 6 (Advanced retrieval)
-- **Current step:** 6.2 done (query understanding; `queryRewrite` turned on)
+- **Current step:** 6.3 done (keyword search; `hybridSearch` turned on)
 - **Blocked on:** nothing (Cohere key in `.env` for 6.4)
-- **Next step:** 6.3 keyword search → eval
+- **Next step:** 6.4 rerank → eval (code wired, flag off; eval pro vs fast next)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -31,7 +31,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 6
 - [x] 6.1 Feature flags through the pipeline: `pipelines/retrieval/pipeline.ts` `runRetrieval` (understand → vector (+ keyword) search per query → RRF fusion when there is more than one list → rerank → top `rerankTopK`), each step behind its flag in `config/flags.ts`, injected as optional deps (flag on without its dep throws) · RRF in `fusion.ts` (`retrieval.rrfK` = 60) · chat traces each step as a span under `retrieve` · eval runner uses `runRetrieval`, `--flags=a,b` for ablations, `-retrieval` suffix on retrieval-only results
 - [x] 6.2 Query understanding: `pipelines/retrieval/understand.ts` (one Luna `generateObject`: `needsRetrieval`, `standaloneQuery`, `subQueries` ≤ `retrieval.maxSubQueries`; last `understandingHistoryMessages` of history) · failed call → raw question (`failed: ['understand']`, logged) · routed-out messages get a short `chatReply` with no sources · **eval: `queryRewrite` on** (`2026-10-01-vector+queryRewrite.json`) · eval runner retries a question after a retryable LLM error
-- [ ] 6.3 Keyword search + RRF fusion → **eval**
+- [x] 6.3 Keyword search: `keywordChunks` in `retrieval.repository.ts` (any word of the query via `plainto_tsquery` with `&` → `|`, `ts_rank`, same scoping as vector search, `retrieval.keywordCandidates` = 40; no migration, `search_vector` + GIN exist since 0005) · fused with RRF · **eval: `hybridSearch` on** (`2026-10-01-vector+queryRewrite+hybridSearch.json`)
 - [ ] 6.4 Rerank provider; compare Cohere vs Jina → pick → **eval** (needs keys)
 - [ ] 6.5 Relevance gate; threshold tuned on the unanswerable questions → **eval**
 - [ ] 6.6 Citation check (deterministic)
@@ -73,6 +73,9 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - Eval: `pnpm eval -- --flags=queryRewrite` etc. for ablations; the label and `config` in the results file come from the flags actually used. Each question records the `queries` it searched.
    - 6.1 has no eval in the build plan; no eval run was made (no LLM call). The vector config is unchanged, so `2026-10-01-vector.json` stays the baseline.
    - **6.2 notes:** `queryRewrite` is **on** in `config/flags.ts` (so live chat makes one extra Luna call per message); `subQueries` stays off until its turn in the ablation (after rerank). `createTestApp` defaults to **every flag off** so flipping a flag never changes unrelated tests; tests opt in with `flags`. The answer prompt still gets the user's own words; only search uses the rewrite. `generateAnswer({ retrieved: false })` → `chatReply` task (`CHAT_REPLY_INSTRUCTIONS`: one or two sentences, no facts). In the eval no question was routed past retrieval.
+   - **6.3 notes:** keyword rows (`KeywordMatch`, with `textRank`) become `RetrievedChunk`s in the pipeline; after fusion every chunk's `score` is its RRF score, so **the relevance gate (6.5) can't use these scores**: use rerank scores. `createTestApp` keeps every flag off (tests opt in).
+   - **6.4 state:** Cohere provider (`lib/rerank/`), `rerankChunks` step, fallback to the fused order on failure, `--rerank-model` in the eval: committed and tested, `rerank` flag still off. The key can use `rerank-v3.5`, `rerank-v4.0-fast`, `rerank-v4.0-pro`; no Jina key, so the comparison is v4.0-pro vs v4.0-fast. Price ≈ $2.50 (pro) / $2.00 (fast) per 1,000 searches (third-party listing; Cohere bills search units, which the response reports). Rerank failing must fall back to the fused order (test-plan row), like `understand`.
+   - **Judge is Luna** (owner, 2026-10-01, decision O-04). Never compare a Sol-judged result with a Luna-judged one.
    - **Timeouts (6.8):** the understanding call has only the general 90s LLM timeout. In the eval one Luna understanding call hit it (q-066, fell back correctly); chat needs a short per-step timeout (~2–3s) so a slow rewrite can't stall the answer.
    - Lesson-scoped chat (search only some sources, test-plan Phase 6 row) needs a `sourceIds` filter on both searches; it arrives with lessons (9.4).
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
@@ -340,16 +343,6 @@ What it says for Phase 6:
 | multi-part | 0.937 | 2.50 | 0.08 | 0.583 | | 0 |
 | follow-up | 1.000 | 3.50 | 0.58 | 0.472 | | 0 |
 
-**6.2: + query rewrite** (`evals/results/2026-10-01-vector+queryRewrite.json`, commit `de00a27`, same models/chunking, 2 runs; cost $0.59, 19 min). Baseline in brackets:
-
-| | Hit@5 | Hit@10 | MRR | Faithfulness | Correctness | ≥ 4 | Citation acc. |
-|---|---|---|---|---|---|---|---|
-| **Overall** | **0.950** (0.933) | **1.000** (0.967) | **0.814** (0.796) | 0.983 (0.980) | **4.43** (4.38) | 0.87 (0.83) | 0.849 (0.821) |
-| follow-up | **0.833** (0.667) | **1.000** (0.667) | **0.728** (0.542) | 0.975 (1.000) | **4.58** (3.50) | 0.83 (0.58) | **1.000** (0.472) |
-| multi-part | 1.000 | 1.000 | 0.547 | 0.954 | 2.50 | 0.08 | 0.551 |
-
-- Kept: follow-ups are fixed as intended; other categories unchanged within noise (factual correctness 4.71 → 4.59 with identical retrieval, so judge/generator variance). Refusal accuracy 0.95, false refusals 0, as before.
-- Multi-part is still the weak spot (correctness 2.5): one search finds one side of the comparison. That's sub-queries' job, measured in the ablation.
 | unanswerable | 1.000 | | | | 0.95 | |
 
 What it says:
@@ -361,6 +354,25 @@ What it says:
 - **Run-to-run noise:** the two runs differ by ~0.08 in correctness and ~0.01 in faithfulness, and a run before the final one gave 4.29 / 0.971. Treat answer-metric changes under ~0.1 correctness / ~0.02 faithfulness as noise in the ablation.
 - **Cost:** Sol (judging) is 95% of the $0.58; Luna's prompt caching worked (52% of its input tokens cached). The judge prompts are too short for OpenAI's cache.
 
+**Ablation, Luna judge** (decision O-04; every config re-run so all three share a judge; generator Luna, top 8 chunks, 2 runs averaged; ~$0.07 and 7–12 min per run). The Sol-judged numbers above are kept for history only; don't compare them with these.
+
+| Config | Hit@5 | Hit@10 | MRR | Faithful. | Correct. | ≥ 4 | Citation acc. | Refusal acc. | False ref. |
+|---|---|---|---|---|---|---|---|---|---|
+| vector (`68e42f1`) | 0.933 | 0.967 | 0.796 | 0.976 | 4.50 | 0.84 | 0.832 | 0.90 | 0.008 |
+| + rewrite (`68e42f1`) | 0.950 | **1.000** | 0.814 | 0.956 | 4.59 | 0.88 | 0.867 | 0.95 | 0 |
+| + hybrid (`26054a9`) | **0.967** | 0.983 | **0.845** | 0.963 | **4.73** | **0.97** | 0.865 | 0.95 | 0 |
+
+| By category (correctness · MRR) | vector | + rewrite | + hybrid |
+|---|---|---|---|
+| factual | 4.79 · 0.855 | 4.76 · 0.855 | 4.82 · 0.850 |
+| exact-term | 4.93 · 0.867 | 4.83 · 0.867 | 4.87 · 0.856 |
+| multi-part | 2.83 · 0.547 | 3.00 · 0.547 | **3.75 · 0.806** |
+| follow-up | 3.50 · 0.542 | 4.67 · 0.728 | **4.92 · 0.833** |
+
+- **Rewrite (6.2) kept:** follow-ups 3.50 → 4.67, MRR 0.54 → 0.73. Same picture as the Sol-judged run.
+- **Hybrid (6.3) kept:** correctness ≥ 4 goes 0.88 → 0.97; multi-part gains most (MRR 0.55 → 0.81, ≥ 4 from 1 in 12 to 8 in 12): keyword matches pull in the second side of a comparison. Exact-term is flat: one question (q-002, "d_model") drops out of the top 10 because Postgres splits `d_model` into "d" + "model", and chunks found by both lists outrank its vector-only hit under RRF. Not tuned for one question; rerank (6.4) sees the 40 fused candidates, where it still is.
+- **Luna as judge** scores a little higher than Sol (vector correctness 4.50 vs 4.38) and is ~9× cheaper per run. One Luna judge reply degenerated into escape codes and broke a run; that error is now retried.
+
 ## Session log
 <!-- Newest first. One entry per session:
 ### YYYY-MM-DD
@@ -368,6 +380,13 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (6.3, judge → Luna)
+- Done: 6.3 keyword search + eval, `hybridSearch` on. Owner switched the eval judge to Luna (O-04; docs updated); vector and rewrite re-run with it
+- Fixes found on the way: `createDb` now listens for pool `error` (a dropped idle Neon connection crashed the process; would also crash the server); YouTube transcripts ask Supadata for `lang=en` (an English video was ingested in **Arabic**: without `lang` Supadata returns the first caption track, which can be an auto-translation; existing sources need **Process again**); garbled structured output is a retryable `LlmError`; the eval retries ingestion steps like Inngest and checks the whole repo for uncommitted changes
+- Owner asked about OpenAI usage: no leak. Oct 1 = eval runs (each Sol-judged run ~160K Sol + ~500K Luna input tokens, Luna mostly cached); Curio made no LLM calls before Oct 1, so the Sep 24 Luna spike is another app on the same OpenAI project
+- A stray remote branch `main-nsmje6` (3 commits authored "Claude", turns hybrid on from the retrieval-only eval, adds `.claude/launch.json`) was pushed while the Mac slept; not ours to merge. Its two other commits are already on `main`
+- Notes: test runs must not overlap (they share the `test` branch): a manual run during the full suite made 30 DB tests fail; all passed alone
 
 ### 2026-10-01 (6.2)
 - Done: 6.2 query understanding + eval; `queryRewrite` turned on
