@@ -6,7 +6,7 @@
 ## Current status
 - **Phase:** 6 (Advanced retrieval)
 - **Current step:** 6.3 done (keyword search; `hybridSearch` turned on)
-- **Blocked on:** turning rerank on live needs a Cohere **Production** key on Vercel (the local key is a Trial key: 10 calls/min, not for production)
+- **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
 - **Next step:** 6.5 relevance gate (threshold on rerank scores, tuned on the unanswerable questions) → eval
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
@@ -32,7 +32,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 6.1 Feature flags through the pipeline: `pipelines/retrieval/pipeline.ts` `runRetrieval` (understand → vector (+ keyword) search per query → RRF fusion when there is more than one list → rerank → top `rerankTopK`), each step behind its flag in `config/flags.ts`, injected as optional deps (flag on without its dep throws) · RRF in `fusion.ts` (`retrieval.rrfK` = 60) · chat traces each step as a span under `retrieve` · eval runner uses `runRetrieval`, `--flags=a,b` for ablations, `-retrieval` suffix on retrieval-only results
 - [x] 6.2 Query understanding: `pipelines/retrieval/understand.ts` (one Luna `generateObject`: `needsRetrieval`, `standaloneQuery`, `subQueries` ≤ `retrieval.maxSubQueries`; last `understandingHistoryMessages` of history) · failed call → raw question (`failed: ['understand']`, logged) · routed-out messages get a short `chatReply` with no sources · **eval: `queryRewrite` on** (`2026-10-01-vector+queryRewrite.json`) · eval runner retries a question after a retryable LLM error
 - [x] 6.3 Keyword search: `keywordChunks` in `retrieval.repository.ts` (any word of the query via `plainto_tsquery` with `&` → `|`, `ts_rank`, same scoping as vector search, `retrieval.keywordCandidates` = 40; no migration, `search_vector` + GIN exist since 0005) · fused with RRF · **eval: `hybridSearch` on** (`2026-10-01-vector+queryRewrite+hybridSearch.json`)
-- [x] 6.4 Rerank: Cohere provider (`lib/rerank/`) + `rerankChunks` (top 8, relevance 0–1 as the chunk score) · failure → fused order · **eval: `rerank-v4.0-fast` picked over pro** (R-04) · `rerank` flag **off until the Production key is on Vercel** (`loadEnv` refuses to start with the flag on and no key)
+- [x] 6.4 Rerank: Cohere provider (`lib/rerank/`) + `rerankChunks` (top 8, relevance 0–1 as the chunk score) · failure → fused order · **eval: `rerank-v4.0-fast` picked over pro** (R-04) · `rerank` flag **on** (owner's Trial key on Vercel as a Secret; `loadEnv` refuses to start with the flag on and no key)
 - [ ] 6.5 Relevance gate; threshold tuned on the unanswerable questions → **eval**
 - [ ] 6.6 Citation check (deterministic)
 - [ ] 6.7 Eval-gated trials: HyDE, chunk size tuning → kept only if they improve results; outcome in `07-decisions.md`
@@ -113,7 +113,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Cohere Production key → Vercel `curio-server` as `COHERE_API_KEY` (Secret, Production)**, then I turn the `rerank` flag on. A Trial key would fail most live calls at 10/min.
+- **Later:** swap Vercel `COHERE_API_KEY` for a Cohere Production key once other people use Curio (Trial keys: 10 calls/min, not for production; the variable name stays the same).
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
@@ -386,7 +386,7 @@ What it says:
 
 ### 2026-10-02 (6.4)
 - Done: 6.4 Cohere rerank + eval; `rerank-v4.0-fast` picked; flag off until a Production key is on Vercel
-- Owner: skip Jina (build plan + R-04 updated); stray branch `main-nsmje6` deleted from GitHub
+- Owner: skip Jina (build plan + R-04 updated); stray branch `main-nsmje6` deleted from GitHub; rerank turned on with the Trial key already on Vercel; **new test policy** (CLAUDE.md): targeted tests per step, full suite only at checkpoints before a push. Checkpoint run: 648 tests pass (547 server, 77 web, 24 evals)
 - Notes: the local Cohere key is a Trial key (10 calls/min): first runs lost 12/70 reranks to 429 and were discarded; the eval now paces rerank calls. Owner moved `DATABASE_URL`, `CLERK_SECRET_KEY`, `R2_SECRET_ACCESS_KEY` on Vercel from Config to Secret (same values; solo Hobby account, so no rotation needed) and redeployed
 
 ### 2026-10-01 (6.3, judge → Luna)

@@ -12,8 +12,14 @@ learning paths, lessons. Showcase: reliable ingestion + eval-proven RAG.
 Docs are the source of truth. If code and docs disagree, stop and ask.
 
 ## Every step
-Build → tests from `06-test-plan.md` pass → lint + typecheck →
-update `PROGRESS.md` → commit (code + PROGRESS together) → push
+Build → targeted tests pass (unit + the integration files the change
+touches) → lint + typecheck → update `PROGRESS.md` → commit (code +
+PROGRESS together)
+
+## Checkpoints (mid-phase and phase end)
+Full test suite (~25 min) passes → push. Every push to `main` deploys,
+so nothing is pushed without a full run. Never run two test runs at
+once, or edit files during one: they share the Neon `test` branch.
 
 ## Git
 - Conventional Commits (`feat(scope): …`, `fix(scope): …`)

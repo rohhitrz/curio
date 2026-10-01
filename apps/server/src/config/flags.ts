@@ -6,6 +6,8 @@
  *   (`evals/results/2026-10-01-vector+queryRewrite.json`).
  * - `hybridSearch` on since 6.3: MRR 0.81 → 0.85, correctness ≥ 4 0.88 → 0.97, multi-part
  *   correctness 3.0 → 3.75 (`evals/results/2026-10-01-vector+queryRewrite+hybridSearch.json`).
+ * - `rerank` on since 6.4 (Cohere `rerank-v4.0-fast`): MRR 0.85 → 0.98, every answerable
+ *   question's location in the top 5 (`…+rerank-v4.0-fast.json`). Needs `COHERE_API_KEY`.
  */
 export interface RetrievalFlags {
   queryRewrite: boolean;
@@ -18,7 +20,7 @@ export interface RetrievalFlags {
 export const retrievalFlags: RetrievalFlags = {
   queryRewrite: true,
   hybridSearch: true,
-  rerank: false,
+  rerank: true,
   subQueries: false,
   hyde: false,
 };

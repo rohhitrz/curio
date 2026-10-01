@@ -24,6 +24,7 @@ const validEnv = {
   LANGFUSE_BASE_URL: 'https://cloud.langfuse.com',
   UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
   UPSTASH_REDIS_REST_TOKEN: 'upstash-token',
+  COHERE_API_KEY: 'co-test',
 };
 
 describe('env validation', () => {
@@ -60,8 +61,9 @@ describe('env validation', () => {
 
   it('COHERE_API_KEY is optional, but required while the rerank flag is on', () => {
     const flags = { queryRewrite: true, hybridSearch: true, subQueries: false, hyde: false };
-    expect(loadEnv(validEnv, { ...flags, rerank: false }).COHERE_API_KEY).toBeUndefined();
-    expect(() => loadEnv(validEnv, { ...flags, rerank: true })).toThrow(
+    const { COHERE_API_KEY: _cohere, ...withoutCohere } = validEnv;
+    expect(loadEnv(withoutCohere, { ...flags, rerank: false }).COHERE_API_KEY).toBeUndefined();
+    expect(() => loadEnv(withoutCohere, { ...flags, rerank: true })).toThrow(
       'COHERE_API_KEY is required while the rerank flag is on',
     );
     expect(
