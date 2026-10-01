@@ -159,6 +159,8 @@
 
 **R-05 · Relevance gate**
 - **Why:** search always returns *something*; enforces "never invent" in code, not just in a prompt
+- **How (6.5):** thresholds the **top rerank score** (0–1). Fused RRF scores and cosine similarity can't be thresholded (unanswerable questions reached cosine 0.68 while answerable ones sat at 0.24), so the gate is skipped when rerank didn't run
+- **Threshold 0.70:** on the eval, unanswerable top scores reach 0.670 and answerable ones start at 0.725; 0.70 refuses all 10 unanswerable and none of the 60 answerable (0.65 misses one; 0.75 wrongly refuses two). Tuned on the same 10 questions it is scored on, with a narrow gap, so watch gated traces in Langfuse for false refusals
 
 **R-06 · Deterministic citation check**
 - **Why:** LLMs sometimes cite sources that don't exist

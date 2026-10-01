@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 6 (Advanced retrieval)
-- **Current step:** 6.3 done (keyword search; `hybridSearch` turned on)
+- **Current step:** 6.5 done (relevance gate on, threshold 0.70)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** 6.5 relevance gate (threshold on rerank scores, tuned on the unanswerable questions) → eval
+- **Next step:** 6.6 citation check (deterministic)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -33,7 +33,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 6.2 Query understanding: `pipelines/retrieval/understand.ts` (one Luna `generateObject`: `needsRetrieval`, `standaloneQuery`, `subQueries` ≤ `retrieval.maxSubQueries`; last `understandingHistoryMessages` of history) · failed call → raw question (`failed: ['understand']`, logged) · routed-out messages get a short `chatReply` with no sources · **eval: `queryRewrite` on** (`2026-10-01-vector+queryRewrite.json`) · eval runner retries a question after a retryable LLM error
 - [x] 6.3 Keyword search: `keywordChunks` in `retrieval.repository.ts` (any word of the query via `plainto_tsquery` with `&` → `|`, `ts_rank`, same scoping as vector search, `retrieval.keywordCandidates` = 40; no migration, `search_vector` + GIN exist since 0005) · fused with RRF · **eval: `hybridSearch` on** (`2026-10-01-vector+queryRewrite+hybridSearch.json`)
 - [x] 6.4 Rerank: Cohere provider (`lib/rerank/`) + `rerankChunks` (top 8, relevance 0–1 as the chunk score) · failure → fused order · **eval: `rerank-v4.0-fast` picked over pro** (R-04) · `rerank` flag **on** (owner's Trial key on Vercel as a Secret; `loadEnv` refuses to start with the flag on and no key)
-- [ ] 6.5 Relevance gate; threshold tuned on the unanswerable questions → **eval**
+- [x] 6.5 Relevance gate: top rerank score < `retrieval.relevanceThreshold` (0.70) → `chunks: []` → "not in your sources" without a model call; skipped when rerank didn't run; `relevanceGate` flag (needs `rerank`) · eval prints a threshold sweep (`gateSweep`) · **eval: gate on**, refusal accuracy 0.95 → 1.0, false refusals 0 (R-05)
 - [ ] 6.6 Citation check (deterministic)
 - [ ] 6.7 Eval-gated trials: HyDE, chunk size tuning → kept only if they improve results; outcome in `07-decisions.md`
 - [ ] 6.8 Timeouts on every external call + graceful degradation (rerank down → skip, etc.)
@@ -75,6 +75,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - **6.2 notes:** `queryRewrite` is **on** in `config/flags.ts` (so live chat makes one extra Luna call per message); `subQueries` stays off until its turn in the ablation (after rerank). `createTestApp` defaults to **every flag off** so flipping a flag never changes unrelated tests; tests opt in with `flags`. The answer prompt still gets the user's own words; only search uses the rewrite. `generateAnswer({ retrieved: false })` → `chatReply` task (`CHAT_REPLY_INSTRUCTIONS`: one or two sentences, no facts). In the eval no question was routed past retrieval.
    - **6.3 notes:** keyword rows (`KeywordMatch`, with `textRank`) become `RetrievedChunk`s in the pipeline; after fusion every chunk's `score` is its RRF score, so **the relevance gate (6.5) can't use these scores**: use rerank scores. `createTestApp` keeps every flag off (tests opt in).
    - **6.4 notes:** rerank reads `contextHeader + content` (same as embeddings); its query is the rewritten one. The eval paces rerank calls to 10/min (`evalConfig.rerankCallsPerMinute`) because the local key is a **Trial key**: a first pair of runs lost 12 of 70 questions each to 429s, which silently kept the fused order (discarded). With a Production key the pacing can go. For 6.5+, evaluate with `--flags=queryRewrite,hybridSearch,rerank` (rerank is off in the app config). Rerank lowers pro's refusal accuracy (0.85; fast 0.95): unrelated-but-close chunks reach the model, which is the gate's job (6.5).
+   - **6.5 notes:** the gate needs rerank (wiring check throws otherwise) and is skipped when rerank fails, e.g. a 429 on the Trial key: then a weak match can reach the model, which still has the prompt rule. `gated` and `gateScore` are in the `retrieve` span and in each eval question (`rerankTopScore`). Gated questions get no chunks, so in the eval they count as retrieval misses; fine at 0.70 (none of the answerable ones are gated).
    - **Judge is Luna** (owner, 2026-10-01, decision O-04). Never compare a Sol-judged result with a Luna-judged one.
    - **Timeouts (6.8):** the understanding call has only the general 90s LLM timeout. In the eval one Luna understanding call hit it (q-066, fell back correctly); chat needs a short per-step timeout (~2–3s) so a slow rewrite can't stall the answer.
    - Lesson-scoped chat (search only some sources, test-plan Phase 6 row) needs a `sourceIds` filter on both searches; it arrives with lessons (9.4).
@@ -363,6 +364,7 @@ What it says:
 | + hybrid (`26054a9`) | **0.967** | 0.983 | **0.845** | 0.963 | **4.73** | **0.97** | 0.865 | 0.95 | 0 |
 | + rerank pro (`7df8e28`) | 1.000 | 1.000 | 0.983 | 0.985 | 4.83 | 0.97 | 0.866 | 0.85 | 0 |
 | + rerank **fast** (`7df8e28`) | **1.000** | **1.000** | **0.983** | 0.968 | 4.78 | 0.95 | 0.847 | 0.95 | 0 |
+| + gate 0.70 (`0568397`) | 1.000 | 1.000 | 0.983 | **0.990** | 4.74 | 0.96 | 0.842 | **1.00** | **0** |
 
 | By category (correctness · MRR) | vector | + rewrite | + hybrid |
 |---|---|---|---|
@@ -374,6 +376,7 @@ What it says:
 - **Rewrite (6.2) kept:** follow-ups 3.50 → 4.67, MRR 0.54 → 0.73. Same picture as the Sol-judged run.
 - **Hybrid (6.3) kept:** correctness ≥ 4 goes 0.88 → 0.97; multi-part gains most (MRR 0.55 → 0.81, ≥ 4 from 1 in 12 to 8 in 12): keyword matches pull in the second side of a comparison. Exact-term is flat: one question (q-002, "d_model") drops out of the top 10 because Postgres splits `d_model` into "d" + "model", and chunks found by both lists outrank its vector-only hit under RRF. Not tuned for one question; rerank (6.4) sees the 40 fused candidates, where it still is.
 - **Rerank (6.4):** retrieval near-perfect (MRR 0.85 → 0.98, every answerable question's location in the top 5). Answers barely move (they were already 4.7+), so its value is retrieval headroom and the 0–1 scores the gate needs. Fast = pro on retrieval, answers within noise, faster and cheaper → fast. Rerank latency p50 745 ms / p95 1.2 s (fast, Trial key). Rerank cost ≈ $0.14 per run (70 searches), now the biggest line of a run.
+- **Gate (6.5):** all 10 unanswerable questions refused before the model (top rerank scores 0.19–0.67), no answerable one refused (lowest 0.725). Answers unchanged within noise; faithfulness 0.97 → 0.99. The 0.70 threshold sits in a narrow gap found on the same questions: watch for false refusals live.
 - **Luna as judge** scores a little higher than Sol (vector correctness 4.50 vs 4.38) and is ~9× cheaper per run. One Luna judge reply degenerated into escape codes and broke a run; that error is now retried.
 
 ## Session log
