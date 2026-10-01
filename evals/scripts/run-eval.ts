@@ -35,6 +35,7 @@ import {
   type RetrievalFlags,
 } from '../../apps/server/src/config/index.js';
 import { createDb } from '../../apps/server/src/db/client.js';
+import { LlmError } from '../../apps/server/src/errors/llm-error.js';
 import { notebooks, sources, users } from '../../apps/server/src/db/schema/index.js';
 import { createOpenAiEmbeddings } from '../../apps/server/src/lib/embeddings/index.js';
 import {
@@ -568,13 +569,8 @@ async function runAnswers({
   for (let run = 1; run <= runs; run += 1) {
     let done = 0;
     const graded = await mapLimit(questions, evalConfig.answerConcurrency, async (question) => {
-      const result = await answerAndGrade(
-        llm,
-        prompts,
-        question,
-        retrievedByQuestion,
-        documentBySource,
-        usage,
+      const result = await withRetries(question.id, () =>
+        answerAndGrade(llm, prompts, question, retrievedByQuestion, documentBySource, usage),
       );
       done += 1;
       process.stdout.write(
@@ -605,6 +601,23 @@ async function runAnswers({
     ]),
   );
   return { metrics: { ...averageMetrics(perRun), perRun }, byCategory, byQuestion };
+}
+
+/** Retries `fn` on a retryable `LlmError`, up to `evalConfig.questionAttempts` attempts. */
+async function withRetries<T>(id: string, fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (
+        !(error instanceof LlmError && error.retryable) ||
+        attempt >= evalConfig.questionAttempts
+      ) {
+        throw error;
+      }
+      console.warn(`\n${id}: attempt ${String(attempt)} failed (${error.message}); retrying`);
+    }
+  }
 }
 
 async function answerAndGrade(

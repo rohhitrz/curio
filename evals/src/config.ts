@@ -17,6 +17,11 @@ export const evalConfig = {
   /** Questions answered and judged at the same time. */
   answerConcurrency: 4,
   /**
+   * Attempts per question when a call fails with a retryable error (timeout, 5xx) after the
+   * provider's own retries, so one slow call doesn't lose the whole run.
+   */
+  questionAttempts: 3,
+  /**
    * USD per 1M tokens, by API model ID (OpenAI list prices, checked 2026-10-01). Used only to
    * report what a run cost; an unknown model fails the run so the cost is never silently wrong.
    */
