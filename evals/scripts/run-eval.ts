@@ -270,6 +270,14 @@ async function main() {
   });
   const usage = new UsageByModel();
   const rerankUsage = { calls: 0, searchUnits: 0, latenciesMs: [] as number[] };
+  // Questions are retrieved one at a time, so spacing the calls keeps under the key's limit.
+  let lastRerankAt = 0;
+  const rerankPacer = async () => {
+    const gapMs = 60_000 / evalConfig.rerankCallsPerMinute + 100;
+    const wait = lastRerankAt + gapMs - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    lastRerankAt = Date.now();
+  };
   const reranker = args.flags.rerank
     ? createCohereRerank({
         apiKey: requireEnv('COHERE_API_KEY'),
@@ -361,6 +369,7 @@ async function main() {
           ...(reranker
             ? {
                 rerank: async (rerankInput) => {
+                  await rerankPacer();
                   const started = performance.now();
                   const chunks = await rerankChunks(rerankInput, {
                     reranker,

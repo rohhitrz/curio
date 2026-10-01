@@ -42,6 +42,11 @@ export const evalConfig = {
    * quality, and records each call's latency so the models can be compared on speed too.
    */
   rerankTimeoutMs: 15_000,
+  /**
+   * Rerank calls per minute, at most. Cohere Trial keys allow 10; going over makes calls fail
+   * with 429, and the pipeline then silently keeps the fused order, which skews the comparison.
+   */
+  rerankCallsPerMinute: 10,
   resultsDir: fileURLToPath(new URL('../results/', import.meta.url)),
 } as const;
 
