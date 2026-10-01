@@ -171,6 +171,10 @@
 **R-08 · Deliberately skipped: GraphRAG, agentic loops, web fallback in chat, fine-tuned embeddings**
 - **Why:** heavy, slow, out of scope, or needs data we don't have. HyDE is eval-gated.
 
+**R-09 · 6.7 trials: HyDE off, chunk size stays 500 tokens** (2026-10-02)
+- **Why:** with rewrite + hybrid + rerank + gate, retrieval is at the ceiling of the golden dataset (hit@5 1.0, MRR 0.983), so neither trial has room to show a gain, and HyDE costs one more LLM call (~0.5–1s) on the path to the first token. The owner stopped the trial runs before they finished; no result was recorded, so nothing was adopted (R-07: kept only if evals improve)
+- **Left in place:** HyDE (`pipelines/retrieval/hyde.ts`, `hyde` flag off) and `pnpm eval -- --chunk-tokens=N`, to re-run if a harder dataset (e.g. paraphrased questions) brings retrieval below the ceiling
+
 ---
 
 ## 5. Learning decisions

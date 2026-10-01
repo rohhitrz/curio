@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 6 (Advanced retrieval)
-- **Current step:** 6.6 done (citation check)
+- **Current step:** 6.7 done (trials not adopted)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** 6.7 eval-gated trials (HyDE, chunk size)
+- **Next step:** 6.8 timeouts on every external call + graceful degradation
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -35,7 +35,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 6.4 Rerank: Cohere provider (`lib/rerank/`) + `rerankChunks` (top 8, relevance 0–1 as the chunk score) · failure → fused order · **eval: `rerank-v4.0-fast` picked over pro** (R-04) · `rerank` flag **on** (owner's Trial key on Vercel as a Secret; `loadEnv` refuses to start with the flag on and no key)
 - [x] 6.5 Relevance gate: top rerank score < `retrieval.relevanceThreshold` (0.70) → `chunks: []` → "not in your sources" without a model call; skipped when rerank didn't run; `relevanceGate` flag (needs `rerank`) · eval prints a threshold sweep (`gateSweep`) · **eval: gate on**, refusal accuracy 0.95 → 1.0, false refusals 0 (R-05)
 - [x] 6.6 Citation check: `removeInvalidMarkers` (`citations.ts`) drops every `[n]` with no source the model saw, also inside groups; the saved answer is the checked text, so snapshots and text always agree (the live stream may still show an invented number for a moment: the web app already hides markers with no citation). Removed markers go to the trace output and each eval answer (`removedMarkers`). No eval in the build plan for this step
-- [ ] 6.7 Eval-gated trials: HyDE, chunk size tuning → kept only if they improve results; outcome in `07-decisions.md`
+- [x] 6.7 Eval-gated trials: HyDE built behind the `hyde` flag (one more vector search with a hypothetical passage; failure skipped) + `--chunk-tokens` in the eval. **Not adopted** (R-09): retrieval is at the dataset's ceiling (MRR 0.983); the owner stopped the trial runs before they finished, so no result file
 - [ ] 6.8 Timeouts on every external call + graceful degradation (rerank down → skip, etc.)
 - [ ] 🛑 Owner approves Phase 6
 
