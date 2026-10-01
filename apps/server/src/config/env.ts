@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { retrievalFlags, type RetrievalFlags } from './flags.js';
 
 /** An exact origin (`https://host[:port]`): no path or trailing slash, or CORS never matches. */
 const origin = z
@@ -57,6 +58,8 @@ const envSchema = z.object({
   LANGFUSE_BASE_URL: z.url({ protocol: /^https?$/ }),
   UPSTASH_REDIS_REST_URL: z.url({ protocol: /^https$/ }),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+  // Rerank (Phase 6): required only while the `rerank` flag is on (checked in `loadEnv`).
+  COHERE_API_KEY: z.string().min(1).optional(),
 });
 
 const INNGEST_KEYS = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY'] as const;
@@ -80,7 +83,10 @@ export class EnvError extends Error {
 }
 
 /** Validates env vars. Throws `EnvError` listing every missing or invalid var. */
-export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+export function loadEnv(
+  source: NodeJS.ProcessEnv = process.env,
+  flags: RetrievalFlags = retrievalFlags,
+): Env {
   const result = envSchema.safeParse(source);
   const problems = result.success
     ? []
@@ -97,6 +103,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       'INNGEST_DEV must not be set in production: it turns off the signature check on ' +
         '/api/inngest and sends events to a local dev server',
     );
+  }
+  if (result.success && flags.rerank && !result.data.COHERE_API_KEY) {
+    problems.push('COHERE_API_KEY is required while the rerank flag is on (config/flags.ts)');
   }
   if (!result.success || problems.length > 0) throw new EnvError(problems);
   return result.data;

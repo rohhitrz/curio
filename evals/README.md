@@ -39,11 +39,13 @@ pnpm eval -- --retrieval-only      # retrieval metrics only: no LLM calls, under
 pnpm eval -- --runs=1              # one answer run
 pnpm eval -- --only=q-001,q-061    # smoke test: these questions only, printed, no results file
 pnpm eval -- --flags=queryRewrite  # ablation: exactly these retrieval flags on (default: the app's)
+pnpm eval -- --flags=rerank --rerank-model=rerank-v4.0-fast  # rerank with another Cohere model
 ```
 
 Results go to `results/<date>-<config>.json`, where `<config>` is `vector` plus every flag that
 was on (`vector+queryRewrite+hybridSearch`). A `--retrieval-only` run adds `-retrieval`, so it
-never overwrites that day's full run.
+never overwrites that day's full run. With rerank on, the label names the model (`…+rerank-v4.0-pro`), and the file
+records rerank latency (p50 / p95) and the Cohere search units billed.
 
 1. Replaces the eval notebook (owner `eval_runner`) in the Neon `dev` database; refuses to run if
    `DATABASE_URL` is the production or test database.

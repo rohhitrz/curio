@@ -29,6 +29,19 @@ export const evalConfig = {
     'gpt-6-luna': { input: 0.1, cachedInput: 0.01, output: 0.5 },
     'gpt-6.1-sol': { input: 2, cachedInput: 0.1, output: 10 },
   } as Record<string, { input: number; cachedInput: number; output: number }>,
+  /**
+   * USD per 1,000 Cohere search units, by rerank model (third-party listing of Cohere's prices,
+   * checked 2026-10-01; Cohere bills search units, which each response reports).
+   */
+  rerankPricesPerThousandSearches: {
+    'rerank-v4.0-pro': 2.5,
+    'rerank-v4.0-fast': 2,
+  } as Record<string, number>,
+  /**
+   * Rerank timeout in the eval. Longer than chat's (`rerankRequests.timeoutMs`): the eval measures
+   * quality, and records each call's latency so the models can be compared on speed too.
+   */
+  rerankTimeoutMs: 15_000,
   resultsDir: fileURLToPath(new URL('../results/', import.meta.url)),
 } as const;
 

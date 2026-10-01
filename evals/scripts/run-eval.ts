@@ -9,6 +9,7 @@
  *   pnpm eval -- --runs=1             # one answer run instead of the default
  *   pnpm eval -- --only=q-001,q-061   # smoke test: just these questions, printed, no results file
  *   pnpm eval -- --flags=queryRewrite,hybridSearch   # these retrieval flags on, all others off
+ *   pnpm eval -- --flags=rerank --rerank-model=rerank-v4.0-fast   # rerank with another model
  *                                                    # (default: the app's `retrievalFlags`)
  *
  * Runs against the Neon `dev` branch (`DATABASE_URL`) and refuses to touch production or the
@@ -31,6 +32,8 @@ import {
   llmRequests,
   llmTasks,
   retrieval,
+  rerankModels,
+  rerankRequests,
   retrievalFlags,
   type RetrievalFlags,
 } from '../../apps/server/src/config/index.js';
@@ -47,7 +50,9 @@ import { createUnpdfParser } from '../../apps/server/src/lib/pdf/index.js';
 import { createLogger } from '../../apps/server/src/logger.js';
 import { countTokens } from '../../apps/server/src/pipelines/ingestion/tokens.js';
 import { generateAnswer } from '../../apps/server/src/pipelines/retrieval/generate.js';
+import { createCohereRerank } from '../../apps/server/src/lib/rerank/index.js';
 import { runRetrieval } from '../../apps/server/src/pipelines/retrieval/pipeline.js';
+import { rerankChunks } from '../../apps/server/src/pipelines/retrieval/rerank.js';
 import { understandQuery } from '../../apps/server/src/pipelines/retrieval/understand.js';
 import type { RetrievedChunk } from '../../apps/server/src/pipelines/retrieval/retrieve.js';
 import { createIngestionRepository } from '../../apps/server/src/repositories/ingestion.repository.js';
@@ -82,7 +87,7 @@ import {
 import { readQuestions, type Question } from '../src/questions.js';
 import { isRelevant } from '../src/relevance.js';
 
-/** `--retrieval-only`, `--runs=N`, `--only=<ids>` and `--flags=<names>` (see the header). */
+/** `--retrieval-only`, `--runs=N`, `--only=<ids>`, `--flags=<names>`, `--rerank-model=<id>`. */
 function parseArgs(argv: string[]) {
   const value = (name: string) =>
     argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -94,7 +99,12 @@ function parseArgs(argv: string[]) {
     .map((id) => id.trim())
     .filter(Boolean);
   const flagsArg = value('flags');
+  const rerankModel = value('rerank-model') ?? rerankModels.default;
+  if (!(rerankModels.candidates as readonly string[]).includes(rerankModel)) {
+    throw new Error(`--rerank-model must be one of ${rerankModels.candidates.join(', ')}`);
+  }
   return {
+    rerankModel,
     answers: !argv.includes('--retrieval-only'),
     runs,
     only: only ?? null,
@@ -196,11 +206,14 @@ function git(...args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8' }).trim();
 }
 
-/** "vector" for the baseline; each retrieval flag that is on is appended. */
-function configLabel(flags: RetrievalFlags): string {
+/**
+ * "vector" for the baseline; each retrieval flag that is on is appended. Rerank is named by its
+ * model (`…+rerank-v4.0-pro`), so the models can be compared side by side.
+ */
+function configLabel(flags: RetrievalFlags, rerankModel: string): string {
   const on = Object.entries(flags)
     .filter(([, enabled]) => enabled)
-    .map(([name]) => name);
+    .map(([name]) => (name === 'rerank' ? rerankModel : name));
   return ['vector', ...on].join('+');
 }
 
@@ -256,6 +269,15 @@ async function main() {
     maxRetries: llmRequests.maxRetries,
   });
   const usage = new UsageByModel();
+  const rerankUsage = { calls: 0, searchUnits: 0, latenciesMs: [] as number[] };
+  const reranker = args.flags.rerank
+    ? createCohereRerank({
+        apiKey: requireEnv('COHERE_API_KEY'),
+        model: args.rerankModel,
+        timeoutMs: evalConfig.rerankTimeoutMs,
+        maxTokensPerDoc: rerankRequests.maxTokensPerDoc,
+      })
+    : null;
 
   try {
     // ── A fresh eval notebook ──
@@ -336,6 +358,22 @@ async function main() {
           embeddings,
           vectorSearch: (params) => retrievalRepository.vectorSearch(params),
           keywordSearch: (params) => retrievalRepository.keywordSearch(params),
+          ...(reranker
+            ? {
+                rerank: async (rerankInput) => {
+                  const started = performance.now();
+                  const chunks = await rerankChunks(rerankInput, {
+                    reranker,
+                    onSearchUnits: (units) => {
+                      rerankUsage.searchUnits += units;
+                    },
+                  });
+                  rerankUsage.calls += 1;
+                  rerankUsage.latenciesMs.push(Math.round(performance.now() - started));
+                  return chunks;
+                },
+              }
+            : {}),
           understandQuery: async (understandInput) => {
             const understood = await understandQuery(understandInput, { llm });
             usage.add(understood.model, understood.usage);
@@ -378,7 +416,7 @@ async function main() {
     // ── Metrics and the results file ──
     const overall = retrievalMetrics(outcomes, evalConfig.hitRateKs);
     const byCategory = metricsByCategory(outcomes, evalConfig.hitRateKs);
-    const label = configLabel(args.flags);
+    const label = configLabel(args.flags, args.rerankModel);
     const date = new Date().toISOString().slice(0, 10);
     const results = {
       date,
@@ -397,6 +435,7 @@ async function main() {
       config: { label, ...args.flags },
       models: {
         embedding: embeddings.model,
+        ...(reranker ? { rerank: reranker.model } : {}),
         ...(answers
           ? {
               generator: llmModels[llmTasks.chatAnswer.tier],
@@ -426,7 +465,12 @@ async function main() {
           { questions: m.questions, ...m.hitRate, mrr: m.mrr },
         ]),
       ),
-      cost: costReport(embeddedTokens, usage),
+      cost: costReport(
+        embeddedTokens,
+        usage,
+        reranker ? { model: reranker.model, ...rerankUsage } : null,
+      ),
+      ...(reranker ? { rerankLatencyMs: latencySummary(rerankUsage.latenciesMs) } : {}),
       durationSeconds: Math.round((Date.now() - startedAt) / 1000),
       questions: outcomes.map((outcome) => ({
         id: outcome.id,
@@ -461,6 +505,9 @@ async function main() {
       console.table({ overall: averaged, ...answers.byCategory });
     }
     console.log(`cost ≈ $${String(results.cost.usd)} · ${String(results.durationSeconds)}s`);
+    if (results.rerankLatencyMs) {
+      console.log(`rerank latency (ms): ${JSON.stringify(results.rerankLatencyMs)}`);
+    }
   } finally {
     await pool.end();
   }
@@ -558,17 +605,45 @@ function describe(
   };
 }
 
-function costReport(embeddingTokens: number, usage: UsageByModel) {
+function costReport(
+  embeddingTokens: number,
+  usage: UsageByModel,
+  rerank: { model: string; calls: number; searchUnits: number } | null,
+) {
   const embeddingUsd =
     Math.round((embeddingTokens / 1e6) * evalConfig.embeddingUsdPerMillionTokens * 1e5) / 1e5;
   const llm = usage.report();
   const llmUsd = Object.values(llm).reduce((sum, m) => sum + m.usd, 0);
+  let rerankUsd = 0;
+  if (rerank) {
+    const price = evalConfig.rerankPricesPerThousandSearches[rerank.model];
+    if (price === undefined) throw new Error(`No price for ${rerank.model} in evals/src/config.ts`);
+    rerankUsd = Math.round((rerank.searchUnits / 1000) * price * 1e5) / 1e5;
+  }
   return {
     embeddingTokens,
     embeddingUsd,
     llm,
-    usd: Math.round((embeddingUsd + llmUsd) * 1e5) / 1e5,
+    ...(rerank
+      ? {
+          rerank: {
+            model: rerank.model,
+            calls: rerank.calls,
+            searchUnits: rerank.searchUnits,
+            usd: rerankUsd,
+          },
+        }
+      : {}),
+    usd: Math.round((embeddingUsd + llmUsd + rerankUsd) * 1e5) / 1e5,
   };
+}
+
+/** Median and 95th percentile of the rerank calls' latency. */
+function latencySummary(latencies: number[]) {
+  const sorted = [...latencies].sort((a, b) => a - b);
+  const at = (q: number) =>
+    sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? null;
+  return { calls: sorted.length, p50: at(0.5), p95: at(0.95), max: sorted.at(-1) ?? null };
 }
 
 interface AnswerRunInput {

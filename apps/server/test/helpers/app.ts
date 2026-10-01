@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'express';
 import type { RetrievalFlags } from '../../src/config/index.js';
 import { createApp } from '../../src/create-app.js';
+import type { RerankProvider } from '../../src/lib/rerank/index.js';
 import { createTestAuthProvider, TEST_TOKEN_PREFIX } from '../../src/lib/auth/test-auth.js';
 import { createLogger } from '../../src/logger.js';
 import { createFakeEmbeddings, type FakeEmbeddings } from '../fakes/embeddings.js';
@@ -37,6 +38,7 @@ export interface TestAppOptions {
   jobsHandler?: RequestHandler;
   /** Defaults to every flag off: tests opt in, so the app's flags don't change other tests. */
   flags?: Partial<RetrievalFlags>;
+  reranker?: RerankProvider;
 }
 
 export function createTestApp({
@@ -49,6 +51,7 @@ export function createTestApp({
   rateLimiter = createFakeRateLimiter(),
   jobsHandler = noJobsEndpoint,
   flags,
+  reranker,
 }: TestAppOptions = {}) {
   return createApp({
     logger: testLogger,
@@ -64,6 +67,7 @@ export function createTestApp({
     rateLimiter: rateLimiter.limiter,
     jobsHandler,
     flags: { ...allFlagsOff, ...flags },
+    ...(reranker ? { reranker } : {}),
   });
 }
 

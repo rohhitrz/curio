@@ -34,6 +34,13 @@ export const llmTasks = {
 
 export type LlmTask = keyof typeof llmTasks;
 
+/** Cohere rerank model (step 4 of retrieval). Picked by eval in 6.4: pro vs fast. */
+export const rerankModels = {
+  default: 'rerank-v4.0-pro',
+  /** The models the eval compares. */
+  candidates: ['rerank-v4.0-pro', 'rerank-v4.0-fast'],
+} as const;
+
 export const embeddings = {
   model: 'text-embedding-3-small',
   dimensions: 1536,

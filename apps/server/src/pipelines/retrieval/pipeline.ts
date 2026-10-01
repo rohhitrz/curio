@@ -51,7 +51,7 @@ export interface RetrievalPipelineDeps extends RetrievalDeps, RetrievalStepDeps 
   onStepFailed?: (step: OptionalStep, error: unknown) => void;
 }
 
-export type OptionalStep = 'understand';
+export type OptionalStep = 'understand' | 'rerank';
 
 export interface RetrievalPipelineInput {
   userId: string;
@@ -92,7 +92,8 @@ const runDirectly: StepRunner = (_name, _input, fn) => fn();
  * - `rerank`: reorders the fused candidates; without it they are cut to `topK` in fused order.
  *
  * Flag on without its step's dep is a wiring bug: it throws before anything is called.
- * A failing understanding call doesn't fail the request: the raw question is searched.
+ * A failing understanding call doesn't fail the request: the raw question is searched. A
+ * failing rerank doesn't either: the fused order is kept.
  */
 export async function runRetrieval(
   input: RetrievalPipelineInput,
@@ -170,16 +171,19 @@ export async function runRetrieval(
     candidates = lists[0] ?? [];
   }
 
-  let chunks: RetrievedChunk[];
+  let chunks: RetrievedChunk[] | null = null;
   if (flags.rerank && deps.rerank && candidates.length > 0) {
     const rerank = deps.rerank;
-    steps.rerank = true;
     chunks = await step('rerank', { query: searchQuery, candidates: candidates.length }, () =>
       rerank({ query: searchQuery, chunks: candidates, topK }),
-    );
-  } else {
-    chunks = candidates.slice(0, topK);
+    ).catch((error: unknown) => {
+      failed.push('rerank');
+      deps.onStepFailed?.('rerank', error);
+      return null;
+    });
+    steps.rerank = chunks !== null;
   }
+  chunks ??= candidates.slice(0, topK);
 
   return { retrieved: true, queries, chunks: renumber(chunks), steps, failed };
 }

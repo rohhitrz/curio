@@ -117,6 +117,16 @@ export const embeddingRequests = {
   timeoutMs: 30_000,
 } as const;
 
+export const rerankRequests = {
+  /**
+   * Whole call. The latency budget gives rerank ~0.3–0.5s; past this, chat answers from the
+   * fused order instead of waiting.
+   */
+  timeoutMs: 3_000,
+  /** Cohere cuts longer documents; a chunk is ~500 tokens plus its header. */
+  maxTokensPerDoc: 1_024,
+} as const;
+
 export const llmRequests = {
   /** Whole call, including streaming. The chat's first-token budget is ~3s; this is the hard stop. */
   timeoutMs: 90_000,

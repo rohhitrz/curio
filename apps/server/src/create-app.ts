@@ -2,6 +2,8 @@ import cors from 'cors';
 import express, { Router, type Express, type RequestHandler } from 'express';
 import type { Logger } from 'pino';
 import { requests, retrievalFlags, type RetrievalFlags } from './config/index.js';
+import type { RerankProvider } from './lib/rerank/index.js';
+import { rerankChunks } from './pipelines/retrieval/rerank.js';
 import { understandQuery } from './pipelines/retrieval/understand.js';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
@@ -41,6 +43,8 @@ export interface AppOptions {
   jobs: JobsProvider;
   embeddings: EmbeddingsProvider;
   llm: LlmProvider;
+  /** The rerank step; required when the `rerank` flag is on. */
+  reranker?: RerankProvider;
   tracer: Tracer;
   locks: LockProvider;
   rateLimiter: RateLimiter;
@@ -59,6 +63,7 @@ export function createApp({
   jobs,
   embeddings,
   llm,
+  reranker,
   tracer,
   locks,
   rateLimiter,
@@ -82,6 +87,7 @@ export function createApp({
       vectorSearch: (params) => retrievalRepository.vectorSearch(params),
       keywordSearch: (params) => retrievalRepository.keywordSearch(params),
       understandQuery: (input) => understandQuery(input, { llm }),
+      ...(reranker ? { rerank: (input) => rerankChunks(input, { reranker }) } : {}),
     },
     llm,
     tracer,

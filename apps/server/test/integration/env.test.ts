@@ -58,6 +58,17 @@ describe('env validation', () => {
     },
   );
 
+  it('COHERE_API_KEY is optional, but required while the rerank flag is on', () => {
+    const flags = { queryRewrite: true, hybridSearch: true, subQueries: false, hyde: false };
+    expect(loadEnv(validEnv, { ...flags, rerank: false }).COHERE_API_KEY).toBeUndefined();
+    expect(() => loadEnv(validEnv, { ...flags, rerank: true })).toThrow(
+      'COHERE_API_KEY is required while the rerank flag is on',
+    );
+    expect(
+      loadEnv({ ...validEnv, COHERE_API_KEY: 'co-test' }, { ...flags, rerank: true }),
+    ).toMatchObject({ COHERE_API_KEY: 'co-test' });
+  });
+
   it('INNGEST_DEV=1 → starts without Inngest keys', () => {
     const { INNGEST_EVENT_KEY: _event, INNGEST_SIGNING_KEY: _signing, ...withoutKeys } = validEnv;
     const local = { ...withoutKeys, NODE_ENV: 'development' };

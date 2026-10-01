@@ -255,6 +255,20 @@ describe('runRetrieval', () => {
     expect(calls.steps).toEqual(['search', 'rerank']);
   });
 
+  it('rerank down: the fused order is kept and the failure reported', async () => {
+    const { deps } = setup({ rerank: true });
+    const error = new Error('Cohere down');
+    deps.rerank = () => Promise.reject(error);
+    const reported: [string, unknown][] = [];
+    deps.onStepFailed = (step, err) => reported.push([step, err]);
+
+    const result = await runRetrieval({ ...input, topK: 1 }, deps);
+
+    expect(result.chunks.map((c) => c.chunkId)).toEqual(['vector:What are its disadvantages?-1']);
+    expect(result).toMatchObject({ failed: ['rerank'], steps: { rerank: false } });
+    expect(reported).toEqual([['rerank', error]]);
+  });
+
   it('rerank on: nothing found → no rerank call', async () => {
     const { deps, calls } = setup({ rerank: true });
     deps.vectorSearch = () => Promise.resolve([]);

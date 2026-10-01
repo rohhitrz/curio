@@ -10,6 +10,8 @@ import {
   llmRequests,
   llmTasks,
   loadEnv,
+  rerankModels,
+  rerankRequests,
   tracing,
   type Env,
 } from './config/index.js';
@@ -27,6 +29,7 @@ import {
   createInngestJobsProvider,
 } from './lib/jobs/index.js';
 import { createOpenAiLlm } from './lib/llm/index.js';
+import { createCohereRerank } from './lib/rerank/index.js';
 import { createUpstashLocks } from './lib/locks/index.js';
 import { createUnpdfParser } from './lib/pdf/index.js';
 import { createUpstashRateLimiter } from './lib/rate-limit/index.js';
@@ -88,6 +91,15 @@ const llm = createOpenAiLlm({
   timeoutMs: llmRequests.timeoutMs,
   maxRetries: llmRequests.maxRetries,
 });
+// Only with a key; `loadEnv` already refused to start if the rerank flag needs it.
+const reranker = env.COHERE_API_KEY
+  ? createCohereRerank({
+      apiKey: env.COHERE_API_KEY,
+      model: rerankModels.default,
+      timeoutMs: rerankRequests.timeoutMs,
+      maxTokensPerDoc: rerankRequests.maxTokensPerDoc,
+    })
+  : undefined;
 // Process-wide (OpenTelemetry): once, before any traced call.
 const { tracer } = startLangfuseTracing({
   publicKey: env.LANGFUSE_PUBLIC_KEY,
@@ -142,6 +154,7 @@ const app: Express = createApp({
   jobs,
   embeddings,
   llm,
+  ...(reranker ? { reranker } : {}),
   tracer,
   locks: createUpstashLocks(redis),
   rateLimiter: createUpstashRateLimiter(redis),

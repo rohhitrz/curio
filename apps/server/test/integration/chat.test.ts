@@ -13,6 +13,8 @@ import type { AddressInfo } from 'node:net';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { RetrievalFlags } from '../../src/config/index.js';
+import { RerankError } from '../../src/errors/rerank-error.js';
+import type { RerankProvider } from '../../src/lib/rerank/index.js';
 import { messages, sourceChunks, sources, users } from '../../src/db/schema/index.js';
 import type { LlmProvider, LlmResult } from '../../src/lib/llm/index.js';
 import { LlmError } from '../../src/errors/llm-error.js';
@@ -42,7 +44,11 @@ let rateLimiter: FakeRateLimiter;
 let app: ReturnType<typeof createTestApp>;
 let embeddings: FakeEmbeddings;
 
-function buildApp(provider?: LlmProvider, flags?: Partial<RetrievalFlags>) {
+function buildApp(
+  provider?: LlmProvider,
+  flags?: Partial<RetrievalFlags>,
+  reranker?: RerankProvider,
+) {
   const fake = createFakeLlm();
   llm = fake;
   tracer = createFakeTracer();
@@ -56,6 +62,7 @@ function buildApp(provider?: LlmProvider, flags?: Partial<RetrievalFlags>) {
     rateLimiter,
     embeddings,
     ...(flags ? { flags } : {}),
+    ...(reranker ? { reranker } : {}),
   });
 }
 
@@ -855,5 +862,60 @@ describe('retrieval flags off (the test default)', () => {
 
     expect(llm.requests.map((r) => r.task)).toEqual(['chatAnswer']);
     expect(embeddings.calls).toEqual([['What are its disadvantages?']]);
+  });
+});
+
+describe('rerank (rerank on)', () => {
+  it('reorders the chunks the answer sees and traces the step', async () => {
+    const calls: string[][] = [];
+    buildApp(
+      undefined,
+      { rerank: true },
+      {
+        model: 'fake-rerank',
+        rerank: ({ documents }) => {
+          calls.push(documents);
+          return Promise.resolve({
+            results: [{ index: 0, score: 0.9 }],
+            model: 'fake-rerank',
+            searchUnits: 1,
+          });
+        },
+      },
+    );
+    const { conversationId } = await setup();
+    llm.reply('Dropout drops units [1].');
+
+    const res = await send(conversationId, 'What is dropout?');
+
+    expect(textOf(parseStream(res.text))).toBe('Dropout drops units [1].');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).toContain('Dropout randomly drops units');
+    expect(tracer.spans.map((s) => s.name)).toContain('rerank');
+  });
+
+  it('rerank provider down: the answer is still produced from the fused order', async () => {
+    buildApp(
+      undefined,
+      { rerank: true },
+      {
+        model: 'fake-rerank',
+        rerank: () => Promise.reject(new RerankError(true, 'Cohere 503')),
+      },
+    );
+    const { conversationId, source } = await setup();
+    llm.reply('Dropout drops units [1].');
+
+    const res = await send(conversationId, 'What is dropout?');
+
+    const chunks = parseStream(res.text);
+    expect(textOf(chunks)).toBe('Dropout drops units [1].');
+    expect(chunks.find((c) => c.type === 'data-citations')?.data).toEqual([
+      expect.objectContaining({ marker: 1, sourceId: source.id }),
+    ]);
+    expect(tracer.spans.find((s) => s.name === 'rerank')?.failed).toBe(true);
+    expect(tracer.spans.find((s) => s.name === 'retrieve')?.output).toMatchObject({
+      failed: ['rerank'],
+    });
   });
 });
