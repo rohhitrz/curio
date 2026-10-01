@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 import type { AddressInfo } from 'node:net';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { retrievalFlags, type RetrievalFlags } from '../../src/config/index.js';
+import type { RetrievalFlags } from '../../src/config/index.js';
 import { messages, sourceChunks, sources, users } from '../../src/db/schema/index.js';
 import type { LlmProvider, LlmResult } from '../../src/lib/llm/index.js';
 import { LlmError } from '../../src/errors/llm-error.js';
@@ -55,7 +55,7 @@ function buildApp(provider?: LlmProvider, flags?: Partial<RetrievalFlags>) {
     locks,
     rateLimiter,
     embeddings,
-    ...(flags ? { flags: { ...retrievalFlags, ...flags } } : {}),
+    ...(flags ? { flags } : {}),
   });
 }
 
@@ -846,7 +846,7 @@ describe('query understanding (queryRewrite on)', () => {
   });
 });
 
-describe('retrieval flags off (default)', () => {
+describe('retrieval flags off (the test default)', () => {
   it('makes no understanding call', async () => {
     const { conversationId } = await setup();
     llm.reply('Dropout drops units [1].');

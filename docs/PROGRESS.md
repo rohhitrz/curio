@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 6 (Advanced retrieval)
-- **Current step:** 6.1 done (feature flags wired through the pipeline)
+- **Current step:** 6.2 done (query understanding; `queryRewrite` turned on)
 - **Blocked on:** nothing (Cohere key in `.env` for 6.4)
-- **Next step:** 6.2 query understanding → eval
+- **Next step:** 6.3 keyword search → eval
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 6
 - [x] 6.1 Feature flags through the pipeline: `pipelines/retrieval/pipeline.ts` `runRetrieval` (understand → vector (+ keyword) search per query → RRF fusion when there is more than one list → rerank → top `rerankTopK`), each step behind its flag in `config/flags.ts`, injected as optional deps (flag on without its dep throws) · RRF in `fusion.ts` (`retrieval.rrfK` = 60) · chat traces each step as a span under `retrieve` · eval runner uses `runRetrieval`, `--flags=a,b` for ablations, `-retrieval` suffix on retrieval-only results
-- [ ] 6.2 Query understanding: one structured call → rewrite + route + sub-queries → **eval**
+- [x] 6.2 Query understanding: `pipelines/retrieval/understand.ts` (one Luna `generateObject`: `needsRetrieval`, `standaloneQuery`, `subQueries` ≤ `retrieval.maxSubQueries`; last `understandingHistoryMessages` of history) · failed call → raw question (`failed: ['understand']`, logged) · routed-out messages get a short `chatReply` with no sources · **eval: `queryRewrite` on** (`2026-10-01-vector+queryRewrite.json`) · eval runner retries a question after a retryable LLM error
 - [ ] 6.3 Keyword search + RRF fusion → **eval**
 - [ ] 6.4 Rerank provider; compare Cohere vs Jina → pick → **eval** (needs keys)
 - [ ] 6.5 Relevance gate; threshold tuned on the unanswerable questions → **eval**
@@ -69,10 +69,11 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
    - `runRetrieval` (`pipelines/retrieval/pipeline.ts`) is the one entry point for chat and the eval; `retrieve` is now just the vector-search half. With every flag off it is the vector baseline (same top chunks, cosine scores kept since fusion doesn't run on one list).
    - Flag → step: `queryRewrite` or `subQueries` turns on the understanding call; `queryRewrite` searches `standaloneQuery` (blank → raw question) **and owns routing** (`needsRetrieval: false` → `retrieved: false`, no search); `subQueries` adds one search per sub-query (deduped against the main query). `hybridSearch` adds `keywordSearch` next to each vector search. `rerank` reorders the fused candidates; off → top `rerankTopK` in fused order. `hyde` is not wired yet (6.7).
    - Steps to build plug in as deps: `understandQuery` (6.2), `keywordSearch` returning `RetrievedChunk[]` (6.3; RRF already exists, so 6.3 is the search + repository + eval), `rerank` (6.4). Wire each in `create-app.ts` **and** `evals/scripts/run-eval.ts`.
-   - **6.2 must handle `retrieved: false` in chat:** today `generateAnswer` with no chunks gives the "not in your sources" reply, which is wrong for "thanks!". It needs a short no-sources reply path.
    - Chat now asks vector search for `vectorCandidates` (40) and keeps 8 (was 8 directly); same results, since search is exactly ordered.
    - Eval: `pnpm eval -- --flags=queryRewrite` etc. for ablations; the label and `config` in the results file come from the flags actually used. Each question records the `queries` it searched.
    - 6.1 has no eval in the build plan; no eval run was made (no LLM call). The vector config is unchanged, so `2026-10-01-vector.json` stays the baseline.
+   - **6.2 notes:** `queryRewrite` is **on** in `config/flags.ts` (so live chat makes one extra Luna call per message); `subQueries` stays off until its turn in the ablation (after rerank). `createTestApp` defaults to **every flag off** so flipping a flag never changes unrelated tests; tests opt in with `flags`. The answer prompt still gets the user's own words; only search uses the rewrite. `generateAnswer({ retrieved: false })` → `chatReply` task (`CHAT_REPLY_INSTRUCTIONS`: one or two sentences, no facts). In the eval no question was routed past retrieval.
+   - **Timeouts (6.8):** the understanding call has only the general 90s LLM timeout. In the eval one Luna understanding call hit it (q-066, fell back correctly); chat needs a short per-step timeout (~2–3s) so a slow rewrite can't stall the answer.
    - Lesson-scoped chat (search only some sources, test-plan Phase 6 row) needs a `sourceIds` filter on both searches; it arrives with lessons (9.4).
 1. **`conversations.lesson_id` has no FK yet:** `lessons` doesn't exist until Phase 9. The Phase 9 migration that creates `lessons` must add `conversations.lesson_id → lessons.id ON DELETE SET NULL` (03-database-design §5).
 2. **5.2 notes:**
@@ -338,6 +339,17 @@ What it says for Phase 6:
 | exact-term | 1.000 | 4.73 | 0.93 | 1.000 | | 0 |
 | multi-part | 0.937 | 2.50 | 0.08 | 0.583 | | 0 |
 | follow-up | 1.000 | 3.50 | 0.58 | 0.472 | | 0 |
+
+**6.2: + query rewrite** (`evals/results/2026-10-01-vector+queryRewrite.json`, commit `de00a27`, same models/chunking, 2 runs; cost $0.59, 19 min). Baseline in brackets:
+
+| | Hit@5 | Hit@10 | MRR | Faithfulness | Correctness | ≥ 4 | Citation acc. |
+|---|---|---|---|---|---|---|---|
+| **Overall** | **0.950** (0.933) | **1.000** (0.967) | **0.814** (0.796) | 0.983 (0.980) | **4.43** (4.38) | 0.87 (0.83) | 0.849 (0.821) |
+| follow-up | **0.833** (0.667) | **1.000** (0.667) | **0.728** (0.542) | 0.975 (1.000) | **4.58** (3.50) | 0.83 (0.58) | **1.000** (0.472) |
+| multi-part | 1.000 | 1.000 | 0.547 | 0.954 | 2.50 | 0.08 | 0.551 |
+
+- Kept: follow-ups are fixed as intended; other categories unchanged within noise (factual correctness 4.71 → 4.59 with identical retrieval, so judge/generator variance). Refusal accuracy 0.95, false refusals 0, as before.
+- Multi-part is still the weak spot (correctness 2.5): one search finds one side of the comparison. That's sub-queries' job, measured in the ablation.
 | unanswerable | 1.000 | | | | 0.95 | |
 
 What it says:
@@ -356,6 +368,11 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-01 (6.2)
+- Done: 6.2 query understanding + eval; `queryRewrite` turned on
+- Commits: `c7953e6` (query understanding), `de00a27` (eval retry), then results + flag
+- Notes: two eval attempts died on OpenAI hiccups (an embeddings response of `null`, then a Sol judge call past the 90s timeout), so the runner now retries a question on retryable errors. 1 server test failed once on a `truncateAllTables` hook timeout (Neon slow, untouched file) and passed on rerun. 212 tests rerun after the flag change: all pass
 
 ### 2026-10-01 (6.1, Phase 5 approved)
 - Done: owner approved Phase 5 ("Start Phase 6"); 6.1 feature flags through the retrieval pipeline (see Resume here)

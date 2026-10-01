@@ -12,6 +12,14 @@ import { createFakeStorage, type FakeStorage } from '../fakes/storage.js';
 import { createFakeTracer, type FakeTracer } from '../fakes/tracing.js';
 import { getTestDb } from './db.js';
 
+const allFlagsOff: RetrievalFlags = {
+  queryRewrite: false,
+  hybridSearch: false,
+  rerank: false,
+  subQueries: false,
+  hyde: false,
+};
+
 export const testLogger = createLogger({ level: 'silent', pretty: false });
 
 const noJobsEndpoint: RequestHandler = (_req, res) => {
@@ -27,7 +35,8 @@ export interface TestAppOptions {
   locks?: FakeLocks;
   rateLimiter?: FakeRateLimiter;
   jobsHandler?: RequestHandler;
-  flags?: RetrievalFlags;
+  /** Defaults to every flag off: tests opt in, so the app's flags don't change other tests. */
+  flags?: Partial<RetrievalFlags>;
 }
 
 export function createTestApp({
@@ -54,7 +63,7 @@ export function createTestApp({
     locks: locks.provider,
     rateLimiter: rateLimiter.limiter,
     jobsHandler,
-    ...(flags ? { flags } : {}),
+    flags: { ...allFlagsOff, ...flags },
   });
 }
 
