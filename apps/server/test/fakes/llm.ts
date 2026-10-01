@@ -29,6 +29,17 @@ export function createFakeLlm(...replies: (string | Error)[]) {
       return Promise.resolve({ text: reply, model: 'fake-llm', usage });
     },
 
+    generateObject(request, schema) {
+      const reply = next(request);
+      if (reply instanceof Error) return Promise.reject(reply);
+      // The reply is the JSON the model would return.
+      return Promise.resolve({
+        object: schema.parse(JSON.parse(reply)),
+        model: 'fake-llm',
+        usage,
+      });
+    },
+
     stream(request) {
       const reply = next(request);
       let resolve!: (result: LlmResult) => void;

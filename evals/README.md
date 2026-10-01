@@ -1,7 +1,7 @@
 # Evals
 
-The golden dataset and the tools around it (test plan §6). Phase 4 builds the retrieval
-metrics (hit rate@k, MRR); answer metrics come in Phase 5.
+The golden dataset and the tools around it (test plan §6): retrieval metrics (hit rate@k, MRR,
+Phase 4) and answer metrics (faithfulness, correctness, citation accuracy, refusals, Phase 5).
 
 ## Dataset (`dataset/`)
 
@@ -34,7 +34,10 @@ instead of silently shifting the numbers.
 ## Running the eval
 
 ```bash
-pnpm eval
+pnpm eval                          # retrieval + answer metrics (answers averaged over 2 runs)
+pnpm eval -- --retrieval-only      # retrieval metrics only: no LLM calls, under a cent
+pnpm eval -- --runs=1              # one answer run
+pnpm eval -- --only=q-001,q-061    # smoke test: these questions only, printed, no results file
 ```
 
 1. Replaces the eval notebook (owner `eval_runner`) in the Neon `dev` database; refuses to run if
@@ -43,18 +46,29 @@ pnpm eval
    with R2, Firecrawl and Supadata replaced by the local cache. Embeddings are real OpenAI calls.
 3. Asks every question through the real retrieval module (top 10) and marks each retrieved chunk
    relevant or not by location.
-4. Writes `results/<date>-<config>.json`: hit rate@5 and @10 and MRR (over the top 10) for the
-   answerable questions, overall and per category, the git commit, the models, the cost, and
-   every question's retrieved chunks with their scores.
+4. Answers every question through the real generation step (the top 8 chunks, as chat uses
+   them; follow-ups get their `history`), twice by default, and grades each answer:
+   - **Faithfulness** (judge, `judges/faithfulness.md`): the answer is split into claims and each is
+     checked against the sources it cites. Supported claims ÷ all claims, over non-refusals.
+   - **Correctness** (judge, `judges/correctness.md`): 1–5 against `expectedAnswer`; mean and the
+     share scoring ≥ 4. A refusal of an answerable question scores 1 without a judge call.
+   - **Citation accuracy** (code): cited chunks at an expected location ÷ all citations.
+   - **Refusal accuracy** / **false refusal rate** (code): the answer is exactly the
+     "not in your sources" reply.
+
+   The generator is the chat model (Luna); the judge is `evalJudge` (Sol), both from
+   `apps/server/src/config/models.ts`.
+5. Writes `results/<date>-<config>.json`: retrieval metrics (over the top 10) and answer metrics
+   (averaged over runs, plus each run), overall and per category, the git commit, the models, the
+   cost per model, and every question's retrieved chunks, answers, citations and judge verdicts.
 
 `<config>` is `vector` plus each retrieval flag that is on (`apps/server/src/config/flags.ts`).
-Follow-up questions are searched as asked (their `history` is ignored) until query rewrite exists.
-A run costs well under a cent and takes about 3 minutes.
+Follow-up questions are searched as asked (their `history` only reaches the answer step) until
+query rewrite exists. A full run costs about a dollar; `--retrieval-only` well under a cent.
 
 ## Other commands
 
-All run from the repo root. Only `fetch-docs` and `eval` use the network; nothing here calls an LLM
-for text generation yet.
+All run from the repo root. Only `fetch-docs` and `eval` use the network; only `eval` calls an LLM.
 
 ```bash
 pnpm --filter @curio/evals fetch-docs   # fetch missing documents into .cache/, check hashes

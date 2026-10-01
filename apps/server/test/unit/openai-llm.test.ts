@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { llmModels, llmTasks } from '../../src/config/index.js';
 import { LlmError } from '../../src/errors/llm-error.js';
 import { createOpenAiLlm, type LlmRequest } from '../../src/lib/llm/index.js';
@@ -169,6 +170,29 @@ describe('OpenAI LLM', () => {
 
     expect(result.model).toBe('gpt-6.1-sol');
     expect((requests[0]?.body as ResponsesBody).model).toBe('gpt-6.1-sol');
+  });
+
+  it('generateObject asks for JSON matching the schema and returns the parsed object', async () => {
+    const { provider, requests } = llm(json(responseBody('{"score":4,"reason":"Close."}')));
+    const schema = z.object({ score: z.number().int(), reason: z.string() });
+
+    const result = await provider.generateObject(request({ task: 'evalJudge' }), schema);
+
+    expect(result.object).toEqual({ score: 4, reason: 'Close.' });
+    expect(result.model).toBe(llmModels.sol);
+    const body = requests[0]?.body as ResponsesBody & { text?: { format?: { type?: string } } };
+    expect(body.text?.format?.type).toBe('json_schema');
+  });
+
+  it('generateObject rejects a reply that does not match the schema', async () => {
+    const { provider } = llm(json(responseBody('{"score":"high"}')));
+
+    const error = await provider
+      .generateObject(request(), z.object({ score: z.number() }))
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(LlmError);
+    expect((error as LlmError).retryable).toBe(false);
   });
 
   it('streams text deltas and resolves the result with usage', async () => {

@@ -2,6 +2,7 @@ import { createOpenAI, type OpenAILanguageModelResponsesOptions } from '@ai-sdk/
 import {
   APICallError,
   generateText,
+  Output,
   RetryError,
   streamText,
   type LanguageModelUsage,
@@ -97,6 +98,16 @@ export function createOpenAiLlm(config: OpenAiLlmConfig): LlmProvider {
       try {
         const result = await generateText(options);
         return { text: result.text, model: modelId, usage: toUsage(result.usage) };
+      } catch (error) {
+        throw toLlmError(error);
+      }
+    },
+
+    async generateObject(request, schema) {
+      const { modelId, options } = callOptions(request);
+      try {
+        const result = await generateText({ ...options, output: Output.object({ schema }) });
+        return { object: result.output, model: modelId, usage: toUsage(result.usage) };
       } catch (error) {
         throw toLlmError(error);
       }

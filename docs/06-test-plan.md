@@ -253,7 +253,7 @@ A small test account is used, and smoke tests clean up after themselves.
 
 ### 6.4 Judge rules
 - Judge model: **Sol** (stronger than the Luna generator)
-- Temperature **0**, fixed judge prompts stored in `evals/judges/`
+- Fixed judge prompts stored in `evals/judges/`. Temperature **0** where the model accepts it: GPT-6 models are reasoning models and take no temperature, so judge variance is handled by the fixed prompts and the two averaged runs (§6.5)
 
 ### 6.5 Ablation procedure
 1. Same dataset, same models, same chunking for every config

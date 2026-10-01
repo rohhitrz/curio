@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import type { LlmTask } from '../../config/index.js';
 
 export interface LlmMessage {
@@ -31,6 +32,12 @@ export interface LlmResult {
   usage: LlmUsage;
 }
 
+export interface LlmObjectResult<T> {
+  object: T;
+  model: string;
+  usage: LlmUsage;
+}
+
 export interface LlmStream {
   /** Text as it arrives. Throws `LlmError` if the call fails mid-stream. */
   textStream: AsyncIterable<string>;
@@ -44,5 +51,7 @@ export interface LlmStream {
  */
 export interface LlmProvider {
   generate(request: LlmRequest): Promise<LlmResult>;
+  /** Structured output: the model answers in JSON matching `schema` (validated). */
+  generateObject<T>(request: LlmRequest, schema: z.ZodType<T>): Promise<LlmObjectResult<T>>;
   stream(request: LlmRequest): LlmStream;
 }

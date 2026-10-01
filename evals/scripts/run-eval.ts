@@ -1,15 +1,20 @@
 /**
- * The eval runner (build plan 4.3): ingests the golden dataset into an eval notebook through the
- * real ingestion service, asks every question through the real retrieval module, and writes the
- * retrieval metrics to `evals/results/<date>-<config>.json` (test plan §6.3, §6.6).
+ * The eval runner (build plans 4.3, 5.6): ingests the golden dataset into an eval notebook through
+ * the real ingestion service, asks every question through the real retrieval module, answers it
+ * with the real generation step, has the judge model grade the answers, and writes the metrics to
+ * `evals/results/<date>-<config>.json` (test plan §6.3–6.6).
  *
- *   pnpm eval
+ *   pnpm eval                         # retrieval + answer metrics (answers averaged over 2 runs)
+ *   pnpm eval -- --retrieval-only     # retrieval metrics only (no LLM calls, < 1 cent)
+ *   pnpm eval -- --runs=1             # one answer run instead of the default
+ *   pnpm eval -- --only=q-001,q-061   # smoke test: just these questions, printed, no results file
  *
  * Runs against the Neon `dev` branch (`DATABASE_URL`) and refuses to touch production or the
  * test branch. Each run replaces the previous eval notebook, so runs are independent.
  *
- * Calls the OpenAI embeddings API (a fraction of a cent per run): document content comes from
- * the local cache, never from Firecrawl or Supadata.
+ * Calls OpenAI: embeddings (a fraction of a cent), and for the answer metrics the generator
+ * (Luna) and the judge (Sol); the run prints and records what it cost. Document content comes
+ * from the local cache, never from Firecrawl or Supadata.
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -20,14 +25,24 @@ import {
   embeddingRequests,
   embeddings as embeddingModel,
   ingestion,
+  llmModels,
+  llmRequests,
+  llmTasks,
+  retrieval,
   retrievalFlags,
 } from '../../apps/server/src/config/index.js';
 import { createDb } from '../../apps/server/src/db/client.js';
 import { notebooks, sources, users } from '../../apps/server/src/db/schema/index.js';
 import { createOpenAiEmbeddings } from '../../apps/server/src/lib/embeddings/index.js';
+import {
+  createOpenAiLlm,
+  type LlmProvider,
+  type LlmUsage,
+} from '../../apps/server/src/lib/llm/index.js';
 import { createUnpdfParser } from '../../apps/server/src/lib/pdf/index.js';
 import { createLogger } from '../../apps/server/src/logger.js';
 import { countTokens } from '../../apps/server/src/pipelines/ingestion/tokens.js';
+import { generateAnswer } from '../../apps/server/src/pipelines/retrieval/generate.js';
 import {
   retrieve,
   type RetrievedChunk,
@@ -39,13 +54,88 @@ import {
   canonicalYouTubeUrl,
   parseYouTubeVideoId,
 } from '../../apps/server/src/services/source-identity.js';
+import {
+  answerMetrics,
+  answerMetricsByCategory,
+  averageMetrics,
+  usageCost,
+  type AnswerMetrics,
+  type AnswerOutcome,
+} from '../src/answers.js';
 import { createCachedProviders } from '../src/cached-providers.js';
 import { evalConfig, maxK } from '../src/config.js';
 import { chunkDocument } from '../src/content.js';
 import { datasetDir, readDocuments, sha256, type EvalDocument } from '../src/dataset.js';
 import { metricsByCategory, retrievalMetrics, type QuestionOutcome } from '../src/metrics.js';
-import { readQuestions } from '../src/questions.js';
+import {
+  judgeCorrectness,
+  judgeFaithfulness,
+  readJudgePrompts,
+  type JudgePrompts,
+} from '../src/judge.js';
+import { readQuestions, type Question } from '../src/questions.js';
 import { isRelevant } from '../src/relevance.js';
+
+/** `--retrieval-only`, `--runs=N` and `--only=<ids>` (see the header). */
+function parseArgs(argv: string[]) {
+  const value = (name: string) =>
+    argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
+  const runsArg = value('runs');
+  const runs = runsArg ? Number(runsArg) : evalConfig.answerRuns;
+  if (!Number.isInteger(runs) || runs < 1) throw new Error(`--runs must be a positive integer`);
+  const only = value('only')
+    ?.split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return { answers: !argv.includes('--retrieval-only'), runs, only: only ?? null };
+}
+
+/** Runs `fn` over `items`, at most `limit` at a time, keeping the order of the results. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index] as T);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/** Token usage per API model, for the cost line. */
+class UsageByModel {
+  private readonly totals = new Map<string, LlmUsage & { calls: number }>();
+
+  add(model: string, usage: LlmUsage) {
+    const total = this.totals.get(model) ?? {
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      calls: 0,
+    };
+    total.inputTokens += usage.inputTokens;
+    total.cachedInputTokens += usage.cachedInputTokens;
+    total.outputTokens += usage.outputTokens;
+    total.calls += 1;
+    this.totals.set(model, total);
+  }
+
+  report() {
+    return Object.fromEntries(
+      [...this.totals].map(([model, usage]) => {
+        const price = evalConfig.llmPrices[model];
+        if (!price) throw new Error(`No price for model ${model} in evals/src/config.ts`);
+        return [model, { ...usage, usd: Math.round(usageCost(usage, price) * 1e5) / 1e5 }];
+      }),
+    );
+  }
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -90,8 +180,13 @@ const embeddingInput = (chunk: { contextHeader: string; content: string }) =>
 
 async function main() {
   const startedAt = Date.now();
+  const args = parseArgs(process.argv.slice(2));
   const documents = await readDocuments();
-  const questions = await readQuestions();
+  const allQuestions = await readQuestions();
+  const questions = args.only
+    ? allQuestions.filter((q) => args.only?.includes(q.id))
+    : allQuestions;
+  if (questions.length === 0) throw new Error('--only matched no question');
 
   const { db, pool } = createDb(evalDatabaseUrl());
   const logger = createLogger({ level: 'warn', pretty: false });
@@ -173,12 +268,14 @@ async function main() {
 
     // ── Ask every question ──
     const outcomes: (QuestionOutcome & Record<string, unknown>)[] = [];
+    const retrievedByQuestion = new Map<string, RetrievedChunk[]>();
     for (const question of questions) {
       embeddedTokens += countTokens(question.question);
       const results = await retrieve(
         { userId: user.id, notebookId: notebook.id, query: question.question, limit: maxK },
         { embeddings, vectorSearch: (params) => retrievalRepository.vectorSearch(params) },
       );
+      retrievedByQuestion.set(question.id, results);
       const scored = results.map((result) =>
         describe(result, documentBySource, question.expectedLocations),
       );
@@ -192,6 +289,18 @@ async function main() {
       });
     }
 
+    // ── Answers, graded by the judge ──
+    const usage = new UsageByModel();
+    const answers = args.answers
+      ? await runAnswers({
+          questions,
+          retrievedByQuestion,
+          documentBySource,
+          runs: args.runs,
+          usage,
+        })
+      : null;
+
     // ── Metrics and the results file ──
     const overall = retrievalMetrics(outcomes, evalConfig.hitRateKs);
     const byCategory = metricsByCategory(outcomes, evalConfig.hitRateKs);
@@ -202,7 +311,15 @@ async function main() {
       gitCommit: git('rev-parse', '--short', 'HEAD'),
       gitDirty: git('status', '--porcelain', '--', '.', ':!evals/results').length > 0,
       config: { label, ...retrievalFlags },
-      models: { embedding: embeddings.model },
+      models: {
+        embedding: embeddings.model,
+        ...(answers
+          ? {
+              generator: llmModels[llmTasks.chatAnswer.tier],
+              judge: llmModels[llmTasks.evalJudge.tier],
+            }
+          : {}),
+      },
       chunking: { targetTokens: chunking.targetTokens, overlapRatio: chunking.overlapRatio },
       dataset: {
         documents: documents.length,
@@ -211,17 +328,21 @@ async function main() {
         answerable: overall.questions,
       },
       retrieval: { ...overall.hitRate, mrr: overall.mrr, mrrCutoff: maxK },
+      answers: answers
+        ? {
+            runs: args.runs,
+            contextChunks: retrieval.rerankTopK,
+            ...answers.metrics,
+          }
+        : null,
+      answersByCategory: answers?.byCategory ?? null,
       byCategory: Object.fromEntries(
         Object.entries(byCategory).map(([category, m]) => [
           category,
           { questions: m.questions, ...m.hitRate, mrr: m.mrr },
         ]),
       ),
-      cost: {
-        embeddingTokens: embeddedTokens,
-        usd:
-          Math.round((embeddedTokens / 1e6) * evalConfig.embeddingUsdPerMillionTokens * 1e5) / 1e5,
-      },
+      cost: costReport(embeddedTokens, usage),
       durationSeconds: Math.round((Date.now() - startedAt) / 1000),
       questions: outcomes.map(({ id, category, relevantRanks, topScore, retrieved }) => ({
         id,
@@ -229,17 +350,28 @@ async function main() {
         firstRelevantRank: relevantRanks[0] ?? null,
         topScore,
         retrieved,
+        ...(answers ? { answers: answers.byQuestion.get(id as string) ?? [] } : {}),
       })),
     };
 
-    await mkdir(evalConfig.resultsDir, { recursive: true });
-    const path = `${evalConfig.resultsDir}${date}-${label}.json`;
-    await writeFile(path, `${JSON.stringify(results, null, 2)}\n`);
+    if (args.only) {
+      // A smoke test isn't a result: print what the file would hold.
+      console.log(JSON.stringify(results.questions, null, 2));
+    } else {
+      await mkdir(evalConfig.resultsDir, { recursive: true });
+      const path = `${evalConfig.resultsDir}${date}-${label}.json`;
+      await writeFile(path, `${JSON.stringify(results, null, 2)}\n`);
+      console.log(`wrote ${path}`);
+    }
 
     console.log(`\n${label} · ${String(overall.questions)} answerable questions`);
     console.table({ overall: results.retrieval, ...results.byCategory });
+    if (answers) {
+      const { perRun: _perRun, ...averaged } = answers.metrics;
+      console.log(`answers (mean of ${String(args.runs)} runs)`);
+      console.table({ overall: averaged, ...answers.byCategory });
+    }
     console.log(`cost ≈ $${String(results.cost.usd)} · ${String(results.durationSeconds)}s`);
-    console.log(`wrote ${path}`);
   } finally {
     await pool.end();
   }
@@ -317,6 +449,178 @@ function describe(
       expected,
     ),
   };
+}
+
+function costReport(embeddingTokens: number, usage: UsageByModel) {
+  const embeddingUsd =
+    Math.round((embeddingTokens / 1e6) * evalConfig.embeddingUsdPerMillionTokens * 1e5) / 1e5;
+  const llm = usage.report();
+  const llmUsd = Object.values(llm).reduce((sum, m) => sum + m.usd, 0);
+  return {
+    embeddingTokens,
+    embeddingUsd,
+    llm,
+    usd: Math.round((embeddingUsd + llmUsd) * 1e5) / 1e5,
+  };
+}
+
+interface AnswerRunInput {
+  questions: Question[];
+  retrievedByQuestion: Map<string, RetrievedChunk[]>;
+  documentBySource: Map<string, EvalDocument>;
+  runs: number;
+  usage: UsageByModel;
+}
+
+/**
+ * Answers every question `runs` times through the real generation step (the top
+ * `retrieval.rerankTopK` chunks, as chat uses them), then grades each answer: faithfulness and
+ * correctness by the judge, citation accuracy and refusals in code.
+ */
+async function runAnswers({
+  questions,
+  retrievedByQuestion,
+  documentBySource,
+  runs,
+  usage,
+}: AnswerRunInput) {
+  const llm = createOpenAiLlm({
+    apiKey: requireEnv('OPENAI_API_KEY'),
+    models: llmModels,
+    tasks: llmTasks,
+    timeoutMs: llmRequests.timeoutMs,
+    maxRetries: llmRequests.maxRetries,
+  });
+  const prompts = await readJudgePrompts();
+  const perRun: AnswerMetrics[] = [];
+  const allOutcomes: AnswerOutcome[][] = [];
+  const byQuestion = new Map<string, unknown[]>();
+
+  for (let run = 1; run <= runs; run += 1) {
+    let done = 0;
+    const graded = await mapLimit(questions, evalConfig.answerConcurrency, async (question) => {
+      const result = await answerAndGrade(
+        llm,
+        prompts,
+        question,
+        retrievedByQuestion,
+        documentBySource,
+        usage,
+      );
+      done += 1;
+      process.stdout.write(
+        `\ranswers run ${String(run)}/${String(runs)}: ${String(done)}/${String(questions.length)}`,
+      );
+      return result;
+    });
+    process.stdout.write('\n');
+    const outcomes = graded.map((g) => g.outcome);
+    allOutcomes.push(outcomes);
+    perRun.push(answerMetrics(outcomes));
+    graded.forEach((g, index) => {
+      const id = questions[index]?.id ?? '';
+      byQuestion.set(id, [...(byQuestion.get(id) ?? []), { run, ...g.record }]);
+    });
+  }
+
+  // Per category: each run's metrics, then averaged like the overall ones.
+  const categories = [...new Set(questions.map((q) => q.category))];
+  const byCategory = Object.fromEntries(
+    categories.map((category) => [
+      category,
+      averageMetrics(
+        allOutcomes.map(
+          (outcomes) => answerMetricsByCategory(outcomes)[category] ?? answerMetrics([]),
+        ),
+      ),
+    ]),
+  );
+  return { metrics: { ...averageMetrics(perRun), perRun }, byCategory, byQuestion };
+}
+
+async function answerAndGrade(
+  llm: LlmProvider,
+  prompts: JudgePrompts,
+  question: Question,
+  retrievedByQuestion: Map<string, RetrievedChunk[]>,
+  documentBySource: Map<string, EvalDocument>,
+  usage: UsageByModel,
+) {
+  const chunks = (retrievedByQuestion.get(question.id) ?? []).slice(0, retrieval.rerankTopK);
+  const stream = generateAnswer(
+    { question: question.question, chunks, history: question.history },
+    { llm, countTokens },
+  );
+  // Read the stream to the end, as chat does; the result has the full text.
+  for await (const _part of stream.textStream);
+  const answer = await stream.result;
+  if (answer.model && answer.usage) usage.add(answer.model, answer.usage);
+
+  // Citation accuracy in code: does each cited chunk sit at an expected location?
+  const byMarker = new Map(stream.sources.map((source) => [source.marker, source.chunk]));
+  const citations = answer.citations.map((citation) => {
+    const chunk = byMarker.get(citation.marker);
+    const described = chunk ? describe(chunk, documentBySource, question.expectedLocations) : null;
+    return {
+      marker: citation.marker,
+      documentId: described?.documentId ?? 'unknown',
+      location: described?.location ?? null,
+      relevant: described?.relevant ?? false,
+    };
+  });
+
+  let faithfulness = null;
+  if (!answer.refused) {
+    const cited = answer.citations.flatMap((citation) => {
+      const chunk = byMarker.get(citation.marker);
+      return chunk
+        ? [{ marker: citation.marker, title: chunk.sourceTitle, content: chunk.content }]
+        : [];
+    });
+    const judged = await judgeFaithfulness(llm, prompts, {
+      question: question.question,
+      answer: answer.text,
+      sources: cited,
+    });
+    usage.add(judged.model, judged.usage);
+    faithfulness = judged.verdict;
+  }
+
+  let correctness = null;
+  if (question.answerable) {
+    if (answer.refused) {
+      // The rubric's 1 ("says the information is not available"), without a judge call.
+      correctness = { score: 1, reason: 'Refused an answerable question.' };
+    } else {
+      const judged = await judgeCorrectness(llm, prompts, {
+        question: question.question,
+        expectedAnswer: question.expectedAnswer,
+        answer: answer.text,
+      });
+      usage.add(judged.model, judged.usage);
+      correctness = judged.verdict;
+    }
+  }
+
+  const outcome: AnswerOutcome = {
+    category: question.category,
+    answerable: question.answerable,
+    refused: answer.refused,
+    claims: faithfulness ? faithfulness.claims.map((c) => ({ supported: c.supported })) : null,
+    correctness: correctness?.score ?? null,
+    citations: citations.map((c) => ({ relevant: c.relevant })),
+  };
+  const record = {
+    text: answer.text,
+    refused: answer.refused,
+    citations,
+    faithfulness: faithfulness && {
+      supported: faithfulness.claims.filter((c) => c.supported).length,
+      claims: faithfulness.claims,
+    },
+    correctness,
+  };
+  return { outcome, record };
 }
 
 await main();

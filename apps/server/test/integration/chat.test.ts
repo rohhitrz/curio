@@ -478,6 +478,7 @@ describe('client disconnects mid-stream', () => {
     });
     const slowLlm: LlmProvider = {
       generate: () => Promise.reject(new Error('not used')),
+      generateObject: () => Promise.reject(new Error('not used')),
       stream() {
         let resolve!: (result: LlmResult) => void;
         const result = new Promise<LlmResult>((res) => {
