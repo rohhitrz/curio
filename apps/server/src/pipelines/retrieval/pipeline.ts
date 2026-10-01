@@ -26,6 +26,8 @@ export interface RetrievalStepDeps {
     question: string;
     history: LlmMessage[];
   }) => Promise<QueryUnderstanding>;
+  /** HyDE: a hypothetical answer passage to embed and search with (eval-gated, 6.7). */
+  hypotheticalPassage?: (input: { question: string }) => Promise<string>;
   /** Best match first, scoped like `vectorSearch`. */
   keywordSearch?: (params: {
     userId: string;
@@ -53,7 +55,7 @@ export interface RetrievalPipelineDeps extends RetrievalDeps, RetrievalStepDeps 
   onStepFailed?: (step: OptionalStep, error: unknown) => void;
 }
 
-export type OptionalStep = 'understand' | 'rerank';
+export type OptionalStep = 'understand' | 'hyde' | 'rerank';
 
 export interface RetrievalPipelineInput {
   userId: string;
@@ -75,6 +77,7 @@ export interface RetrievalPipelineResult {
   /** Which optional steps ran, for traces and the eval results. */
   steps: {
     understand: boolean;
+    hyde: boolean;
     keyword: boolean;
     fusion: boolean;
     rerank: boolean;
@@ -103,6 +106,8 @@ const runDirectly: StepRunner = (_name, _input, fn) => fn();
  * - `hybridSearch`: adds a keyword search next to each vector search.
  * - Fusion (RRF) runs only when there is more than one result list to merge.
  * - `rerank`: reorders the fused candidates; without it they are cut to `topK` in fused order.
+ * - `hyde` (eval-gated): one more vector search with a hypothetical answer passage; a failed
+ *   call is skipped.
  * - `relevanceGate` (needs `rerank`): a top rerank score below the threshold empties `chunks`, so
  *   the answer is "not in your sources" without a model call. Skipped if rerank failed.
  *
@@ -120,7 +125,14 @@ export async function runRetrieval(
   requireStepDeps(deps);
 
   const understandOn = flags.queryRewrite || flags.subQueries;
-  const steps = { understand: false, keyword: false, fusion: false, rerank: false, gate: false };
+  const steps = {
+    understand: false,
+    hyde: false,
+    keyword: false,
+    fusion: false,
+    rerank: false,
+    gate: false,
+  };
   const failed: OptionalStep[] = [];
 
   let searchQuery = input.question;
@@ -158,31 +170,61 @@ export async function runRetrieval(
   const keywordSearch = flags.hybridSearch ? deps.keywordSearch : undefined;
   steps.keyword = keywordSearch !== undefined;
 
+  // HyDE: one more vector search, with a hypothetical answer passage instead of the question.
+  let passage: string | null = null;
+  if (flags.hyde && deps.hypotheticalPassage) {
+    const hypotheticalPassage = deps.hypotheticalPassage;
+    passage = await step('hyde', { question: searchQuery }, () =>
+      hypotheticalPassage({ question: searchQuery }),
+    ).catch((error: unknown) => {
+      failed.push('hyde');
+      deps.onStepFailed?.('hyde', error);
+      return null;
+    });
+    steps.hyde = passage !== null && passage.trim() !== '';
+  }
+
   const lists = await step('search', { queries }, () =>
     Promise.all(
-      queries.flatMap((query) => [
-        retrieve(
-          {
-            userId: input.userId,
-            notebookId: input.notebookId,
-            query,
-            limit: retrieval.vectorCandidates,
-          },
-          deps,
+      queries
+        .flatMap((query) => [
+          retrieve(
+            {
+              userId: input.userId,
+              notebookId: input.notebookId,
+              query,
+              limit: retrieval.vectorCandidates,
+            },
+            deps,
+          ),
+          ...(keywordSearch
+            ? [
+                keywordSearch({
+                  userId: input.userId,
+                  notebookId: input.notebookId,
+                  query,
+                  limit: retrieval.keywordCandidates,
+                }).then((matches) =>
+                  matches.map((match, index) => toRetrievedChunk(match, index + 1, match.textRank)),
+                ),
+              ]
+            : []),
+        ])
+        .concat(
+          steps.hyde && passage
+            ? [
+                retrieve(
+                  {
+                    userId: input.userId,
+                    notebookId: input.notebookId,
+                    query: passage,
+                    limit: retrieval.vectorCandidates,
+                  },
+                  deps,
+                ),
+              ]
+            : [],
         ),
-        ...(keywordSearch
-          ? [
-              keywordSearch({
-                userId: input.userId,
-                notebookId: input.notebookId,
-                query,
-                limit: retrieval.keywordCandidates,
-              }).then((matches) =>
-                matches.map((match, index) => toRetrievedChunk(match, index + 1, match.textRank)),
-              ),
-            ]
-          : []),
-      ]),
     ),
   );
 
@@ -228,6 +270,7 @@ function requireStepDeps(deps: RetrievalPipelineDeps) {
     (flags.queryRewrite || flags.subQueries) && !deps.understandQuery && 'understandQuery',
     flags.hybridSearch && !deps.keywordSearch && 'keywordSearch',
     flags.rerank && !deps.rerank && 'rerank',
+    flags.hyde && !deps.hypotheticalPassage && 'hypotheticalPassage',
     flags.relevanceGate && !flags.rerank && 'rerank (the relevance gate needs its scores)',
   ].filter(Boolean);
   if (missing.length > 0) {

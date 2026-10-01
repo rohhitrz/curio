@@ -41,7 +41,11 @@ export async function readContent(document: EvalDocument): Promise<ExtractedCont
 }
 
 /** The chunks ingestion would store for a document, with the app's own chunking config. */
-export async function chunkDocument(document: EvalDocument): Promise<Chunk[]> {
+export async function chunkDocument(
+  document: EvalDocument,
+  targetTokens: number = chunking.targetTokens,
+): Promise<Chunk[]> {
   const content = await readContent(document);
-  return chunkContent(content, { title: document.title, ...chunking, countTokens }).chunks;
+  return chunkContent(content, { title: document.title, ...chunking, targetTokens, countTokens })
+    .chunks;
 }

@@ -3,6 +3,7 @@ import express, { Router, type Express, type RequestHandler } from 'express';
 import type { Logger } from 'pino';
 import { requests, retrievalFlags, type RetrievalFlags } from './config/index.js';
 import type { RerankProvider } from './lib/rerank/index.js';
+import { hypotheticalPassage } from './pipelines/retrieval/hyde.js';
 import { rerankChunks } from './pipelines/retrieval/rerank.js';
 import { understandQuery } from './pipelines/retrieval/understand.js';
 import type { Db } from './db/client.js';
@@ -87,6 +88,8 @@ export function createApp({
       vectorSearch: (params) => retrievalRepository.vectorSearch(params),
       keywordSearch: (params) => retrievalRepository.keywordSearch(params),
       understandQuery: (input) => understandQuery(input, { llm }),
+      hypotheticalPassage: (input) =>
+        hypotheticalPassage(input, { llm }).then((result) => result.passage),
       ...(reranker ? { rerank: (input) => rerankChunks(input, { reranker }) } : {}),
     },
     llm,

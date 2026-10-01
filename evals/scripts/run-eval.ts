@@ -10,6 +10,7 @@
  *   pnpm eval -- --only=q-001,q-061   # smoke test: just these questions, printed, no results file
  *   pnpm eval -- --flags=queryRewrite,hybridSearch   # these retrieval flags on, all others off
  *   pnpm eval -- --flags=rerank --rerank-model=rerank-v4.0-fast   # rerank with another model
+ *   pnpm eval -- --chunk-tokens=800   # ingest with another chunk size (default: the app's)
  *                                                    # (default: the app's `retrievalFlags`)
  *
  * Runs against the Neon `dev` branch (`DATABASE_URL`) and refuses to touch production or the
@@ -52,6 +53,7 @@ import { countTokens } from '../../apps/server/src/pipelines/ingestion/tokens.js
 import { generateAnswer } from '../../apps/server/src/pipelines/retrieval/generate.js';
 import { createCohereRerank } from '../../apps/server/src/lib/rerank/index.js';
 import { runRetrieval } from '../../apps/server/src/pipelines/retrieval/pipeline.js';
+import { hypotheticalPassage } from '../../apps/server/src/pipelines/retrieval/hyde.js';
 import { rerankChunks } from '../../apps/server/src/pipelines/retrieval/rerank.js';
 import { understandQuery } from '../../apps/server/src/pipelines/retrieval/understand.js';
 import type { RetrievedChunk } from '../../apps/server/src/pipelines/retrieval/retrieve.js';
@@ -87,7 +89,7 @@ import {
 import { readQuestions, type Question } from '../src/questions.js';
 import { isRelevant } from '../src/relevance.js';
 
-/** `--retrieval-only`, `--runs=N`, `--only=<ids>`, `--flags=<names>`, `--rerank-model=<id>`. */
+/** `--retrieval-only`, `--runs=N`, `--only=<ids>`, `--flags=<names>`, `--rerank-model=<id>`, `--chunk-tokens=N`. */
 function parseArgs(argv: string[]) {
   const value = (name: string) =>
     argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -99,11 +101,17 @@ function parseArgs(argv: string[]) {
     .map((id) => id.trim())
     .filter(Boolean);
   const flagsArg = value('flags');
+  const chunkTokensArg = value('chunk-tokens');
+  const chunkTokens = chunkTokensArg ? Number(chunkTokensArg) : chunking.targetTokens;
+  if (!Number.isInteger(chunkTokens) || chunkTokens < 100) {
+    throw new Error('--chunk-tokens must be an integer ≥ 100');
+  }
   const rerankModel = value('rerank-model') ?? rerankModels.default;
   if (!(rerankModels.candidates as readonly string[]).includes(rerankModel)) {
     throw new Error(`--rerank-model must be one of ${rerankModels.candidates.join(', ')}`);
   }
   return {
+    chunkTokens,
     rerankModel,
     answers: !argv.includes('--retrieval-only'),
     runs,
@@ -250,7 +258,7 @@ async function main() {
     embeddings,
     jobs: { send: () => Promise.resolve() },
     logger,
-    chunking: { ...chunking, countTokens },
+    chunking: { ...chunking, targetTokens: args.chunkTokens, countTokens },
     // Unused here: the runner never sweeps.
     sweep: {
       processingTimeoutMinutes: ingestion.processingTimeoutMinutes,
@@ -332,7 +340,7 @@ async function main() {
           console.log(`${String(result.chunkCount ?? 0)} chunks`);
         }
       }
-      const localChunks = await chunkDocument(document);
+      const localChunks = await chunkDocument(document, args.chunkTokens);
       embeddedTokens += localChunks.reduce((sum, c) => sum + countTokens(embeddingInput(c)), 0);
     }
 
@@ -388,6 +396,11 @@ async function main() {
                 },
               }
             : {}),
+          hypotheticalPassage: async (hydeInput) => {
+            const result = await hypotheticalPassage(hydeInput, { llm });
+            usage.add(result.model, result.usage);
+            return result.passage;
+          },
           understandQuery: async (understandInput) => {
             const understood = await understandQuery(understandInput, { llm });
             usage.add(understood.model, understood.usage);
@@ -433,7 +446,10 @@ async function main() {
     // ── Metrics and the results file ──
     const overall = retrievalMetrics(outcomes, evalConfig.hitRateKs);
     const byCategory = metricsByCategory(outcomes, evalConfig.hitRateKs);
-    const label = configLabel(args.flags, args.rerankModel);
+    // A chunk size other than the app's is part of the config being measured.
+    const label =
+      configLabel(args.flags, args.rerankModel) +
+      (args.chunkTokens === chunking.targetTokens ? '' : `+chunks${String(args.chunkTokens)}`);
     const date = new Date().toISOString().slice(0, 10);
     const results = {
       date,
@@ -460,7 +476,7 @@ async function main() {
             }
           : {}),
       },
-      chunking: { targetTokens: chunking.targetTokens, overlapRatio: chunking.overlapRatio },
+      chunking: { targetTokens: args.chunkTokens, overlapRatio: chunking.overlapRatio },
       dataset: {
         documents: documents.length,
         chunks: chunkCount,

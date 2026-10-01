@@ -221,6 +221,7 @@ describe('runRetrieval', () => {
     expect(calls.vector).toHaveLength(3);
     expect(result.steps).toEqual({
       understand: true,
+      hyde: false,
       keyword: false,
       fusion: true,
       rerank: false,
@@ -342,6 +343,29 @@ describe('runRetrieval', () => {
         'the relevance gate needs its scores',
       );
     });
+  });
+
+  it('hyde on: one more vector search with the hypothetical passage, fused', async () => {
+    const { deps, searchedText, calls } = setup({ hyde: true });
+    deps.hypotheticalPassage = ({ question }) => Promise.resolve(`Passage answering: ${question}`);
+
+    const result = await runRetrieval(input, deps);
+
+    expect(searchedText).toEqual([input.question, `Passage answering: ${input.question}`]);
+    expect(calls.keyword).toEqual([]);
+    expect(result.steps).toMatchObject({ hyde: true, fusion: true });
+    // The passage is a search input, not a query the user asked.
+    expect(result.queries).toEqual([input.question]);
+  });
+
+  it('hyde fails: skipped, the question is still searched', async () => {
+    const { deps, searchedText } = setup({ hyde: true });
+    deps.hypotheticalPassage = () => Promise.reject(new Error('down'));
+
+    const result = await runRetrieval(input, deps);
+
+    expect(searchedText).toEqual([input.question]);
+    expect(result).toMatchObject({ failed: ['hyde'], steps: { hyde: false, fusion: false } });
   });
 
   it('a flag on without its step throws before calling anything', async () => {
