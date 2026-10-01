@@ -166,7 +166,7 @@
 | 6.1 | Feature flags wired through the pipeline (rewrite / hybrid / rerank / sub-queries) |
 | 6.2 | Query understanding: one structured call → rewrite + route + sub-queries → **eval** |
 | 6.3 | Keyword search + **RRF** fusion → **eval** |
-| 6.4 | Rerank provider; compare Cohere vs Jina → pick → **eval** |
+| 6.4 | Rerank provider; compare models → pick → **eval** (Cohere pro vs fast; Jina skipped by the owner, R-04) |
 | 6.5 | Relevance gate; threshold tuned on the unanswerable questions → **eval** |
 | 6.6 | Citation check (deterministic) |
 | 6.7 | Eval-gated trials: HyDE, chunk size tuning → **kept only if they improve results**; outcome recorded in `07-decisions.md` |

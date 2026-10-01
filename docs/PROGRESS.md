@@ -114,7 +114,6 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Pending on owner
 - **Cohere Production key → Vercel `curio-server` as `COHERE_API_KEY` (Secret, Production)**, then I turn the `rerank` flag on. A Trial key would fail most live calls at 10/min.
-- **Confirm skipping Jina** (build plan 6.4 says compare Cohere vs Jina; I compared Cohere pro vs fast instead, no Jina key).
 - **Live check of the run-ownership fix** (owner will do it later): add any source on the live app and confirm it reaches `READY`.
 - The dataset review is done (owner spot-checked a sample; `pnpm --filter @curio/evals review` writes `evals/.cache/review.md` for any later check).
 - Phase 3 approved on 2026-09-30 after the live checks (Inngest resynced; text, website and YouTube `READY`; scanned PDF → `FAILED`/`NO_TEXT` with Retry; notebook delete cleaned `curio-prod`; error-code list confirmed).
@@ -387,6 +386,7 @@ What it says:
 
 ### 2026-10-02 (6.4)
 - Done: 6.4 Cohere rerank + eval; `rerank-v4.0-fast` picked; flag off until a Production key is on Vercel
+- Owner: skip Jina (build plan + R-04 updated); stray branch `main-nsmje6` deleted from GitHub
 - Notes: the local Cohere key is a Trial key (10 calls/min): first runs lost 12/70 reranks to 429 and were discarded; the eval now paces rerank calls. Owner moved `DATABASE_URL`, `CLERK_SECRET_KEY`, `R2_SECRET_ACCESS_KEY` on Vercel from Config to Secret (same values; solo Hobby account, so no rotation needed) and redeployed
 
 ### 2026-10-01 (6.3, judge → Luna)
