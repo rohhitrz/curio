@@ -28,7 +28,8 @@ export const llmTasks = {
   memoryExtraction: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   learningPath: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
   lesson: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
-  evalJudge: { tier: 'sol', maxOutputTokens: 4_000, reasoningEffort: 'medium' },
+  /** Luna, not Sol (owner, 2026-10-01: Luna is enough; decision O-04). */
+  evalJudge: { tier: 'luna', maxOutputTokens: 4_000, reasoningEffort: 'medium' },
 } as const satisfies Record<string, LlmTaskConfig>;
 
 export type LlmTask = keyof typeof llmTasks;

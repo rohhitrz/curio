@@ -163,8 +163,18 @@ describe('OpenAI LLM', () => {
     expect(first?.prompt_cache_key).toBe(second?.prompt_cache_key);
   });
 
-  it('uses Sol for a Sol task', async () => {
-    const { provider, requests } = llm(json(responseBody('ok', 'gpt-6.1-sol')));
+  it('uses Sol for a task configured as Sol', async () => {
+    // No task is on Sol today (decision O-04); the tier still routes to its model.
+    const stub = stubFetch(json(responseBody('ok', 'gpt-6.1-sol')));
+    const provider = createOpenAiLlm({
+      apiKey: 'sk-test',
+      models: llmModels,
+      tasks: { ...llmTasks, evalJudge: { ...llmTasks.evalJudge, tier: 'sol' } },
+      timeoutMs: 30_000,
+      maxRetries: 0,
+      fetch: stub.fetch,
+    });
+    const { requests } = stub;
 
     const result = await provider.generate(request({ task: 'evalJudge' }));
 
@@ -179,7 +189,7 @@ describe('OpenAI LLM', () => {
     const result = await provider.generateObject(request({ task: 'evalJudge' }), schema);
 
     expect(result.object).toEqual({ score: 4, reason: 'Close.' });
-    expect(result.model).toBe(llmModels.sol);
+    expect(result.model).toBe(llmModels.luna);
     const body = requests[0]?.body as ResponsesBody & { text?: { format?: { type?: string } } };
     expect(body.text?.format?.type).toBe('json_schema');
   });

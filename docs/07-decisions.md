@@ -280,8 +280,9 @@
 **O-03 · Relevance judged by location, not chunk ID**
 - **Why:** chunk IDs change with chunking; location matching makes chunk-size experiments comparable
 
-**O-04 · Sol judges Luna's answers**
-- **Why:** a model grading its own tier of work is less reliable
+**O-04 · Luna judges Luna's answers** (changed 2026-10-01, owner; was: Sol judges)
+- **Why:** Sol cost ~25× Luna per token and was ~97% of every eval run's LLM bill; Luna at medium reasoning effort is enough to check claims against cited text and score against an expected answer
+- **Trade-off:** a model grading its own tier can be lenient with its own mistakes. Mitigated by fixed judge prompts, citation accuracy and refusals measured in code, and the ablation comparing configs under the **same** judge (absolute numbers matter less than the differences). Every config is re-run with the Luna judge, so no Sol-judged number is compared with a Luna-judged one
 
 **O-05 · False refusal rate tracked alongside refusal accuracy**
 - **Why:** a gate that refuses everything would score perfectly on refusal accuracy alone

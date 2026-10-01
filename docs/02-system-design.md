@@ -321,7 +321,7 @@ The Inngest endpoint is **signed**, so only Inngest can trigger jobs.
 - **Golden dataset:** ~5–8 documents (all source types), ~40–60 questions with expected answer + location, ~10 unanswerable
 - LLM drafts questions → **owner reviews and fixes them**
 - **Retrieval metrics:** hit rate@k, MRR
-- **Answer metrics (LLM judge = Sol):** faithfulness, correctness, citation accuracy, refusal accuracy
+- **Answer metrics (LLM judge = Luna, decision O-04):** faithfulness, correctness, citation accuracy, refusal accuracy
 - **Learning path metrics:** coverage of official docs' core sections, consistency across runs
 - **Runner:** TypeScript (`pnpm eval`); results saved as JSON in `evals/results/`
 - **Ablation:** vector only → + rewrite → + hybrid → + rerank → + sub-queries

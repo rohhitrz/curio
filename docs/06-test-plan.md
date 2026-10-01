@@ -252,7 +252,7 @@ A small test account is used, and smoke tests clean up after themselves.
 **Path evals** use 3 fixed topics, each with its official docs' core sections listed by hand in `evals/dataset/paths.json`.
 
 ### 6.4 Judge rules
-- Judge model: **Sol** (stronger than the Luna generator)
+- Judge model: **Luna** (`evalJudge` in `config/models.ts`; decision O-04: owner chose Luna over Sol on cost, 2026-10-01). Results judged by different models are never compared
 - Fixed judge prompts stored in `evals/judges/`. Temperature **0** where the model accepts it: GPT-6 models are reasoning models and take no temperature, so judge variance is handled by the fixed prompts and the two averaged runs (§6.5)
 
 ### 6.5 Ablation procedure
@@ -268,7 +268,7 @@ A small test account is used, and smoke tests clean up after themselves.
   "date": "2026-10-15",
   "gitCommit": "a1b2c3d",
   "config": { "rewrite": true, "hybrid": true, "rerank": true, "subQueries": false },
-  "models": { "generator": "gpt-6-luna", "judge": "gpt-6.1-sol", "embedding": "text-embedding-3-small" },
+  "models": { "generator": "gpt-6-luna", "judge": "gpt-6-luna", "embedding": "text-embedding-3-small" },
   "retrieval": { "hitRate@5": 0.84, "hitRate@10": 0.91, "mrr": 0.71 },
   "answers": { "faithfulness": 0.93, "correctness": 4.2, "citationAccuracy": 0.88,
                "refusalAccuracy": 0.9, "falseRefusalRate": 0.04 },

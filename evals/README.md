@@ -61,7 +61,7 @@ never overwrites that day's full run.
    - **Refusal accuracy** / **false refusal rate** (code): the answer is exactly the
      "not in your sources" reply.
 
-   The generator is the chat model (Luna); the judge is `evalJudge` (Sol), both from
+   The generator is the chat model (Luna); the judge is `evalJudge` (also Luna, decision O-04), both from
    `apps/server/src/config/models.ts`.
 
 5. Writes `results/<date>-<config>.json`: retrieval metrics (over the top 10) and answer metrics

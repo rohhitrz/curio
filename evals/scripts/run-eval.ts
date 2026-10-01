@@ -15,7 +15,7 @@
  * test branch. Each run replaces the previous eval notebook, so runs are independent.
  *
  * Calls OpenAI: embeddings (a fraction of a cent), and for the answer metrics the generator
- * (Luna) and the judge (Sol); the run prints and records what it cost. Document content comes
+ * (Luna) and the judge (also Luna); the run prints and records what it cost. Document content comes
  * from the local cache, never from Firecrawl or Supadata.
  */
 import { execFileSync } from 'node:child_process';
