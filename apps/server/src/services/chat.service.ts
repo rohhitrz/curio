@@ -241,6 +241,7 @@ export function createChatService(deps: ChatServiceDeps) {
                   queries: found.queries,
                   steps: found.steps,
                   failed: found.failed,
+                  gated: found.gated,
                   chunks: found.chunks.map((c) => ({
                     chunkId: c.chunkId,
                     sourceId: c.sourceId,

@@ -342,6 +342,8 @@ async function main() {
       topScore: number | null;
       queries: string[];
       routedPastRetrieval: boolean;
+      rerankTopScore: number | null;
+      gated: boolean;
       failedSteps: string[];
       retrieved: ReturnType<typeof describe>[];
     })[] = [];
@@ -352,6 +354,9 @@ async function main() {
         retrieved,
         queries,
         failed,
+        steps,
+        gated,
+        gateScore,
         chunks: results,
       } = await runRetrieval(
         {
@@ -406,6 +411,9 @@ async function main() {
         queries,
         routedPastRetrieval: !retrieved,
         failedSteps: failed,
+        // The top rerank score, kept when the gate removed the chunks: what the gate is tuned on.
+        rerankTopScore: steps.rerank ? (gateScore ?? results[0]?.score ?? null) : null,
+        gated,
         retrieved: scored,
       });
     }
@@ -468,6 +476,7 @@ async function main() {
           }
         : null,
       answersByCategory: answers?.byCategory ?? null,
+      gateSweep: gateSweep(outcomes),
       byCategory: Object.fromEntries(
         Object.entries(byCategory).map(([category, m]) => [
           category,
@@ -488,6 +497,8 @@ async function main() {
         topScore: outcome.topScore,
         queries: outcome.queries,
         routedPastRetrieval: outcome.routedPastRetrieval,
+        rerankTopScore: outcome.rerankTopScore,
+        gated: outcome.gated,
         failedSteps: outcome.failedSteps,
         retrieved: outcome.retrieved,
         ...(answers ? { answers: answers.byQuestion.get(outcome.id) ?? [] } : {}),
@@ -508,6 +519,10 @@ async function main() {
 
     console.log(`\n${label} · ${String(overall.questions)} answerable questions`);
     console.table({ overall: results.retrieval, ...results.byCategory });
+    if (results.gateSweep) {
+      console.log('relevance gate sweep (top rerank score < threshold → refuse)');
+      console.table(results.gateSweep.rows);
+    }
     if (answers) {
       const { perRun: _perRun, ...averaged } = answers.metrics;
       console.log(`answers (mean of ${String(args.runs)} runs)`);
@@ -644,6 +659,36 @@ function costReport(
         }
       : {}),
     usd: Math.round((embeddingUsd + llmUsd + rerankUsd) * 1e5) / 1e5,
+  };
+}
+
+/**
+ * What the relevance gate would do at each threshold, from the top rerank scores alone (no LLM):
+ * the share of unanswerable questions it refuses (higher is better) and of answerable ones it
+ * wrongly refuses (lower is better). Null when rerank didn't run.
+ */
+function gateSweep(outcomes: { answerable: boolean; rerankTopScore: number | null }[]) {
+  const scored = outcomes.filter((o) => o.rerankTopScore !== null);
+  if (scored.length === 0) return null;
+  const unanswerable = scored.filter((o) => !o.answerable);
+  const answerable = scored.filter((o) => o.answerable);
+  const share = (items: typeof scored, threshold: number) =>
+    items.length === 0
+      ? null
+      : Math.round(
+          (items.filter((o) => (o.rerankTopScore ?? 0) < threshold).length / items.length) * 1e4,
+        ) / 1e4;
+  const rows = Array.from({ length: 13 }, (_, i) => Math.round((0.3 + i * 0.05) * 100) / 100).map(
+    (threshold) => ({
+      threshold,
+      refusalAccuracy: share(unanswerable, threshold),
+      falseRefusalRate: share(answerable, threshold),
+    }),
+  );
+  return {
+    questions: scored.length,
+    withoutRerankScore: outcomes.length - scored.length,
+    rows,
   };
 }
 

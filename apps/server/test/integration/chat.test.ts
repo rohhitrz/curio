@@ -919,3 +919,35 @@ describe('rerank (rerank on)', () => {
     });
   });
 });
+
+describe('relevance gate (rerank + relevanceGate on)', () => {
+  const reranker = (score: number): RerankProvider => ({
+    model: 'fake-rerank',
+    rerank: () =>
+      Promise.resolve({ results: [{ index: 0, score }], model: 'fake-rerank', searchUnits: 1 }),
+  });
+
+  it('nothing relevant → "not in your sources", no citations, no model call', async () => {
+    buildApp(undefined, { rerank: true, relevanceGate: true }, reranker(0.05));
+    const { conversationId } = await setup();
+
+    const res = await send(conversationId, 'What is the capital of France?');
+
+    const chunks = parseStream(res.text);
+    expect(textOf(chunks)).toBe(NOT_IN_SOURCES_ANSWER);
+    expect(chunks.find((c) => c.type === 'data-citations')?.data).toEqual([]);
+    expect(llm.requests).toEqual([]);
+    expect(tracer.spans.find((s) => s.name === 'retrieve')?.output).toMatchObject({ gated: true });
+  });
+
+  it('a relevant top chunk passes the gate', async () => {
+    buildApp(undefined, { rerank: true, relevanceGate: true }, reranker(0.95));
+    const { conversationId } = await setup();
+    llm.reply('Dropout drops units [1].');
+
+    const res = await send(conversationId, 'What is dropout?');
+
+    expect(textOf(parseStream(res.text))).toBe('Dropout drops units [1].');
+    expect(tracer.spans.find((s) => s.name === 'retrieve')?.output).toMatchObject({ gated: false });
+  });
+});

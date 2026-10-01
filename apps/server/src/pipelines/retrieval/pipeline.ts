@@ -47,6 +47,8 @@ export type StepRunner = <T>(name: string, input: unknown, fn: () => Promise<T>)
 export interface RetrievalPipelineDeps extends RetrievalDeps, RetrievalStepDeps {
   flags: RetrievalFlags;
   step?: StepRunner;
+  /** Defaults to `retrieval.relevanceThreshold`; the eval passes others to tune it. */
+  relevanceThreshold?: number;
   /** An optional step failed and was skipped (graceful degradation); the caller logs it. */
   onStepFailed?: (step: OptionalStep, error: unknown) => void;
 }
@@ -71,7 +73,18 @@ export interface RetrievalPipelineResult {
   /** Best first, ranks 1…n. */
   chunks: RetrievedChunk[];
   /** Which optional steps ran, for traces and the eval results. */
-  steps: { understand: boolean; keyword: boolean; fusion: boolean; rerank: boolean };
+  steps: {
+    understand: boolean;
+    keyword: boolean;
+    fusion: boolean;
+    rerank: boolean;
+    /** The gate checked the top score (it needs rerank scores). */
+    gate: boolean;
+  };
+  /** The gate found nothing relevant enough: `chunks` is empty, so the answer is a refusal. */
+  gated: boolean;
+  /** The top rerank score the gate checked (kept even when gated; the eval tunes on it). */
+  gateScore: number | null;
   /** Optional steps that failed and were skipped. */
   failed: OptionalStep[];
 }
@@ -90,6 +103,8 @@ const runDirectly: StepRunner = (_name, _input, fn) => fn();
  * - `hybridSearch`: adds a keyword search next to each vector search.
  * - Fusion (RRF) runs only when there is more than one result list to merge.
  * - `rerank`: reorders the fused candidates; without it they are cut to `topK` in fused order.
+ * - `relevanceGate` (needs `rerank`): a top rerank score below the threshold empties `chunks`, so
+ *   the answer is "not in your sources" without a model call. Skipped if rerank failed.
  *
  * Flag on without its step's dep is a wiring bug: it throws before anything is called.
  * A failing understanding call doesn't fail the request: the raw question is searched. A
@@ -105,7 +120,7 @@ export async function runRetrieval(
   requireStepDeps(deps);
 
   const understandOn = flags.queryRewrite || flags.subQueries;
-  const steps = { understand: false, keyword: false, fusion: false, rerank: false };
+  const steps = { understand: false, keyword: false, fusion: false, rerank: false, gate: false };
   const failed: OptionalStep[] = [];
 
   let searchQuery = input.question;
@@ -123,7 +138,15 @@ export async function runRetrieval(
       steps.understand = true;
       if (flags.queryRewrite) {
         if (!understood.needsRetrieval) {
-          return { retrieved: false, queries: [], chunks: [], steps, failed };
+          return {
+            retrieved: false,
+            queries: [],
+            chunks: [],
+            steps,
+            failed,
+            gated: false,
+            gateScore: null,
+          };
         }
         searchQuery = understood.standaloneQuery.trim() || input.question;
       }
@@ -185,7 +208,18 @@ export async function runRetrieval(
   }
   chunks ??= candidates.slice(0, topK);
 
-  return { retrieved: true, queries, chunks: renumber(chunks), steps, failed };
+  // Step 5. Only rerank scores mean "how relevant" on a fixed 0–1 scale; when rerank was off or
+  // failed, the scores are fused ranks or cosine similarities, so the gate stays out.
+  let gated = false;
+  let gateScore: number | null = null;
+  if (flags.relevanceGate && steps.rerank) {
+    steps.gate = true;
+    gateScore = chunks[0]?.score ?? 0;
+    gated = gateScore < (deps.relevanceThreshold ?? retrieval.relevanceThreshold);
+    if (gated) chunks = [];
+  }
+
+  return { retrieved: true, queries, chunks: renumber(chunks), steps, failed, gated, gateScore };
 }
 
 function requireStepDeps(deps: RetrievalPipelineDeps) {
@@ -194,6 +228,7 @@ function requireStepDeps(deps: RetrievalPipelineDeps) {
     (flags.queryRewrite || flags.subQueries) && !deps.understandQuery && 'understandQuery',
     flags.hybridSearch && !deps.keywordSearch && 'keywordSearch',
     flags.rerank && !deps.rerank && 'rerank',
+    flags.relevanceGate && !flags.rerank && 'rerank (the relevance gate needs its scores)',
   ].filter(Boolean);
   if (missing.length > 0) {
     throw new Error(`Retrieval flags are on without their steps: ${missing.join(', ')}`);

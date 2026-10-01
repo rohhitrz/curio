@@ -24,6 +24,7 @@ const allFlagsOff: RetrievalFlags = {
   hybridSearch: false,
   rerank: false,
   subQueries: false,
+  relevanceGate: false,
   hyde: false,
 };
 const repository = createRetrievalRepository(db);

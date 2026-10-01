@@ -14,6 +14,7 @@ const allOff: RetrievalFlags = {
   hybridSearch: false,
   rerank: false,
   subQueries: false,
+  relevanceGate: false,
   hyde: false,
 };
 
@@ -218,7 +219,13 @@ describe('runRetrieval', () => {
     expect(result.retrieved).toBe(true);
     expect(searchedText).toEqual([input.question, 'dropout', 'batch norm']);
     expect(calls.vector).toHaveLength(3);
-    expect(result.steps).toEqual({ understand: true, keyword: false, fusion: true, rerank: false });
+    expect(result.steps).toEqual({
+      understand: true,
+      keyword: false,
+      fusion: true,
+      rerank: false,
+      gate: false,
+    });
   });
 
   it('hybridSearch on: a keyword search next to each vector search, fused with RRF', async () => {
@@ -277,6 +284,64 @@ describe('runRetrieval', () => {
 
     expect(result.chunks).toEqual([]);
     expect(calls.rerank).toEqual([]);
+  });
+
+  describe('relevance gate (rerank + relevanceGate on)', () => {
+    const withTopScore = (deps: RetrievalPipelineDeps, score: number) => {
+      deps.rerank = ({ chunks }) =>
+        Promise.resolve(chunks.slice(0, 1).map((c) => ({ ...c, score })));
+    };
+
+    it('top score below the threshold → no chunks, gated', async () => {
+      const { deps } = setup({ rerank: true, relevanceGate: true });
+      withTopScore(deps, 0.69);
+
+      const result = await runRetrieval(input, { ...deps, relevanceThreshold: 0.7 });
+
+      expect(result).toMatchObject({ retrieved: true, gated: true, chunks: [] });
+      expect(result.steps.gate).toBe(true);
+    });
+
+    it('top score exactly at the threshold → passes', async () => {
+      const { deps } = setup({ rerank: true, relevanceGate: true });
+      withTopScore(deps, 0.7);
+
+      const result = await runRetrieval(input, { ...deps, relevanceThreshold: 0.7 });
+
+      expect(result.gated).toBe(false);
+      expect(result.chunks).toHaveLength(1);
+    });
+
+    it('uses retrieval.relevanceThreshold by default', async () => {
+      const { deps } = setup({ rerank: true, relevanceGate: true });
+      withTopScore(deps, retrieval.relevanceThreshold - 0.01);
+      expect((await runRetrieval(input, deps)).gated).toBe(true);
+    });
+
+    it('gate off → low scores still pass', async () => {
+      const { deps } = setup({ rerank: true });
+      withTopScore(deps, 0.01);
+      const result = await runRetrieval(input, deps);
+      expect(result).toMatchObject({ gated: false, steps: { gate: false } });
+      expect(result.chunks).toHaveLength(1);
+    });
+
+    it('rerank failed → the gate is skipped (fused scores are not relevance)', async () => {
+      const { deps } = setup({ rerank: true, relevanceGate: true });
+      deps.rerank = () => Promise.reject(new Error('down'));
+
+      const result = await runRetrieval({ ...input, topK: 1 }, deps);
+
+      expect(result).toMatchObject({ gated: false, failed: ['rerank'], steps: { gate: false } });
+      expect(result.chunks).toHaveLength(1);
+    });
+
+    it('relevanceGate without rerank is a wiring bug', async () => {
+      const { deps } = setup({ relevanceGate: true });
+      await expect(runRetrieval(input, deps)).rejects.toThrow(
+        'the relevance gate needs its scores',
+      );
+    });
   });
 
   it('a flag on without its step throws before calling anything', async () => {

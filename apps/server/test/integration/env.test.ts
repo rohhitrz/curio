@@ -60,7 +60,13 @@ describe('env validation', () => {
   );
 
   it('COHERE_API_KEY is optional, but required while the rerank flag is on', () => {
-    const flags = { queryRewrite: true, hybridSearch: true, subQueries: false, hyde: false };
+    const flags = {
+      queryRewrite: true,
+      hybridSearch: true,
+      subQueries: false,
+      relevanceGate: false,
+      hyde: false,
+    };
     const { COHERE_API_KEY: _cohere, ...withoutCohere } = validEnv;
     expect(loadEnv(withoutCohere, { ...flags, rerank: false }).COHERE_API_KEY).toBeUndefined();
     expect(() => loadEnv(withoutCohere, { ...flags, rerank: true })).toThrow(

@@ -50,6 +50,11 @@ export const retrieval = {
    * `strict_order` keeps results exactly ordered by distance.
    */
   hnswIterativeScan: 'strict_order',
+  /**
+   * Relevance gate (step 5): a top rerank score below this → "not in your sources" without a
+   * model call. Tuned in 6.5 on the eval's unanswerable questions (`gateSweep` in the results).
+   */
+  relevanceThreshold: 0.7,
   /** Numbered sources sent to the model, at most (tokens, counted like the embeddings). */
   contextMaxTokens: 6_000,
 } as const;

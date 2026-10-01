@@ -14,6 +14,8 @@ export interface RetrievalFlags {
   hybridSearch: boolean;
   rerank: boolean;
   subQueries: boolean;
+  /** Needs `rerank`: thresholds its 0–1 scores (`retrieval.relevanceThreshold`). */
+  relevanceGate: boolean;
   hyde: boolean;
 }
 
@@ -22,5 +24,6 @@ export const retrievalFlags: RetrievalFlags = {
   hybridSearch: true,
   rerank: true,
   subQueries: false,
+  relevanceGate: false,
   hyde: false,
 };
