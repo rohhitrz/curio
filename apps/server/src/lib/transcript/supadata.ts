@@ -11,6 +11,11 @@ export interface SupadataConfig {
   /** Supadata answers 202 with a job for slow transcripts; this bounds how long we poll it. */
   jobPollAttempts: number;
   jobPollIntervalMs: number;
+  /**
+   * Preferred caption language (ISO 639-1). Without it Supadata returns the video's first track,
+   * which can be one of YouTube's auto-translations; a video without it still gets its first.
+   */
+  language: string;
   baseUrl?: string;
   fetch?: typeof fetch;
   /** Waits between job polls; tests pass an instant one. */
@@ -159,6 +164,7 @@ export function createSupadataTranscriptProvider(config: SupadataConfig): Transc
         url: watchUrl(videoId),
         text: 'false',
         mode: 'native',
+        lang: config.language,
       });
       if (status === 202) {
         const job = jobAccepted.safeParse(body);

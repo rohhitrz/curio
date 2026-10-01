@@ -49,6 +49,7 @@ const transcripts = createSupadataTranscriptProvider({
   timeoutMs: extraction.transcriptTimeoutMs,
   jobPollAttempts: extraction.transcriptJobPollAttempts,
   jobPollIntervalMs: extraction.transcriptJobPollIntervalMs,
+  language: extraction.transcriptLanguage,
 });
 
 async function download(document: FetchedDocument): Promise<Uint8Array | string> {

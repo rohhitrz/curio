@@ -14,6 +14,7 @@ function supadata(...replies: Parameters<typeof stubFetch>) {
     timeoutMs: 30_000,
     jobPollAttempts: 3,
     jobPollIntervalMs: 2_000,
+    language: 'en',
     fetch: stub.fetch,
     sleep: (ms) => {
       sleeps.push(ms);
@@ -58,6 +59,7 @@ describe('Supadata transcript', () => {
       url: WATCH_URL,
       text: 'false',
       mode: 'native',
+      lang: 'en',
     });
     expect(request?.headers.get('x-api-key')).toBe('sd-test');
   });

@@ -113,6 +113,7 @@ const ingestionService = createIngestionService({
     timeoutMs: extraction.transcriptTimeoutMs,
     jobPollAttempts: extraction.transcriptJobPollAttempts,
     jobPollIntervalMs: extraction.transcriptJobPollIntervalMs,
+    language: extraction.transcriptLanguage,
   }),
   embeddings,
   jobs,

@@ -80,6 +80,11 @@ export const extraction = {
   scrapeTimeoutMs: 60_000,
   /** Each transcript-service call. */
   transcriptTimeoutMs: 30_000,
+  /**
+   * Caption language asked for first. Without it a video with auto-translated tracks could come
+   * back in any of them (seen: an English video ingested as Arabic).
+   */
+  transcriptLanguage: 'en',
   /** A transcript the vendor prepares in the background is polled this often, this many times. */
   transcriptJobPollIntervalMs: 3_000,
   transcriptJobPollAttempts: 10,
