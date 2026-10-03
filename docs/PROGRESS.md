@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 8 (Learning paths), in progress
-- **Current step:** 8.5 done (learning path API)
+- **Current step:** 8.6 done (learning path frontend)
 - **Blocked on:** nothing
-- **Next step:** 8.6 frontend: clarify, progress, branch picker, outline, skipped list, module toggles
+- **Next step:** 8.7 evals: coverage vs official docs + consistency across runs (real API calls: owner go-ahead needed)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -34,7 +34,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 8.3 `generateLearningPath` job (`path/requested`), part 1: `claim` (only a `GATHERING` path) → `search` (3 searches via Tavily, Firecrawl search as fallback; some failing is fine, all failing retries then `SEARCH_FAILED`) → `select` (Luna `resourceSelection` judges every result; pure `selectResources` picks 1 `OFFICIAL` + ≤ 5 `POPULAR`, ≤ 1 video, one per site; model down on the last attempt → search order; < 3 → `NO_RESOURCES`) → `save-resources` (one transaction: sources `LEARNING_PATH`/`PENDING` + `path_resources`, status `READING`; a page already in the notebook is reused) → `step.invoke(processSource)` per source, in parallel → `finish-reading-N` (sources still in flight: `step.sleep` 1m, up to 10×) → `MAPPING`, or `TOO_FEW_RESOURCES` with the count · retry reuses saved resources (no search), resets `FAILED` sources · `onFailure` → `GENERATION_FAILED` · decision L-06 · `TAVILY_API_KEY` required at boot
 - [x] 8.4 Part 2 (decision L-07): `list-read` → `map-<resourceId>` per read resource in parallel (Luna `conceptMap`; last-attempt failure leaves the resource out) → `merge` (< 3 mapped → `TOO_FEW_RESOURCES`; Luna `conceptMerge`, pure `applyMerge` + `consensusScore`) → `order` (Luna `learningPath`, pure `applyOrder`: modules, ≤ 3 gaps, branches) → advanced: `offer-branches` (`AWAITING_BRANCH` + `branch_options`) then `waitForEvent('path/branch-selected', match data.pathId)` in 1h slices × 72, re-reading `selected_branch` after each (`BRANCH_NOT_PICKED` after) → `build` (`BUILDING`, pure `cutPath`) → `hook` (Luna `pathHook` from the official resource's opening; failure → none) → `save` (one transaction: modules, concepts with status/reason/position, coverage, hook → `READY`) · every status move is safe to repeat
 - [x] 8.5 API (`learning-paths` route → controller → service → repository): `POST /learning-paths` (rate limit 5/day; topic `findOrCreate`; one transaction: `LEARNING` notebook within the notebook cap + path + `LEVEL` memory via `upsertLevelIn` (extracted from the memories repository); `path/requested` not sent → `FAILED` at once) · `GET /learning-paths/:id` · `POST /:id/branch` (409 `INVALID_STATE` / 400 not offered; pick saved, then `path/branch-selected`) · `POST /:id/retry` (only `FAILED`; reset to `GATHERING`, not rate-limited) · `GET /:id/outline` (409 `PATH_NOT_READY`; modules + concepts with `coveredBy` / `officialCovers`, skipped, resources, progress) · `PATCH /modules/:id` `{ isEnabled }` · notebook detail `learningPathId` wired · shared schemas in `learning.ts`
-- [ ] 8.6 Frontend: clarify, progress, branch picker, outline, skipped list, module toggles
+- [x] 8.6 Frontend (`features/learning/`): `/learn` clarify screen (topic, level and goal as card radios; prefill looked up 0.5s after typing, pre-selects the level with a "Still right?" note until the learner picks) → `POST` → `/learn/[pathId]`: progress stages (polled every 2s until `READY` / `FAILED` / waiting on the learner; again after a branch pick), branch picker, failure with "Try again" (retry), outline: hook, modules with checkboxes (optimistic `PATCH`), concepts with "why is this here?" (coverage evidence), "Skipped for now" with reasons, resources · "Learn" in the header, "Learn a topic" on the notebooks page, "Learning path" link on a learning notebook · pure helpers in `display.ts` (tested)
 - [ ] 8.7 Evals: coverage vs official docs + consistency across runs
 - [ ] 🛑 Owner approves Phase 8
 
@@ -113,6 +113,10 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - "Start path, DB fails midway" is tested with a temporary trigger that makes the memory insert fail: no notebook, no path, no event.
   - The outline's resources carry `url` too (the API doc example didn't; doc updated).
   - Rate limiting is per request like sources (a rejected start still counts).
+
+- **8.6 notes:**
+  - Checked by typecheck, web tests (86) and `next build` only: the agent can't sign in (Clerk is hosted), so **the owner checks the screens live** (Pending on owner).
+  - "Start learning" opens the path's notebook (lessons per module come in Phase 9).
 
 ## Phase 7 notes
 - **7.1 notes:**
@@ -198,6 +202,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Try a learning path live** (8.1–8.6 are deployed): Learn → a topic you know → level + goal → Build my path. Watch the stages (a few minutes), then check the outline: hook, modules, "why is this here?", the skipped list, unchecking a module, Start learning → the notebook with the resources as sources. Also try an advanced path (branch picker) and a topic without official docs (e.g. a history topic). The first real runs make real Tavily + OpenAI calls (one search set + ~10 Luna calls per path). Tell me what looks off; 8.7 measures coverage and consistency.
 - **Phase 7 live check** (Phase 7 approved; still worth doing):
   1. Open a notebook with a READY source and chat 4+ exchanges, saying something about yourself in one of them (e.g. "I'm a nurse, keep answers short").
   2. Within ~20s of an answer after the 4th exchange, a "Noted: …" notice appears under the chat; the **Memory** page (header) lists it under "About you".
@@ -481,11 +486,12 @@ What it says:
 -->
 
 ### 2026-10-03 (Phase 7 approved, 8.1)
-- Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1; 8.4 part 2 (map → outline → READY); 8.5 learning path API
+- Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1; 8.4 part 2 (map → outline → READY); 8.5 learning path API; 8.6 frontend
 - Owner: added `TAVILY_API_KEY` on Vercel and ran `0010` on prod
 - Notes: checkpoint before push: full suite 821 tests pass (716 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean. Pushed `85e67dd`; deploy READY; Inngest resynced
 - Notes (8.4): checkpoint before push: full suite 847 tests pass (742 server, 81 web, 24 evals); the learning-path job file passed 5 runs in a row; lint, typecheck, `typecheck:vercel` clean. Pushed `555059b`; deploy READY, `/health` ok; Inngest resynced (`modified: true`)
-- Notes (8.5): checkpoint before push: full suite 866 tests pass (761 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean
+- Notes (8.5): checkpoint before push: full suite 866 tests pass (761 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean. Pushed `f58a49d`; deploy READY, `/health` ok
+- Notes (8.6): full suite 871 tests pass (761 server, 86 web, 24 evals); `next build` ok
 - Owner: "start with phase 8" (Phase 7 approved)
 
 ### 2026-10-03 (faster tests)

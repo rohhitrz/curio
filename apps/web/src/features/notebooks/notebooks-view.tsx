@@ -1,7 +1,8 @@
 'use client';
 
 import type { Notebook } from '@curio/shared';
-import { NotebookPen, Plus } from 'lucide-react';
+import { GraduationCap, NotebookPen, Plus } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,10 +31,16 @@ export function NotebooksView() {
     <main className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Notebooks</h1>
-        <Button onClick={() => setDialog({ type: 'create' })}>
-          <Plus />
-          New notebook
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" nativeButton={false} render={<Link href="/learn" />}>
+            <GraduationCap />
+            Learn a topic
+          </Button>
+          <Button onClick={() => setDialog({ type: 'create' })}>
+            <Plus />
+            New notebook
+          </Button>
+        </div>
       </div>
 
       <section className="mt-6" aria-live="polite">

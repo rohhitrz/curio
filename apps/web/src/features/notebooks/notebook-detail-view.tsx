@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, GraduationCap } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,6 +37,15 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
               Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount}{' '}
               {notebook.data.sourceCount === 1 ? 'source' : 'sources'}
             </p>
+            {notebook.data.learningPathId && (
+              <Link
+                href={`/learn/${notebook.data.learningPathId}`}
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm underline-offset-2 hover:underline"
+              >
+                <GraduationCap className="size-4" aria-hidden />
+                Learning path
+              </Link>
+            )}
           </div>
         ) : null}
       </div>

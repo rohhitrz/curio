@@ -22,6 +22,9 @@ export function SiteHeader() {
             <Button variant="ghost" nativeButton={false} render={<Link href="/notebooks" />}>
               Notebooks
             </Button>
+            <Button variant="ghost" nativeButton={false} render={<Link href="/learn" />}>
+              Learn
+            </Button>
             <Button variant="ghost" nativeButton={false} render={<Link href="/memories" />}>
               Memory
             </Button>
