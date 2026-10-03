@@ -19,6 +19,7 @@ const validEnv = {
   OPENAI_API_KEY: 'sk-test',
   FIRECRAWL_API_KEY: 'fc-test',
   TRANSCRIPT_API_KEY: 'sd-test',
+  TAVILY_API_KEY: 'tvly-test',
   LANGFUSE_PUBLIC_KEY: 'pk-lf-test',
   LANGFUSE_SECRET_KEY: 'sk-lf-test',
   LANGFUSE_BASE_URL: 'https://cloud.langfuse.com',
@@ -41,6 +42,7 @@ describe('env validation', () => {
     expect(() => loadEnv({})).toThrow('OPENAI_API_KEY is required');
     expect(() => loadEnv({})).toThrow('FIRECRAWL_API_KEY is required');
     expect(() => loadEnv({})).toThrow('TRANSCRIPT_API_KEY is required');
+    expect(() => loadEnv({})).toThrow('TAVILY_API_KEY is required');
     expect(() => loadEnv({})).toThrow('LANGFUSE_PUBLIC_KEY is required');
     expect(() => loadEnv({})).toThrow('LANGFUSE_SECRET_KEY is required');
     expect(() => loadEnv({})).toThrow('LANGFUSE_BASE_URL is required');

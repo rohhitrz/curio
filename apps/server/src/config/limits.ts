@@ -227,4 +227,30 @@ export const learningPaths = {
    * Learning"). Never a merge: the learner always confirms (decision DB-06).
    */
   relatedTopicMinSimilarity: 0.6,
+  /** Results asked for per search (official docs / popular guides / videos). */
+  officialSearchResults: 5,
+  popularSearchResults: 8,
+  videoSearchResults: 4,
+  /** Domains the video search is limited to. */
+  videoDomains: ['youtube.com'],
+  /** Resources per path: 1 official + at most this many popular ones, of which at most `maxVideos`. */
+  maxPopular: 5,
+  maxVideos: 1,
+  /** Fewer resources than this read successfully → the path fails with a reason. */
+  minResources: 3,
+  /** Search snippet length shown to the selection model. */
+  snippetMaxChars: 300,
+  /** Retries per job step. */
+  jobRetries: 2,
+  /** One path per user at a time; a few across all users. */
+  concurrency: 5,
+  concurrencyPerUser: 1,
+  /** How long the job waits for one resource's ingestion run. */
+  ingestTimeout: '30m',
+  /**
+   * After the ingestion runs return, sources still `PENDING`/`PROCESSING` (e.g. a sweeper run
+   * claimed one first) are checked again this often, this many times, before being counted as
+   * not read.
+   */
+  inFlightRecheck: { every: '1m', times: 10 },
 } as const;

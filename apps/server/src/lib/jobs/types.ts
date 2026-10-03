@@ -9,6 +9,8 @@ export interface JobEvents {
   'conversation/summarize': { conversationId: string; userId: string };
   /** Scan new chat messages for facts about the learner. */
   'memory/extract': { conversationId: string; userId: string };
+  /** Build a learning path: sent on start and on retry. */
+  'path/requested': { pathId: string; userId: string };
 }
 
 export type JobEventName = keyof JobEvents;

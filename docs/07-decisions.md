@@ -194,6 +194,10 @@
 **L-05 · Lessons generated on demand, saved as versions**
 - **Why:** unopened modules cost nothing; regenerate never loses the old lesson
 
+**L-06 · Resource selection: the model judges each search result, code picks (8.3)**
+- **How:** 3 searches (official docs · popular guides at the level and goal · videos) → one Luna call judges every result (relevant, official, authority 1–5, docs/article) → a pure function picks 1 `OFFICIAL` + up to 5 `POPULAR` (most authoritative first, one per site, at most 1 video; ties by search score, then order). Model down on the last attempt → search order decides.
+- **Why:** "is this the official docs / a trustworthy page?" is a language judgement; the choice itself stays in code, so it is explainable and the same judgements give the same path (L-02)
+
 ---
 
 ## 6. Memory decisions

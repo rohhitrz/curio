@@ -58,6 +58,8 @@ const envSchema = z.object({
   LANGFUSE_BASE_URL: z.url({ protocol: /^https?$/ }),
   UPSTASH_REDIS_REST_URL: z.url({ protocol: /^https$/ }),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+  // Learning paths (Phase 8): web search for resources (Firecrawl search is the fallback).
+  TAVILY_API_KEY: z.string().min(1),
   // Rerank (Phase 6): required only while the `rerank` flag is on (checked in `loadEnv`).
   COHERE_API_KEY: z.string().min(1).optional(),
 });

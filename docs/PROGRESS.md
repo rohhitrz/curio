@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 8 (Learning paths), in progress
-- **Current step:** 8.2 done (Tavily provider + prefill)
-- **Blocked on:** nothing. Tavily key is in local `.env`; Vercel needs it before 8.3 is pushed (Pending on owner)
-- **Next step:** 8.3 `generateLearningPath` job, part 1 (gather → notebook → ingest)
+- **Current step:** 8.3 done (`generateLearningPath` part 1: gather → read)
+- **Blocked on:** nothing
+- **Next step:** 8.4 part 2: map → merge → consensus → order → modules → cut rules → hook; `waitForEvent` for advanced
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -31,7 +31,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 8
 - [x] 8.1 Migration `0010_learning_paths` (enums `goal`, `path_status`, `resource_role`, `resource_type`, `concept_status`; tables `learning_paths` (one per notebook), `path_resources`, `modules` (unique `(path_id, position)`), `concepts` (indexes `(path_id)`, `(module_id, position)`), `concept_coverage` (PK `(concept_id, path_resource_id)`); plus the deferred FK `memories.concept_id → concepts.id ON DELETE SET NULL`) on dev + test · shared `learning.ts` (enums, `pathHookSchema`, `branchOptionsSchema`) · `level` enum moved to `db/schema/level.ts` (memories ↔ learning paths would import each other)
 - [x] 8.2 Tavily provider `lib/search/` (`SearchProvider.search` → title / url / snippet / score; `SearchError` retryable on timeout, network, 429, 5xx; `webSearch` config: 15s, `basic` depth) · `GET /learning-paths/prefill?topic=` (`learning-paths` route → controller → service): user has no levels → `null` without an embedding call; same normalized topic with a level → `EXACT`; else the nearest of the user's levels by topic-name cosine ≥ `learningPaths.relatedTopicMinSimilarity` (0.6) → `RELATED` (known topic → stored embedding; unseen topic → embedded, **not created**: the endpoint is read-only); embeddings down → `null` · repo: `memories.levels`, `memories.nearestLevel`, `topics.findWithEmbedding` · shared `prefillQuerySchema` / `prefillResponseSchema`
-- [ ] 8.3 `generateLearningPath` job, part 1: gather → create notebook → ingest resources via `processSource`
+- [x] 8.3 `generateLearningPath` job (`path/requested`), part 1: `claim` (only a `GATHERING` path) → `search` (3 searches via Tavily, Firecrawl search as fallback; some failing is fine, all failing retries then `SEARCH_FAILED`) → `select` (Luna `resourceSelection` judges every result; pure `selectResources` picks 1 `OFFICIAL` + ≤ 5 `POPULAR`, ≤ 1 video, one per site; model down on the last attempt → search order; < 3 → `NO_RESOURCES`) → `save-resources` (one transaction: sources `LEARNING_PATH`/`PENDING` + `path_resources`, status `READING`; a page already in the notebook is reused) → `step.invoke(processSource)` per source, in parallel → `finish-reading-N` (sources still in flight: `step.sleep` 1m, up to 10×) → `MAPPING`, or `TOO_FEW_RESOURCES` with the count · retry reuses saved resources (no search), resets `FAILED` sources · `onFailure` → `GENERATION_FAILED` · decision L-06 · `TAVILY_API_KEY` required at boot
 - [ ] 8.4 Part 2: map → merge → consensus → order → modules → cut rules → hook; `waitForEvent` for advanced; partial-failure rules
 - [ ] 8.5 API: start, get, branch, retry, outline, module `PATCH`
 - [ ] 8.6 Frontend: clarify, progress, branch picker, outline, skipped list, module toggles
@@ -88,11 +88,19 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - `branch_options` is an array of `{ name, description }` (the doc only says the pick must be in it; the picker needs a line per branch). `POST /branch` matches on `name`. `03-database-design.md` updated.
   - `consensus_score` is `numeric` read as a JS number (`mode: 'number'`).
   - Added `path_resources (path_id)` index (FK lookups; listed in `03-database-design.md`).
-  - **`0010_learning_paths` needs a prod run by the owner** (Pending on owner) before 8.5 ships the API.
+  - `0010_learning_paths` run on prod by the owner (2026-10-03).
 - **8.2 notes:**
-  - The Tavily provider is not wired into the app yet and `TAVILY_API_KEY` is not in `config/env.ts`: 8.3 makes it required at boot when the job uses it (so Vercel needs the key first).
-  - "Tavily finds, Firecrawl reads, each a fallback for the other" (system design §8): the search-side fallback (Firecrawl search) is for 8.3's gather step, behind the same `SearchProvider`.
+  - `TAVILY_API_KEY` is required at boot since 8.3 (owner added it on Vercel, 2026-10-03).
   - The 0.6 threshold was set without real embeddings (tests use chosen vectors; no API calls). **Check live** that e.g. "Deep Learning" offers a "Machine Learning" level and an unrelated topic doesn't; tune in `config/limits.ts` if not.
+
+- **8.3 notes:**
+  - **The learning notebook is not created by the job:** `POST /learning-paths` (8.5) creates notebook + path + `LEVEL` memory in one transaction (API doc), so the job adds the sources to that notebook. The build plan's "create notebook" step is that.
+  - **Ingestion = `step.invoke(processSource)`** with `data: { sourceId, userId }` (the invoked run parses `event.data` like a `source/created` run). Invoke failures/timeouts (30m) are caught: the DB says what was read. Learning sources are `PENDING` with no `source/created` event; if the sweeper re-sends one first (> 10 min pending), its run owns the source and the invoked one stops `not_pending` → the `finish-reading` re-checks cover that.
+  - Retry (8.5): the endpoint must set the path back to `GATHERING` (clearing the error) and send `path/requested` again; the job sees saved resources and skips search + select.
+  - Duplicate `path/requested` for one path: the second run stops at `claim` once the first moved past `GATHERING`; per-user concurrency 1 keeps them from running steps at once. Good enough while only our API sends the event.
+  - Not done: "Tavily reads when Firecrawl fails" (the scraping side of the fallback; `processSource` change) → `docs/todo-v2.md`.
+  - `resourceSelection` is traced as `learning-path-selection`. Search and selection make real API calls only in the deployed job (none in tests).
+  - **Inngest:** needs the PUT resync after the push (new function `generate-learning-path`).
 
 ## Phase 7 notes
 - **7.1 notes:**
@@ -178,8 +186,6 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Add `TAVILY_API_KEY` to Vercel `curio-server`** (Secret, Production) before 8.3 is pushed: the server will require it at boot.
-- **Run `0010_learning_paths` on prod:** `cd apps/server && pnpm db:migrate:prod` (adds the learning tables and the `memories.concept_id` FK; no data changes).
 - **Phase 7 live check** (Phase 7 approved; still worth doing):
   1. Open a notebook with a READY source and chat 4+ exchanges, saying something about yourself in one of them (e.g. "I'm a nurse, keep answers short").
   2. Within ~20s of an answer after the 4th exchange, a "Noted: …" notice appears under the chat; the **Memory** page (header) lists it under "About you".
@@ -234,8 +240,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = local Docker Postgres (`TEST_DATABASE_URL=postgres://curio:curio@localhost:5434/curio_test`; `pnpm db:test:up` / `db:test:down`, data in tmpfs so it's empty after every restart; decision PR-06). The old Neon `test` URL is kept in `.env` as `NEON_TEST_DATABASE_URL`, unused. `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per integration file; integration files run serially, unit files in parallel (`pnpm test:unit` / `pnpm test:integration`). **Prod** = Neon `main`.
-- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:prod` (main); the test database is migrated by every integration run. `drizzle.config.ts` maps `DB_TARGET` dev/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30); `0007_sources_processing_run_id` on all three (prod run by the owner, 2026-10-01); `0008_conversations_messages` on all three (prod run by the owner, 2026-10-01); `0009_memories` on all three (prod run by the owner, 2026-10-03); `0010_learning_paths` on dev + test, prod pending. The agent can't verify production; prod runs are as reported by the owner.
-- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + `OPENAI_API_KEY` + `FIRECRAWL_API_KEY` + `TRANSCRIPT_API_KEY` (Secret, Production only; all five are required at boot), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
+- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:prod` (main); the test database is migrated by every integration run. `drizzle.config.ts` maps `DB_TARGET` dev/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30); `0007_sources_processing_run_id` on all three (prod run by the owner, 2026-10-01); `0008_conversations_messages` on all three (prod run by the owner, 2026-10-01); `0009_memories` on all three (prod run by the owner, 2026-10-03); `0010_learning_paths` on all three (prod run by the owner, 2026-10-03). The agent can't verify production; prod runs are as reported by the owner.
+- **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + `OPENAI_API_KEY` + `FIRECRAWL_API_KEY` + `TRANSCRIPT_API_KEY` + `TAVILY_API_KEY` (Secret, Production only; all six are required at boot), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
 
@@ -463,7 +469,9 @@ What it says:
 -->
 
 ### 2026-10-03 (Phase 7 approved, 8.1)
-- Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint
+- Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1
+- Owner: added `TAVILY_API_KEY` on Vercel and ran `0010` on prod
+- Notes: checkpoint before push: full suite 821 tests pass (716 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean
 - Owner: "start with phase 8" (Phase 7 approved)
 
 ### 2026-10-03 (faster tests)

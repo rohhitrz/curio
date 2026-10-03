@@ -7,6 +7,7 @@ import {
   EnvError,
   extraction,
   ingestion,
+  learningPaths,
   llmModels,
   llmRequests,
   llmTasks,
@@ -15,11 +16,13 @@ import {
   rerankRequests,
   serviceTimeouts,
   tracing,
+  webSearch,
   type Env,
 } from './config/index.js';
 import { createApp } from './create-app.js';
 import { createDb } from './db/client.js';
 import { createCleanupNotebookFilesFunction } from './inngest/cleanup-notebook-files.js';
+import { createGenerateLearningPathFunction } from './inngest/generate-learning-path.js';
 import { createProcessSourceFunction } from './inngest/process-source.js';
 import { createExtractMemoriesFunction } from './inngest/extract-memories.js';
 import { createSummarizeConversationFunction } from './inngest/summarize-conversation.js';
@@ -38,6 +41,11 @@ import { createUpstashLocks } from './lib/locks/index.js';
 import { createUnpdfParser } from './lib/pdf/index.js';
 import { createUpstashRateLimiter } from './lib/rate-limit/index.js';
 import { createFirecrawlScraper } from './lib/scraper/index.js';
+import {
+  createFirecrawlSearch,
+  createTavilySearch,
+  withSearchFallback,
+} from './lib/search/index.js';
 import { createR2StorageProvider } from './lib/storage/index.js';
 import { startLangfuseTracing } from './lib/tracing/index.js';
 import { createSupadataTranscriptProvider } from './lib/transcript/index.js';
@@ -46,11 +54,13 @@ import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createChatRepository } from './repositories/chat.repository.js';
 import { createMemoriesRepository } from './repositories/memories.repository.js';
 import { createIngestionRepository } from './repositories/ingestion.repository.js';
+import { createLearningPathsRepository } from './repositories/learning-paths.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
 import { createTopicsRepository } from './repositories/topics.repository.js';
 import { createConversationSummaryService } from './services/conversation-summary.service.js';
 import { createMemoryExtractionService } from './services/memory-extraction.service.js';
 import { createIngestionService } from './services/ingestion.service.js';
+import { createLearningPathGenerationService } from './services/learning-path-generation.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
 import { createTopicsService } from './services/topics.service.js';
 
@@ -190,6 +200,24 @@ const memoryExtractionService = createMemoryExtractionService({
   logger,
 });
 
+const processSource = createProcessSourceFunction(inngest, ingestionService);
+const learningPathGeneration = createLearningPathGenerationService({
+  repository: createLearningPathsRepository(db),
+  search: withSearchFallback(
+    createTavilySearch({
+      apiKey: env.TAVILY_API_KEY,
+      depth: webSearch.depth,
+      timeoutMs: webSearch.timeoutMs,
+    }),
+    createFirecrawlSearch({ apiKey: env.FIRECRAWL_API_KEY, timeoutMs: webSearch.timeoutMs }),
+    logger,
+  ),
+  llm,
+  tracer,
+  logger,
+  limits: learningPaths,
+});
+
 const app: Express = createApp({
   logger,
   corsOrigins: env.CORS_ORIGINS,
@@ -204,7 +232,8 @@ const app: Express = createApp({
   locks: createUpstashLocks(redis),
   rateLimiter: createUpstashRateLimiter(redis),
   jobsHandler: createInngestHandler(inngest, [
-    createProcessSourceFunction(inngest, ingestionService),
+    processSource,
+    createGenerateLearningPathFunction(inngest, learningPathGeneration, processSource, logger),
     createSweepStuckSourcesFunction(inngest, ingestionService),
     createCleanupNotebookFilesFunction(inngest, notebooksService),
     createSummarizeConversationFunction(inngest, summaryService),

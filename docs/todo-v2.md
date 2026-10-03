@@ -11,6 +11,7 @@
 - [ ] **Sweeper vs a long job queue:** a step that waits more than 15 minutes in the Inngest queue before starting is timed out as if its run were dead (the database can't tell the two apart). Fix: before failing a source, ask Inngest whether its run (`sources.processing_run_id`) is still queued or running, and only fail it if the run ended or is unknown. Needs Inngest's API added to `02-system-design.md`. Only matters with a backlog of well over a hundred sources. *(Code review, 2026-10-01)*
 
 
+- [ ] **Tavily as the scraping fallback:** system design §8 says Tavily and Firecrawl are each a fallback for the other. The search side is done (Firecrawl search behind Tavily, 8.3); the reading side (Tavily Extract when Firecrawl can't read a page) would go into `processSource`'s website extraction. *(8.3)*
 
 ## Accounts and deploys
 

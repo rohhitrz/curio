@@ -259,6 +259,7 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 
 ### Progress: `GET /learning-paths/:id`
 - Lightweight poll: status, hook, branch options, error
+- Failure codes (`error.code`, with a user-facing message): `SEARCH_FAILED` (web search down) · `NO_RESOURCES` (too few usable results for the topic) · `TOO_FEW_RESOURCES` (fewer than 3 resources could be read; the message gives the count) · `GENERATION_FAILED` (unexpected)
 
 ### Branch: `POST /learning-paths/:id/branch`
 ```json

@@ -28,6 +28,8 @@ export const llmTasks = {
   chatReply: { tier: 'luna', maxOutputTokens: 300, reasoningEffort: 'none' },
   conversationSummary: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   memoryExtraction: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
+  /** Judges search results for a learning path (relevant? official? how authoritative?). */
+  resourceSelection: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   learningPath: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
   lesson: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
   /** Luna, not Sol (owner, 2026-10-01: Luna is enough; decision O-04). */

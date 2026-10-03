@@ -225,7 +225,8 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 
 ```
 1. Clarify    (UI)   topic + level + goal; memory pre-fills level → user confirms
-2. Gather     (job)  Tavily searches → 1 official source + up to ~5 popular ones
+2. Gather     (job)  Tavily searches → Luna judges results → code picks
+                     1 official source + up to ~5 popular ones (L-06)
 3. Read       (job)  learning notebook created (draft); resources ingested
                      via processSource — scraped once, reused for mapping + lessons
 4. Map        (job)  fan-out: concepts per resource (parallel) → merge duplicates
