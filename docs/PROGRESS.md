@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 7 (Memory), in progress
-- **Current step:** 7.5 done (memory in prompts)
+- **Phase:** 7 (Memory), all steps built: 🛑 **waiting for owner approval**
+- **Current step:** 7.6 done (memory API + memory page + "Noted" notice)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** 7.6 memory API (4 endpoints) + memory page + "Noted" notice
+- **Next step:** Phase 8 (learning paths), once Phase 7 is approved
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -34,7 +34,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 7.3 Migration `0009_memories` (enums `level`, `memory_scope`, `memory_kind`, `memory_origin`; checks: `scope = 'TOPIC'` ⇔ `topic_id` set, `LEVEL` ⇒ level + `TOPIC`; partial unique indexes: one `LEVEL` per (user, topic), one `UNDERSTOOD` per (user, concept); index `(user_id, scope, topic_id)`) on dev + test · `memories.repository.ts`: `list` (scope / topic / since, topic name joined), `findById`, `count`, `insertWithinCap` + `upsertLevel` (per-user advisory lock, cap `quotas.memoriesPerUser` = 200; updating an existing level works at the cap), `update` (`unlessUserEdited` for the extraction job), `delete`, `deleteAll`; all scoped by user
 - [x] 7.4 `extractMemories` job (`memory/extract`, one run per user at a time): `draft` (Luna `memoryExtraction` structured output over the messages after `memory_extracted_through_seq`, with the learner's `STYLE`/`GOAL`/`FACT` memories, global + the notebook's topic, user-edited ones marked read-only) → pure `screenOperations` (decision M-06) → `apply` (adds via `insertWithinCap` with `CHAT_EXTRACTED`, `origin_ref` = conversation; updates with `unlessUserEdited`; then the marker moves, optimistic) · chat queues it after a saved answer when more than `memoryExtraction.afterMessages` (6) messages are unscanned · traced as `memory-extraction`
 - [x] 7.5 Memory in prompts: `memories.forNotebook` (global + the notebook topic's memories, one query) → pure `formatLearnerProfile` (`pipelines/memory/profile.ts`: levels, style, goals, background, understood; cut to `learnerProfile.maxMemories` 30 / `maxChars` 2000) → first turn of the answer and reply prompts ("About me, the learner… not a source of facts"), apart from the sources so it can't be cited; one rule added to `CHAT_ANSWER_INSTRUCTIONS` and `CHAT_REPLY_INSTRUCTIONS` · loaded in parallel with the history; failure → answer without it (logged) · trace output `profile: true/false`
-- [ ] 7.6 Memory API (4 endpoints) + memory page + "Noted" notice
+- [x] 7.6 Memory API: `GET /memories` (`?scope`, `?topicId`, `?since`; topic + server-built `originLabel`), `PATCH /memories/:id` (`content` / `level`; any edit → `USER_EDITED`; `level` on a non-`LEVEL` memory → 400), `DELETE /memories/:id`, `DELETE /memories` · shared schemas `packages/shared/src/memories.ts` (`MEMORY_CONTENT_MAX` 300, also the extraction limit) · web: `/memories` page ("About you" + one section per topic, edit / delete / delete all with confirm; "Memory" in the header) · "Noted" notice in the chat: after each answer, `GET /memories?since=` at ~6s and ~20s; new `CHAT_EXTRACTED` memories show with a link to the page
 - [ ] 🛑 Owner approves Phase 7
 
 ## Phase 6 steps (done)
@@ -85,6 +85,11 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Topics are shared and hold no personal data, so `topics.repository` queries take no user ID; the notebook update is still scoped by user (others' notebooks → 404, checked before a topic is created).
   - Topic embeddings use the chat embeddings client (5s timeout). No related-topic search yet: the similarity lookup arrives with the level pre-fill (Phase 8). No UI to set a topic yet (not in 7.2); learning notebooks will get theirs from `POST /learning-paths`.
 
+- **7.6 notes:**
+  - The memory page and the notice were checked by build + unit tests only: the agent can't sign in (Clerk is hosted), so **the owner checks them live** (see Pending on owner).
+  - The notice starts its `since` one minute before the chat opened (client clock skew), so a memory noted just before can show once.
+  - `POST /memories` (manual add) stays post-launch (API doc).
+- **Phase 7 "done when"** (build plan): a long chat stays coherent (summary, 7.1) · stated preferences appear as memories (7.4) · user edits survive extraction (7.3/7.4/7.6, tested) · memories never appear as citations (7.5, tested) · tests pass ✅ (751). The first two need the owner's live check.
 - **7.5 notes:**
   - The answer instructions changed (one line about the learner note). The eval runs without memories, so no eval was run for this step (none in the build plan); the next full eval (Phase 11) will use the new text.
   - "Memories never appear as citations": the profile is not a numbered source, and the citation check (6.6) drops any marker the model points at it (tested).
@@ -152,6 +157,13 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Approve Phase 7.** How to verify on the live app:
+  1. Open a notebook with a READY source and chat 4+ exchanges, saying something about yourself in one of them (e.g. "I'm a nurse, keep answers short").
+  2. Within ~20s of an answer after the 4th exchange, a "Noted: …" notice appears under the chat; the **Memory** page (header) lists it under "About you".
+  3. Edit it on the Memory page (label becomes "Edited by you"), keep chatting: it's never overwritten. Delete one, delete all (confirm dialog).
+  4. Ask follow-ups: answers get shorter/simpler, but citations still point only at your sources.
+  5. Long chat (11+ exchanges): Langfuse shows a `conversation-summary` trace; follow-ups about early messages still make sense.
+  6. Inngest dashboard: `summarize-conversation` and `extract-memories` have runs.
 - **Phase 6 live check** (Phase 6 approved; still worth doing): ask a few questions on the live app, including a follow-up ("what are its disadvantages?") and something not in your sources (should say "not in your sources" right away); in Langfuse, a `chat` trace shows `understand` → `search` → `rerank` under `retrieve` and **time to first token under ~3s**; numbers in "Eval results so far" (ablation table).
 - **Re-process the YouTube source that came out in Arabic** (Process again), now that transcripts ask for English.
 - **Later:** swap Vercel `COHERE_API_KEY` for a Cohere Production key once other people use Curio (Trial keys: 10 calls/min, not for production; the variable name stays the same).
@@ -430,6 +442,10 @@ What it says:
 ### 2026-10-03 (faster tests)
 - Done: tests moved to a local Docker Postgres (PR-06); unit and integration split into Vitest projects
 - Notes: server suite 582 tests in ~25 s (281 unit in ~1.5 s, 301 integration in ~23 s), was ~25 min on Neon `test`. This run covered 7.1, so the full-suite gap since 6.4 is closed
+
+### 2026-10-03 (7.6, Phase 7 built)
+- Done: 7.6 memory API + page + "Noted" notice; Inngest resynced for the Phase 7 jobs (owner's screenshot showed them missing)
+- Notes: full suite 751 tests pass (646 server, 81 web, 24 evals); web build ok
 
 ### 2026-10-03 (7.5)
 - Done: 7.5 learner profile in the chat prompts

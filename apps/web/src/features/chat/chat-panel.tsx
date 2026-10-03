@@ -2,6 +2,7 @@
 
 import { MESSAGE_CONTENT_MAX, type CitationSnapshot, type Source } from '@curio/shared';
 import {
+  Brain,
   Check,
   ChevronDown,
   MessageSquare,
@@ -10,7 +11,9 @@ import {
   Plus,
   SendHorizontal,
   Trash2,
+  X,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { useNotedMemories } from '@/features/memories/use-noted-memories';
 import { useOpenSourceFile, useSources } from '@/features/sources/queries';
 import { SourceViewerDialog } from '@/features/sources/source-viewer-dialog';
 import type { HighlightRange } from '@/features/sources/viewer';
@@ -53,6 +57,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
   const sources = useSources(notebookId);
   const openFile = useOpenSourceFile();
   const answer = useAnswerStream(notebookId);
+  const noted = useNotedMemories();
 
   const [selection, setSelection] = useState<Selection>({ kind: 'latest' });
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -101,6 +106,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
     }
     setDraft('');
     await answer.send(conversationId, content);
+    noted.afterAnswer();
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -278,7 +284,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
                   error={item.error}
                   onRetry={
                     item.retryable && activeId && !busy
-                      ? () => void answer.retry(activeId)
+                      ? () => void answer.retry(activeId).then(() => noted.afterAnswer())
                       : undefined
                   }
                   feedback={item.feedback}
@@ -302,6 +308,29 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
           void send();
         }}
       >
+        {noted.noted.length > 0 && (
+          <div
+            role="status"
+            className="bg-muted mb-2 flex items-start gap-2 rounded-md px-3 py-2 text-sm"
+          >
+            <Brain className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+            <p className="min-w-0 flex-1">
+              <span className="font-medium">Noted: </span>
+              {noted.noted.map((memory) => memory.content).join(' · ')}{' '}
+              <Link href="/memories" className="text-muted-foreground underline">
+                Manage memory
+              </Link>
+            </p>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={noted.dismiss}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
         {(answer.error ?? notice) && (
           <p role="alert" className="text-destructive mb-2 text-sm">
             {answer.error?.message ?? notice}

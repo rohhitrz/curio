@@ -17,4 +17,6 @@ export const sourceIdParam = (req: Request) => uuidParam(req, 'sourceId', 'Sourc
 export const conversationIdParam = (req: Request) =>
   uuidParam(req, 'conversationId', 'Conversation not found.');
 
+export const memoryIdParam = (req: Request) => uuidParam(req, 'memoryId', 'Memory not found.');
+
 export const messageIdParam = (req: Request) => uuidParam(req, 'messageId', 'Message not found.');
