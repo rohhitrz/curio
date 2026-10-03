@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { levelSchema } from './memories.js';
+import { topicNameSchema } from './notebooks.js';
 
 export const goalSchema = z.enum(['EXAM', 'JOB', 'CURIOSITY']);
 export type Goal = z.infer<typeof goalSchema>;
@@ -40,3 +42,22 @@ export const branchOptionSchema = z.object({
 });
 export type BranchOption = z.infer<typeof branchOptionSchema>;
 export const branchOptionsSchema = z.array(branchOptionSchema);
+
+/** `GET /learning-paths/prefill?topic=`. */
+export const prefillQuerySchema = z.strictObject({ topic: topicNameSchema });
+export type PrefillQuery = z.infer<typeof prefillQuerySchema>;
+
+/**
+ * A level the learner confirmed before, offered for confirmation: for this very topic (`EXACT`)
+ * or a similar one (`RELATED`). `null` → a new topic: always ask.
+ */
+export const prefillResponseSchema = z.object({
+  match: z
+    .object({
+      type: z.enum(['EXACT', 'RELATED']),
+      topicName: z.string(),
+      level: levelSchema,
+    })
+    .nullable(),
+});
+export type PrefillResponse = z.infer<typeof prefillResponseSchema>;

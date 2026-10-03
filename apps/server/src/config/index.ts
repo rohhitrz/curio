@@ -10,6 +10,7 @@ export {
   ingestion,
   llmRequests,
   learnerProfile,
+  learningPaths,
   locks,
   memoryExtraction,
   quotas,
@@ -20,6 +21,7 @@ export {
   serviceTimeouts,
   tracing,
   uploads,
+  webSearch,
 } from './limits.js';
 export {
   embeddings,

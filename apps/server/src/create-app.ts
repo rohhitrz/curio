@@ -29,11 +29,13 @@ import { createRetrievalRepository } from './repositories/retrieval.repository.j
 import { createSourcesRepository } from './repositories/sources.repository.js';
 import { createUsersRepository } from './repositories/users.repository.js';
 import { createChatRouter } from './routes/chat.routes.js';
+import { createLearningPathsRouter } from './routes/learning-paths.routes.js';
 import { createMemoriesRouter } from './routes/memories.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createNotebooksRouter } from './routes/notebooks.routes.js';
 import { createSourcesRouter } from './routes/sources.routes.js';
 import { createChatService } from './services/chat.service.js';
+import { createLearningPathsService } from './services/learning-paths.service.js';
 import { createMemoriesService } from './services/memories.service.js';
 import { createTopicsService } from './services/topics.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
@@ -77,8 +79,9 @@ export function createApp({
   flags = retrievalFlags,
 }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
+  const topicsRepository = createTopicsRepository(db);
   const topicsService = createTopicsService({
-    repository: createTopicsRepository(db),
+    repository: topicsRepository,
     embeddings,
     logger,
   });
@@ -119,6 +122,16 @@ export function createApp({
   api.use(createSourcesRouter(sourcesService, rateLimiter));
   api.use(createChatRouter(chatService, rateLimiter));
   api.use(createMemoriesRouter(createMemoriesService(memoriesRepository)));
+  api.use(
+    createLearningPathsRouter(
+      createLearningPathsService({
+        topics: topicsRepository,
+        memories: memoriesRepository,
+        embeddings,
+        logger,
+      }),
+    ),
+  );
 
   const app = express();
 

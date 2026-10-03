@@ -246,7 +246,8 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 { "match": { "type": "RELATED", "topicName": "Machine Learning", "level": "BEGINNER" } }
 ```
 - `type`: `EXACT` / `RELATED`; no match → `{ "match": null }`
-- Read-only; not rate-limited against path creation
+- `EXACT`: a level confirmed for the same (normalized) topic · `RELATED`: the user's level whose topic name is most similar (embedding cosine ≥ `learningPaths.relatedTopicMinSimilarity`)
+- Read-only (an unseen topic is not created); not rate-limited against path creation; embeddings down → `{ "match": null }`
 
 ### Start: `POST /learning-paths`
 ```json

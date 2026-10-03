@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 8 (Learning paths), in progress
-- **Current step:** 8.1 done (migration `0010_learning_paths`)
-- **Blocked on:** nothing. Tavily key is in local `.env` (needed from 8.2)
-- **Next step:** 8.2 Tavily search provider + `prefill` endpoint
+- **Current step:** 8.2 done (Tavily provider + prefill)
+- **Blocked on:** nothing. Tavily key is in local `.env`; Vercel needs it before 8.3 is pushed (Pending on owner)
+- **Next step:** 8.3 `generateLearningPath` job, part 1 (gather → notebook → ingest)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 8
 - [x] 8.1 Migration `0010_learning_paths` (enums `goal`, `path_status`, `resource_role`, `resource_type`, `concept_status`; tables `learning_paths` (one per notebook), `path_resources`, `modules` (unique `(path_id, position)`), `concepts` (indexes `(path_id)`, `(module_id, position)`), `concept_coverage` (PK `(concept_id, path_resource_id)`); plus the deferred FK `memories.concept_id → concepts.id ON DELETE SET NULL`) on dev + test · shared `learning.ts` (enums, `pathHookSchema`, `branchOptionsSchema`) · `level` enum moved to `db/schema/level.ts` (memories ↔ learning paths would import each other)
-- [ ] 8.2 Tavily search provider + `prefill` endpoint (exact + related topics)
+- [x] 8.2 Tavily provider `lib/search/` (`SearchProvider.search` → title / url / snippet / score; `SearchError` retryable on timeout, network, 429, 5xx; `webSearch` config: 15s, `basic` depth) · `GET /learning-paths/prefill?topic=` (`learning-paths` route → controller → service): user has no levels → `null` without an embedding call; same normalized topic with a level → `EXACT`; else the nearest of the user's levels by topic-name cosine ≥ `learningPaths.relatedTopicMinSimilarity` (0.6) → `RELATED` (known topic → stored embedding; unseen topic → embedded, **not created**: the endpoint is read-only); embeddings down → `null` · repo: `memories.levels`, `memories.nearestLevel`, `topics.findWithEmbedding` · shared `prefillQuerySchema` / `prefillResponseSchema`
 - [ ] 8.3 `generateLearningPath` job, part 1: gather → create notebook → ingest resources via `processSource`
 - [ ] 8.4 Part 2: map → merge → consensus → order → modules → cut rules → hook; `waitForEvent` for advanced; partial-failure rules
 - [ ] 8.5 API: start, get, branch, retry, outline, module `PATCH`
@@ -89,6 +89,10 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - `consensus_score` is `numeric` read as a JS number (`mode: 'number'`).
   - Added `path_resources (path_id)` index (FK lookups; listed in `03-database-design.md`).
   - **`0010_learning_paths` needs a prod run by the owner** (Pending on owner) before 8.5 ships the API.
+- **8.2 notes:**
+  - The Tavily provider is not wired into the app yet and `TAVILY_API_KEY` is not in `config/env.ts`: 8.3 makes it required at boot when the job uses it (so Vercel needs the key first).
+  - "Tavily finds, Firecrawl reads, each a fallback for the other" (system design §8): the search-side fallback (Firecrawl search) is for 8.3's gather step, behind the same `SearchProvider`.
+  - The 0.6 threshold was set without real embeddings (tests use chosen vectors; no API calls). **Check live** that e.g. "Deep Learning" offers a "Machine Learning" level and an unrelated topic doesn't; tune in `config/limits.ts` if not.
 
 ## Phase 7 notes
 - **7.1 notes:**
@@ -174,6 +178,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Add `TAVILY_API_KEY` to Vercel `curio-server`** (Secret, Production) before 8.3 is pushed: the server will require it at boot.
 - **Run `0010_learning_paths` on prod:** `cd apps/server && pnpm db:migrate:prod` (adds the learning tables and the `memories.concept_id` FK; no data changes).
 - **Phase 7 live check** (Phase 7 approved; still worth doing):
   1. Open a notebook with a READY source and chat 4+ exchanges, saying something about yourself in one of them (e.g. "I'm a nurse, keep answers short").
@@ -458,7 +463,7 @@ What it says:
 -->
 
 ### 2026-10-03 (Phase 7 approved, 8.1)
-- Done: 8.1 learning tables migration (`0010`, dev + test)
+- Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint
 - Owner: "start with phase 8" (Phase 7 approved)
 
 ### 2026-10-03 (faster tests)

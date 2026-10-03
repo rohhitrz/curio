@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, ne, or, sql } from 'drizzle-orm';
+import { and, cosineDistance, count, desc, eq, gt, ne, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { memories, notebooks, topics, type Memory } from '../db/schema/index.js';
 
@@ -110,6 +110,48 @@ export function createMemoriesRepository(db: Db) {
           ),
         )
         .orderBy(desc(memories.updatedAt), desc(memories.id));
+    },
+
+    /** The levels the user confirmed, one per topic (few: at most one per topic studied). */
+    async levels(userId: string) {
+      return db
+        .select({ topicId: topics.id, topicName: topics.name, level: memories.level })
+        .from(memories)
+        .innerJoin(topics, eq(topics.id, memories.topicId))
+        .where(and(eq(memories.userId, userId), eq(memories.kind, 'LEVEL')))
+        .then((rows) => rows.flatMap((r) => (r.level ? [{ ...r, level: r.level }] : [])));
+    },
+
+    /**
+     * The user's level whose topic name is most similar to `embedding` (cosine), if any reaches
+     * `minSimilarity`. An exact scan: a user has few levels.
+     */
+    async nearestLevel(
+      userId: string,
+      embedding: number[],
+      { minSimilarity, excludeTopicId }: { minSimilarity: number; excludeTopicId?: string },
+    ) {
+      const similarity = sql<number>`1 - (${cosineDistance(topics.embedding, embedding)})`;
+      const [row] = await db
+        .select({
+          topicId: topics.id,
+          topicName: topics.name,
+          level: memories.level,
+          similarity: similarity.mapWith(Number),
+        })
+        .from(memories)
+        .innerJoin(topics, eq(topics.id, memories.topicId))
+        .where(
+          and(
+            eq(memories.userId, userId),
+            eq(memories.kind, 'LEVEL'),
+            excludeTopicId ? ne(memories.topicId, excludeTopicId) : undefined,
+            sql`${similarity} >= ${minSimilarity}`,
+          ),
+        )
+        .orderBy(desc(similarity))
+        .limit(1);
+      return row?.level ? { ...row, level: row.level } : undefined;
     },
 
     async count(userId: string): Promise<number> {

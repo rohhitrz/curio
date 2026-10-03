@@ -18,6 +18,16 @@ export function createTopicsRepository(db: Db) {
       return row;
     },
 
+    /** With the name's embedding, for similarity lookups. */
+    async findWithEmbedding(normalizedName: string) {
+      const [row] = await db
+        .select({ ...columns, embedding: topics.embedding })
+        .from(topics)
+        .where(eq(topics.normalizedName, normalizedName))
+        .limit(1);
+      return row;
+    },
+
     /**
      * Inserts the topic, or returns the row someone else inserted first under the same
      * normalized name (the unique index settles a race; the first wording is kept).

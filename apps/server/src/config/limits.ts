@@ -211,3 +211,20 @@ export const requests = {
   /** Inngest sends a run's step results back with each call, so its endpoint gets more room. */
   inngestBodyLimit: '4mb',
 } as const;
+
+/** Web search for learning-path resources (Tavily, docs/02-system-design.md §8). */
+export const webSearch = {
+  /** Whole call. */
+  timeoutMs: 15_000,
+  /** Tavily `basic` costs 1 credit per search, `advanced` 2. */
+  depth: 'basic',
+} as const;
+
+export const learningPaths = {
+  /**
+   * Cosine similarity of two topic names' embeddings at or above which a level the learner
+   * confirmed for one is offered as the pre-fill for the other ("Machine Learning" → "Deep
+   * Learning"). Never a merge: the learner always confirms (decision DB-06).
+   */
+  relatedTopicMinSimilarity: 0.6,
+} as const;
