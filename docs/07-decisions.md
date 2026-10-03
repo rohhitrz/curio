@@ -313,6 +313,11 @@
 **PR-05 · Commit + push after every step, no Claude attribution**
 - **Why:** clean history; every eval result tied to a commit
 
+**PR-06 · Tests run on a local Postgres in Docker, not the Neon `test` branch** (2026-10-03, owner)
+- **Alternatives:** keep the Neon `test` branch; switch tests to the `pg` driver
+- **Why:** every query crossed the internet, so the server suite took ~25 min; locally it takes ~25 s (582 tests). Neon's `wsproxy` container lets tests keep the production Neon driver
+- **Trade-off:** Docker Desktop must be running for integration tests; local Postgres 17 may differ slightly from Neon's
+
 ---
 
 ## 11. Post-launch ideas

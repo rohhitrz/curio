@@ -12,6 +12,8 @@
     "dev:inngest": "npx --yes inngest-cli@latest dev --no-discovery -u http://localhost:4000/api/inngest",
     "build": "pnpm -r --if-present build",
     "test": "pnpm build:shared && pnpm -r --if-present test",
+    "db:test:up": "docker compose up -d --wait",
+    "db:test:down": "docker compose down",
     "typecheck": "pnpm build:shared && pnpm -r --if-present typecheck",
     "lint": "pnpm build:shared && eslint .",
     "lint:fix": "eslint . --fix",

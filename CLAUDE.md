@@ -17,9 +17,10 @@ touches) → lint + typecheck → update `PROGRESS.md` → commit (code +
 PROGRESS together)
 
 ## Checkpoints (mid-phase and phase end)
-Full test suite (~25 min) passes → push. Every push to `main` deploys,
-so nothing is pushed without a full run. Never run two test runs at
-once, or edit files during one: they share the Neon `test` branch.
+`pnpm db:test:up` (local test Postgres in Docker) → full test suite
+(under a minute) passes → push. Every push to `main` deploys, so nothing
+is pushed without a full run. Don't run two integration runs at once:
+they share the local test database.
 
 ## Git
 - Conventional Commits (`feat(scope): …`, `fix(scope): …`)
@@ -41,6 +42,6 @@ once, or edit files during one: they share the Neon `test` branch.
 - Limits, models, thresholds, flags only in `src/config/`
 - Every query scoped by `userId`; others' resources → 404
 - Every input validated with Zod from `packages/shared`
-- Tests never call external APIs (fake providers, Neon `test` branch)
+- Tests never call external APIs (fake providers, local test Postgres)
 - Only `pnpm eval` calls real LLM APIs, and only when a step says so
 - TypeScript strict, ESM

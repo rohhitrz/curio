@@ -4,15 +4,15 @@ import { defineConfig } from 'drizzle-kit';
 const envFile = new URL('../../.env', import.meta.url);
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
-// `DB_TARGET` picks the Neon branch: dev (default) · test · prod (`main`, run manually only).
+// `DB_TARGET` picks the Neon branch: dev (default) · prod (`main`, run manually only).
+// The local test database is migrated by the integration tests themselves (test/global-setup.ts).
 const urlVars: Record<string, string> = {
   dev: 'DATABASE_URL',
-  test: 'TEST_DATABASE_URL',
   prod: 'PROD_DATABASE_URL',
 };
 const target = process.env.DB_TARGET ?? 'dev';
 const urlVar = urlVars[target];
-if (!urlVar) throw new Error(`Unknown DB_TARGET "${target}" (use dev, test, or prod)`);
+if (!urlVar) throw new Error(`Unknown DB_TARGET "${target}" (use dev or prod)`);
 const url = process.env[urlVar];
 if (!url) throw new Error(`${urlVar} is required for DB_TARGET=${target}`);
 

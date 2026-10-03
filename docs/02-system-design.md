@@ -130,7 +130,8 @@ curio/
 - **Chunks live next to their source**, so indexing and deletion are single transactions
 - Chunks have an **HNSW vector index** and a **full-text search column** (built at insert)
 - Neon **connection pooler** enabled from day one
-- **Neon branches:** `dev` for local work, `main` for production (no Docker)
+- **Neon branches:** `dev` for local work, `main` for production
+- **Tests** use a local Postgres + pgvector in Docker (`docker-compose.yml`), reached through Neon's `wsproxy` so tests run the production driver (decision PR-06). Docker is for tests only
 - pgvector enabled via `CREATE EXTENSION vector;` in the first migration
 
 **R2** holds original PDF files only.

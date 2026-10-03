@@ -20,8 +20,10 @@
 ## 2. Test setup rules
 
 **Database**
-- Integration tests run against the **Neon `test` branch**, never `dev` or `main`
-- All tables are **truncated before each test file**; test files run **one at a time** (no parallel DB conflicts)
+- Integration tests run against a **local Postgres + pgvector in Docker** (`pnpm db:test:up`), never Neon `dev` or `main` (decision PR-06)
+- The integration run **migrates the test database first** (`test/global-setup.ts`), so it is always on the latest schema
+- All tables are **truncated before each test file**; integration files run **one at a time** (no parallel DB conflicts)
+- **Unit tests don't touch the database** and run in parallel. Two Vitest projects: `pnpm test:unit` (seconds, no Docker) and `pnpm test:integration` (needs Docker)
 
 **External APIs are never called in tests**
 - Every external service is replaced with a **fake provider**, using the same interface from `lib/`
