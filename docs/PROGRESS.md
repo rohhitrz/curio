@@ -478,7 +478,7 @@ What it says:
 - Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1; 8.4 part 2 (map → outline → READY)
 - Owner: added `TAVILY_API_KEY` on Vercel and ran `0010` on prod
 - Notes: checkpoint before push: full suite 821 tests pass (716 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean. Pushed `85e67dd`; deploy READY; Inngest resynced
-- Notes (8.4): checkpoint before push: full suite 847 tests pass (742 server, 81 web, 24 evals); the learning-path job file passed 5 runs in a row; lint, typecheck, `typecheck:vercel` clean
+- Notes (8.4): checkpoint before push: full suite 847 tests pass (742 server, 81 web, 24 evals); the learning-path job file passed 5 runs in a row; lint, typecheck, `typecheck:vercel` clean. Pushed `555059b`; deploy READY, `/health` ok; Inngest resynced (`modified: true`)
 - Owner: "start with phase 8" (Phase 7 approved)
 
 ### 2026-10-03 (faster tests)
