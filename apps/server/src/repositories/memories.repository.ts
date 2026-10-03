@@ -1,6 +1,6 @@
-import { and, count, desc, eq, gt, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, ne, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { memories, topics, type Memory } from '../db/schema/index.js';
+import { memories, notebooks, topics, type Memory } from '../db/schema/index.js';
 
 const columns = {
   id: memories.id,
@@ -88,6 +88,28 @@ export function createMemoriesRepository(db: Db) {
           ),
         )
         .orderBy(desc(memories.createdAt), desc(memories.id));
+    },
+
+    /**
+     * What the chat prompt may use for a notebook: the user's global memories and those of the
+     * notebook's topic (none when it has no topic). Newest first.
+     */
+    async forNotebook(userId: string, notebookId: string) {
+      const notebookTopic = db
+        .select({ topicId: notebooks.topicId })
+        .from(notebooks)
+        .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, userId)));
+      return db
+        .select(columns)
+        .from(memories)
+        .leftJoin(topics, eq(topics.id, memories.topicId))
+        .where(
+          and(
+            eq(memories.userId, userId),
+            or(eq(memories.scope, 'GLOBAL'), sql`${memories.topicId} = (${notebookTopic})`),
+          ),
+        )
+        .orderBy(desc(memories.updatedAt), desc(memories.id));
     },
 
     async count(userId: string): Promise<number> {

@@ -17,6 +17,7 @@ Rules:
 - If the sources don't answer the question, reply with exactly this sentence and nothing else: "${NOT_IN_SOURCES_ANSWER}"
 - If the sources answer only part of the question, answer that part with citations and say which part they don't cover.
 - Earlier messages are context for follow-up questions only; their facts must still come from the current sources.
+- A note about the learner may come first. Use it only to adjust how you explain (depth, tone, examples, language). It is never a source of facts and never gets a citation number.
 - Write clearly for a learner: lead with the direct answer, then explain. Use short paragraphs, and lists when they help. Use Markdown.
 - Answer in the language of the question.`;
 
@@ -28,11 +29,35 @@ export const CHAT_REPLY_INSTRUCTIONS = `You are Curio, a study assistant that an
 
 Rules:
 - Reply in one or two short, friendly sentences, in the language of the message.
+- A note about the learner may come first; use it only for tone.
 - Do not state any facts and do not answer questions about any topic. If the message does ask something, say you can answer it from their sources and ask them to phrase it as a question.`;
 
-/** Earlier turns (old `[n]` markers removed) then the new message, for the no-sources reply. */
-export function buildReplyMessages(input: { question: string; history: LlmMessage[] }) {
-  return [...cleanHistory(input.history), { role: 'user' as const, content: input.question }];
+/**
+ * The learner profile (memories) as the first turn: before the summary and history, since it
+ * changes least often (prompt caching), and apart from the sources so it is never cited.
+ */
+function profileMessages(profile: string | null | undefined): LlmMessage[] {
+  if (!profile) return [];
+  return [
+    {
+      role: 'user',
+      content: `About me, the learner (for how you explain only, not a source of facts):\n${profile}`,
+    },
+    { role: 'assistant', content: 'Understood.' },
+  ];
+}
+
+/** Profile, earlier turns (old `[n]` markers removed), then the new message, for the no-sources reply. */
+export function buildReplyMessages(input: {
+  question: string;
+  history: LlmMessage[];
+  profile?: string | null;
+}): LlmMessage[] {
+  return [
+    ...profileMessages(input.profile),
+    ...cleanHistory(input.history),
+    { role: 'user', content: input.question },
+  ];
 }
 
 function cleanHistory(history: LlmMessage[]): LlmMessage[] {
@@ -50,15 +75,17 @@ export interface ChatPromptInput {
   summary?: string | null;
   /** Recent messages, oldest first, without the new question. */
   history: LlmMessage[];
+  /** The learner's memories (`formatLearnerProfile`): tone and depth only. */
+  profile?: string | null;
 }
 
 /**
- * Messages after the static instructions: summary, earlier turns, then the sources and the
+ * Messages after the static instructions: learner profile, summary, earlier turns, then the sources and the
  * question. Old answers lose their `[n]` markers, which pointed at sources that aren't in this
  * prompt.
  */
 export function buildChatMessages(input: ChatPromptInput): LlmMessage[] {
-  const messages: LlmMessage[] = [];
+  const messages: LlmMessage[] = [...profileMessages(input.profile)];
   if (input.summary) {
     messages.push(
       { role: 'user', content: `Summary of our earlier conversation:\n${input.summary}` },

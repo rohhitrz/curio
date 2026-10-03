@@ -79,6 +79,14 @@ export const conversation = {
   summaryJobRetries: 2,
 } as const;
 
+/** The learner's memories in the chat prompt: tone and depth only (decision M-03). */
+export const learnerProfile = {
+  /** Memories shown, at most (levels first, then style, goals, facts, understood concepts). */
+  maxMemories: 30,
+  /** The whole block, at most; memories past it are left out. */
+  maxChars: 2_000,
+} as const;
+
 /** Learner memory extracted from chat (docs/02-system-design.md §10). */
 export const memoryExtraction = {
   /** After an answer, more than this many messages not yet scanned → the extraction job runs. */

@@ -9,6 +9,7 @@ export {
   extraction,
   ingestion,
   llmRequests,
+  learnerProfile,
   locks,
   memoryExtraction,
   quotas,

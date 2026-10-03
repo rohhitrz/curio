@@ -22,6 +22,7 @@ import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createChatRepository } from './repositories/chat.repository.js';
+import { createMemoriesRepository } from './repositories/memories.repository.js';
 import { createTopicsRepository } from './repositories/topics.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
 import { createRetrievalRepository } from './repositories/retrieval.repository.js';
@@ -90,6 +91,7 @@ export function createApp({
   const retrievalRepository = createRetrievalRepository(db);
   const chatService = createChatService({
     repository: createChatRepository(db),
+    memories: createMemoriesRepository(db),
     retrieval: {
       flags,
       embeddings,

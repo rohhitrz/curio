@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 7 (Memory), in progress
-- **Current step:** 7.4 done (`extractMemories` job)
+- **Current step:** 7.5 done (memory in prompts)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** 7.5 memory in prompts (tone and depth only)
+- **Next step:** 7.6 memory API (4 endpoints) + memory page + "Noted" notice
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -33,7 +33,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 7.2 Topics: `topics.service.ts` `findOrCreate` (normalized name = NFKC + lower case + single spaces; found → reused, no embedding call; new → name embedded once, `insertOrGet` with `ON CONFLICT (normalized_name) DO NOTHING` so parallel creates make one row, first wording kept; synonyms stay separate) · `PATCH /notebooks` `{ title?, topic? }` (`topic: null` clears; topic resolved before the update, so embeddings down → 503 and nothing changes) · notebook responses carry `topic: { id, name } | null` (API doc updated) · no migration (`topics` + `notebooks.topic_id` exist since 0002)
 - [x] 7.3 Migration `0009_memories` (enums `level`, `memory_scope`, `memory_kind`, `memory_origin`; checks: `scope = 'TOPIC'` ⇔ `topic_id` set, `LEVEL` ⇒ level + `TOPIC`; partial unique indexes: one `LEVEL` per (user, topic), one `UNDERSTOOD` per (user, concept); index `(user_id, scope, topic_id)`) on dev + test · `memories.repository.ts`: `list` (scope / topic / since, topic name joined), `findById`, `count`, `insertWithinCap` + `upsertLevel` (per-user advisory lock, cap `quotas.memoriesPerUser` = 200; updating an existing level works at the cap), `update` (`unlessUserEdited` for the extraction job), `delete`, `deleteAll`; all scoped by user
 - [x] 7.4 `extractMemories` job (`memory/extract`, one run per user at a time): `draft` (Luna `memoryExtraction` structured output over the messages after `memory_extracted_through_seq`, with the learner's `STYLE`/`GOAL`/`FACT` memories, global + the notebook's topic, user-edited ones marked read-only) → pure `screenOperations` (decision M-06) → `apply` (adds via `insertWithinCap` with `CHAT_EXTRACTED`, `origin_ref` = conversation; updates with `unlessUserEdited`; then the marker moves, optimistic) · chat queues it after a saved answer when more than `memoryExtraction.afterMessages` (6) messages are unscanned · traced as `memory-extraction`
-- [ ] 7.5 Memory in prompts (tone and depth only)
+- [x] 7.5 Memory in prompts: `memories.forNotebook` (global + the notebook topic's memories, one query) → pure `formatLearnerProfile` (`pipelines/memory/profile.ts`: levels, style, goals, background, understood; cut to `learnerProfile.maxMemories` 30 / `maxChars` 2000) → first turn of the answer and reply prompts ("About me, the learner… not a source of facts"), apart from the sources so it can't be cited; one rule added to `CHAT_ANSWER_INSTRUCTIONS` and `CHAT_REPLY_INSTRUCTIONS` · loaded in parallel with the history; failure → answer without it (logged) · trace output `profile: true/false`
 - [ ] 7.6 Memory API (4 endpoints) + memory page + "Noted" notice
 - [ ] 🛑 Owner approves Phase 7
 
@@ -85,6 +85,9 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Topics are shared and hold no personal data, so `topics.repository` queries take no user ID; the notebook update is still scoped by user (others' notebooks → 404, checked before a topic is created).
   - Topic embeddings use the chat embeddings client (5s timeout). No related-topic search yet: the similarity lookup arrives with the level pre-fill (Phase 8). No UI to set a topic yet (not in 7.2); learning notebooks will get theirs from `POST /learning-paths`.
 
+- **7.5 notes:**
+  - The answer instructions changed (one line about the learner note). The eval runs without memories, so no eval was run for this step (none in the build plan); the next full eval (Phase 11) will use the new text.
+  - "Memories never appear as citations": the profile is not a numbered source, and the citation check (6.6) drops any marker the model points at it (tested).
 - **7.4 notes:**
   - "Source-like text rejected" (test plan) had no mechanism in the docs: it's the 8-word-run check against the scanned answers (M-06, `memoryExtraction.sourceOverlapWords`), plus the prompt rule.
   - `LEVEL` and `UNDERSTOOD` are never written by chat extraction (direct events only, Phase 8).
@@ -427,6 +430,10 @@ What it says:
 ### 2026-10-03 (faster tests)
 - Done: tests moved to a local Docker Postgres (PR-06); unit and integration split into Vitest projects
 - Notes: server suite 582 tests in ~25 s (281 unit in ~1.5 s, 301 integration in ~23 s), was ~25 min on Neon `test`. This run covered 7.1, so the full-suite gap since 6.4 is closed
+
+### 2026-10-03 (7.5)
+- Done: 7.5 learner profile in the chat prompts
+- Notes: full suite 738 tests pass (637 server, 77 web, 24 evals)
 
 ### 2026-10-03 (7.4)
 - Done: 7.4 memory extraction job; owner ran `0009_memories` on prod

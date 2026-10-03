@@ -20,6 +20,7 @@ import {
   encodeIndexCursor,
   toPage,
 } from '../pagination/cursor.js';
+import { formatLearnerProfile } from '../pipelines/memory/profile.js';
 import { generateAnswer } from '../pipelines/retrieval/generate.js';
 import { runRetrieval, type RetrievalPipelineDeps } from '../pipelines/retrieval/pipeline.js';
 import type {
@@ -27,6 +28,7 @@ import type {
   ConversationRow,
   MessageRow,
 } from '../repositories/chat.repository.js';
+import type { MemoriesRepository } from '../repositories/memories.repository.js';
 import { needsSummary } from './conversation-summary.service.js';
 import { needsExtraction } from './memory-extraction.service.js';
 
@@ -52,6 +54,8 @@ export interface ChatRun {
 
 export interface ChatServiceDeps {
   repository: ChatRepository;
+  /** The learner's memories, for the profile in the prompt (Phase 7). */
+  memories: Pick<MemoriesRepository, 'forNotebook'>;
   /** Flags and steps; `step` is set here to trace each one. */
   retrieval: Omit<RetrievalPipelineDeps, 'step'>;
   llm: LlmProvider;
@@ -197,6 +201,20 @@ export function createChatService(deps: ChatServiceDeps) {
     }
   }
 
+  /** The learner profile for the prompt; null if there's none or it can't be loaded (logged). */
+  async function loadProfile(userId: string, conversation: ConversationRow) {
+    try {
+      return formatLearnerProfile(await deps.memories.forNotebook(userId, conversation.notebookId));
+    } catch (err) {
+      // Memory only shapes tone: answer without it rather than fail.
+      logger.warn(
+        { err, conversationId: conversation.id },
+        'memories not loaded; answering without',
+      );
+      return null;
+    }
+  }
+
   /** Replays a saved answer without calling the model (a resend after the answer was saved). */
   function replay(answer: MessageRow, lock: Lock): ChatRun {
     return {
@@ -241,11 +259,14 @@ export function createChatService(deps: ChatServiceDeps) {
               traceId = trace.traceId;
               sink({ type: 'status', message: status.searching });
 
-              const history = await repository.recentMessages(
-                conversation.id,
-                question.seq,
-                conversationLimits.recentMessages,
-              );
+              const [history, profile] = await Promise.all([
+                repository.recentMessages(
+                  conversation.id,
+                  question.seq,
+                  conversationLimits.recentMessages,
+                ),
+                loadProfile(userId, conversation),
+              ]);
               const { chunks, retrieved } = await tracer.span(
                 'retrieve',
                 { query: question.content },
@@ -289,6 +310,7 @@ export function createChatService(deps: ChatServiceDeps) {
                   chunks,
                   history: toHistory(history),
                   summary: conversation.summary,
+                  profile,
                   retrieved,
                 },
                 { llm: deps.llm, countTokens: deps.countTokens },
@@ -317,6 +339,7 @@ export function createChatService(deps: ChatServiceDeps) {
                 text: result.text,
                 citations: result.citations.length,
                 removedMarkers: result.removedMarkers,
+                profile: profile !== null,
               });
               sink({ type: 'citations', citations: result.citations });
               sink({ type: 'finish', traceId });

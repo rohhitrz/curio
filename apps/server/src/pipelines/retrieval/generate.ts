@@ -19,6 +19,8 @@ export interface GenerateAnswerInput {
   /** Recent messages, oldest first, without the new question. */
   history: LlmMessage[];
   summary?: string | null;
+  /** The learner profile (Phase 7): shapes tone and depth only, never cited. */
+  profile?: string | null;
   /**
    * False when routing skipped the search ("thanks!"): a short reply without sources instead of
    * "not in your sources". Defaults to true.
@@ -102,6 +104,7 @@ export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerD
       contextText: context.text,
       summary: input.summary ?? null,
       history: input.history,
+      profile: input.profile ?? null,
     }),
     ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
   });
@@ -135,7 +138,11 @@ function generateReply(input: GenerateAnswerInput, deps: GenerateAnswerDeps): An
   const stream = deps.llm.stream({
     task: 'chatReply',
     instructions: CHAT_REPLY_INSTRUCTIONS,
-    messages: buildReplyMessages({ question: input.question, history: input.history }),
+    messages: buildReplyMessages({
+      question: input.question,
+      history: input.history,
+      profile: input.profile ?? null,
+    }),
     ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
   });
   const result = stream.result.then((llmResult): Answer => {
