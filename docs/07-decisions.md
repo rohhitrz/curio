@@ -198,6 +198,10 @@
 - **How:** 3 searches (official docs · popular guides at the level and goal · videos) → one Luna call judges every result (relevant, official, authority 1–5, docs/article) → a pure function picks 1 `OFFICIAL` + up to 5 `POPULAR` (most authoritative first, one per site, at most 1 video; ties by search score, then order). Model down on the last attempt → search order decides.
 - **Why:** "is this the official docs / a trustworthy page?" is a language judgement; the choice itself stays in code, so it is explainable and the same judgements give the same path (L-02)
 
+**L-07 · Outline: model maps, merges and orders; code scores and cuts (8.4)**
+- **How:** map (one Luna call per read resource, ≤ 20 concepts) → merge (one call groups same-meaning concepts; code checks the IDs) → **consensus** = weight of covering resources ÷ weight of all mapped ones (official 2, popular 1) → order (one call: prerequisite order, 3–10 modules, ≤ 3 gap prerequisites, 2–4 branches for advanced, each a set of modules; code repairs the output) → **cut** (pure): beginner ≥ 0.5, intermediate ≥ 0.25, at least 5 concepts kept (best-covered added back), advanced = only the chosen branch's modules; gap concepts follow their module; every skip gets a reason → hook (one call, from the official resource's opening; failure → no hook)
+- **Why:** consensus and cut are numbers and rules, so a path is explainable ("covered by 1 of 6 resources") and testable; branches as module sets keep the advanced path made of the same modules as the others
+
 ---
 
 ## 6. Memory decisions

@@ -241,6 +241,7 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 8. Ready      (UI)   user reviews, unchecks modules, starts
 ```
 
+- **Map → cut details:** decision L-07 (consensus weights, cut thresholds, branches = sets of modules)
 - **No official docs** (e.g. history topics) → most authoritative sources take that role
 - **Partial failure OK**; fewer than 3 resources succeed → path fails with a reason
 - **The LLM does language tasks; code makes the decisions** → consistent and explainable

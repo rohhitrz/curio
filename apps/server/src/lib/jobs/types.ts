@@ -11,6 +11,8 @@ export interface JobEvents {
   'memory/extract': { conversationId: string; userId: string };
   /** Build a learning path: sent on start and on retry. */
   'path/requested': { pathId: string; userId: string };
+  /** The learner picked a branch of a paused advanced path (saved before this is sent). */
+  'path/branch-selected': { pathId: string; userId: string };
 }
 
 export type JobEventName = keyof JobEvents;

@@ -1,4 +1,4 @@
-import { SOURCE_TITLE_MAX } from '@curio/shared';
+import { SOURCE_TITLE_MAX, type Level } from '@curio/shared';
 import type { Logger } from 'pino';
 import { LlmError } from '../errors/llm-error.js';
 import { SearchError } from '../errors/search-error.js';
@@ -25,13 +25,20 @@ import { normalizeUrl, sha256Hex } from './source-identity.js';
 
 /** Why a path failed; shown with its message on the progress screen. */
 export type PathErrorCode =
-  'SEARCH_FAILED' | 'NO_RESOURCES' | 'TOO_FEW_RESOURCES' | 'GENERATION_FAILED';
+  | 'SEARCH_FAILED'
+  | 'NO_RESOURCES'
+  | 'TOO_FEW_RESOURCES'
+  | 'BRANCH_NOT_PICKED'
+  | 'GENERATION_FAILED';
 
-const messages = {
+export const pathMessages = {
   searchFailed: "We couldn't search the web for resources right now. Please try again.",
   noResources: "We couldn't find enough good resources for this topic. Try wording it differently.",
   tooFew: (ready: number, total: number, min: number) =>
     `Only ${String(ready)} of ${String(total)} resources could be read, and a path needs at least ${String(min)}. Please try again.`,
+  tooFewMapped: (mapped: number, total: number, min: number) =>
+    `Only ${String(mapped)} of ${String(total)} resources could be turned into concepts, and a path needs at least ${String(min)}. Please try again.`,
+  branchNotPicked: 'No branch was picked in time. Retry to build the path again.',
   failed: 'Something went wrong while building this path. Please try again.',
 };
 
@@ -39,7 +46,7 @@ export type Stopped =
   | { status: 'stopped'; reason: 'not_found' | 'not_gathering' }
   | { status: 'stopped'; reason: 'failed'; code: PathErrorCode };
 
-export type ClaimResult = { status: 'claimed'; hasResources: boolean } | Stopped;
+export type ClaimResult = { status: 'claimed'; hasResources: boolean; level: Level } | Stopped;
 export type SearchStepResult = { status: 'searched'; candidates: Candidate[] } | Stopped;
 export type SelectStepResult = { status: 'selected'; resources: SelectedResource[] } | Stopped;
 /** `ingest`: the sources the job still has to read (`PENDING`). */
@@ -48,6 +55,21 @@ export type ReadingResult =
   | { status: 'read'; ready: number; total: number }
   | { status: 'in_flight'; inFlight: number }
   | Stopped;
+
+/** Fails the path with a reason (unless it is `READY`); our own faults are logged as errors. */
+export async function failPath(
+  deps: { repository: LearningPathsRepository; logger: Logger },
+  ref: PathRef,
+  code: PathErrorCode,
+  message: string,
+): Promise<Stopped> {
+  const level = code === 'GENERATION_FAILED' || code === 'SEARCH_FAILED' ? 'error' : 'warn';
+  deps.logger[level]({ ...ref, code }, 'learning path failed');
+  const marked = await deps.repository.markFailed(ref, code, message);
+  return marked
+    ? { status: 'stopped', reason: 'failed', code }
+    : { status: 'stopped', reason: 'not_found' };
+}
 
 export interface StepAttempt {
   /** True on the last try: a transient failure now fails the path (or degrades) instead. */
@@ -63,7 +85,7 @@ export interface LearningPathGenerationDeps {
   limits: GatherLimits & { minResources: number };
 }
 
-function isRetryable(err: unknown): boolean {
+export function isRetryable(err: unknown): boolean {
   if (err instanceof SearchError || err instanceof LlmError) return err.retryable;
   return true;
 }
@@ -95,14 +117,8 @@ function toNewResource(resource: SelectedResource): NewPathResource {
 export function createLearningPathGenerationService(deps: LearningPathGenerationDeps) {
   const { repository, search, llm, tracer, logger, limits } = deps;
 
-  async function fail(ref: PathRef, code: PathErrorCode, message: string): Promise<Stopped> {
-    const level = code === 'GENERATION_FAILED' || code === 'SEARCH_FAILED' ? 'error' : 'warn';
-    logger[level]({ ...ref, code }, 'learning path failed');
-    const marked = await repository.markFailed(ref, code, message);
-    return marked
-      ? { status: 'stopped', reason: 'failed', code }
-      : { status: 'stopped', reason: 'not_found' };
-  }
+  const fail = (ref: PathRef, code: PathErrorCode, message: string) =>
+    failPath({ repository, logger }, ref, code, message);
 
   return {
     /** Only a `GATHERING` path is built, so a duplicate event's run stops here. */
@@ -111,7 +127,7 @@ export function createLearningPathGenerationService(deps: LearningPathGeneration
       if (!path) return { status: 'stopped', reason: 'not_found' };
       if (path.status !== 'GATHERING') return { status: 'stopped', reason: 'not_gathering' };
       const resources = await repository.listResources(ref);
-      return { status: 'claimed', hasResources: resources.length > 0 };
+      return { status: 'claimed', hasResources: resources.length > 0, level: path.level };
     },
 
     /** The three searches, together. Some failing is fine; all failing retries, then fails. */
@@ -133,10 +149,10 @@ export function createLearningPathGenerationService(deps: LearningPathGeneration
 
       if (found.length === 0) {
         if (!isLastAttempt && errors.some(isRetryable)) throw errors[0];
-        return fail(ref, 'SEARCH_FAILED', messages.searchFailed);
+        return fail(ref, 'SEARCH_FAILED', pathMessages.searchFailed);
       }
       const candidates = toCandidates(found);
-      if (candidates.length === 0) return fail(ref, 'NO_RESOURCES', messages.noResources);
+      if (candidates.length === 0) return fail(ref, 'NO_RESOURCES', pathMessages.noResources);
       return { status: 'searched', candidates };
     },
 
@@ -170,7 +186,7 @@ export function createLearningPathGenerationService(deps: LearningPathGeneration
 
       const resources = selectResources(candidates, judgements, limits);
       if (resources.length < limits.minResources) {
-        return fail(ref, 'NO_RESOURCES', messages.noResources);
+        return fail(ref, 'NO_RESOURCES', pathMessages.noResources);
       }
       return { status: 'selected', resources };
     },
@@ -214,18 +230,20 @@ export function createLearningPathGenerationService(deps: LearningPathGeneration
         return fail(
           ref,
           'TOO_FEW_RESOURCES',
-          messages.tooFew(ready, resources.length, limits.minResources),
+          pathMessages.tooFew(ready, resources.length, limits.minResources),
         );
       }
-      if (!(await repository.moveStatus(ref, ['READING'], 'MAPPING'))) {
-        return { status: 'stopped', reason: 'not_found' };
-      }
+      // A repeated step (at-least-once delivery) finds the path already moved on.
+      const moved =
+        (await repository.moveStatus(ref, ['READING'], 'MAPPING')) ||
+        (await repository.findForJob(ref))?.status === 'MAPPING';
+      if (!moved) return { status: 'stopped', reason: 'not_found' };
       return { status: 'read', ready, total: resources.length };
     },
 
     /** A step still throwing on its last attempt (e.g. the database was down). */
     async failUnexpectedly(ref: PathRef): Promise<void> {
-      await fail(ref, 'GENERATION_FAILED', messages.failed);
+      await fail(ref, 'GENERATION_FAILED', pathMessages.failed);
     },
   };
 }

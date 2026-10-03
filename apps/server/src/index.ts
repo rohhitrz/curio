@@ -61,6 +61,7 @@ import { createConversationSummaryService } from './services/conversation-summar
 import { createMemoryExtractionService } from './services/memory-extraction.service.js';
 import { createIngestionService } from './services/ingestion.service.js';
 import { createLearningPathGenerationService } from './services/learning-path-generation.service.js';
+import { createLearningPathOutlineService } from './services/learning-path-outline.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
 import { createTopicsService } from './services/topics.service.js';
 
@@ -233,7 +234,19 @@ const app: Express = createApp({
   rateLimiter: createUpstashRateLimiter(redis),
   jobsHandler: createInngestHandler(inngest, [
     processSource,
-    createGenerateLearningPathFunction(inngest, learningPathGeneration, processSource, logger),
+    createGenerateLearningPathFunction(
+      inngest,
+      learningPathGeneration,
+      createLearningPathOutlineService({
+        repository: createLearningPathsRepository(db),
+        llm,
+        tracer,
+        logger,
+        limits: learningPaths,
+      }),
+      processSource,
+      logger,
+    ),
     createSweepStuckSourcesFunction(inngest, ingestionService),
     createCleanupNotebookFilesFunction(inngest, notebooksService),
     createSummarizeConversationFunction(inngest, summaryService),

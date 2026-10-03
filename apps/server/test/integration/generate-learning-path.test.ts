@@ -3,7 +3,17 @@ import { and, eq } from 'drizzle-orm';
 import pino from 'pino';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { learningPaths as learningPathsConfig } from '../../src/config/index.js';
-import { learningPaths, pathResources, sources, users } from '../../src/db/schema/index.js';
+import {
+  conceptCoverage,
+  concepts,
+  learningPaths,
+  modules,
+  pathResources,
+  sources,
+  users,
+} from '../../src/db/schema/index.js';
+import type { LlmTask } from '../../src/config/index.js';
+import type { LlmProvider, LlmRequest } from '../../src/lib/llm/index.js';
 import { LlmError } from '../../src/errors/llm-error.js';
 import { SearchError } from '../../src/errors/search-error.js';
 import { createGenerateLearningPathFunction } from '../../src/inngest/generate-learning-path.js';
@@ -13,8 +23,8 @@ import type { SearchProvider, SearchRequest, SearchResult } from '../../src/lib/
 import type { Judgement } from '../../src/pipelines/learning/gather.js';
 import { createLearningPathsRepository } from '../../src/repositories/learning-paths.repository.js';
 import { createLearningPathGenerationService } from '../../src/services/learning-path-generation.service.js';
+import { createLearningPathOutlineService } from '../../src/services/learning-path-outline.service.js';
 import { sha256Hex } from '../../src/services/source-identity.js';
-import { createFakeLlm, type FakeLlm } from '../fakes/llm.js';
 import { createFakeTracer } from '../fakes/tracing.js';
 import { getTestDb, truncateAllTables } from '../helpers/db.js';
 import { seedLearningPath } from '../helpers/learning.js';
@@ -61,7 +71,9 @@ function purposeOf(request: SearchRequest): 'official' | 'popular' | 'video' {
 
 let searches: SearchRequest[];
 let searchFailures: Partial<Record<'official' | 'popular' | 'video', Error>>;
-let llm: FakeLlm;
+let llm: ReturnType<typeof createRoutedLlm>;
+/** What the branch wait does each time (the test engine can't wait for an event). */
+let onWaitForBranch: (id: string) => Promise<unknown>;
 /** How the fake ingestion leaves a source, by URL; default `READY`. `LEAVE` keeps it `PENDING`. */
 let outcomes: Record<string, 'READY' | 'FAILED' | 'LEAVE'>;
 let invoked: Set<string>;
@@ -99,6 +111,100 @@ function judgements(overrides: (j: Judgement) => Judgement = (j) => j): string {
   });
 }
 
+/** Shorter than the real 72 slices: the test engine re-runs the handler once per step. */
+const BRANCH_WAIT = { every: '1h', times: 3 };
+const CORE = ['Neurons', 'Backpropagation'];
+const OFFICIAL_ONLY = ['Gradient descent', 'Loss functions', 'Activation functions'];
+const HOOK = { what: 'w', why: 'y', example: 'e', origin: 'o' };
+
+/**
+ * An LLM without API calls that answers by task, like the real prompts would be answered:
+ * - map: every resource covers the core concepts; the official one 3 more; each one its own.
+ * - merge: groups concepts by name. order: modules of 2 concepts, 2 branches when advanced.
+ * `fail[task]` queues errors for that task; `failMapFor` fails map calls for those titles.
+ */
+function createRoutedLlm(selection: string | Error = judgements()) {
+  const requests: LlmRequest[] = [];
+  const fail: Partial<Record<LlmTask, Error[]>> = {};
+  const failMapFor = new Set<string>();
+
+  function answer(request: LlmRequest): unknown {
+    const content = request.messages[0]?.content ?? '';
+    switch (request.task) {
+      case 'resourceSelection':
+        if (selection instanceof Error) throw selection;
+        return JSON.parse(selection) as unknown;
+      case 'conceptMap': {
+        const title = /Resource: (.*)/.exec(content)?.[1] ?? '';
+        if (failMapFor.has(title)) throw new LlmError(true, 'map failed');
+        const names = [...CORE, ...(title === 'DL Guide' ? OFFICIAL_ONLY : []), `Only in ${title}`];
+        return { concepts: names.map((name) => ({ name, description: `About ${name}` })) };
+      }
+      case 'conceptMerge': {
+        const groups = new Map<string, string[]>();
+        for (const [, id, name] of content.matchAll(/^\s+(\d+\.\d+) ([^:]+):/gm)) {
+          if (!id || !name) continue;
+          groups.set(name, [...(groups.get(name) ?? []), id]);
+        }
+        return {
+          groups: [...groups].map(([name, members]) => ({
+            name,
+            description: `About ${name}`,
+            members,
+          })),
+        };
+      }
+      case 'learningPath': {
+        const numbers = [...content.matchAll(/^(\d+)\. ([^:]+):/gm)].map((m) => Number(m[1]));
+        const modules = [];
+        for (let i = 0; i < numbers.length; i += 2) {
+          modules.push({
+            title: `Module ${String(modules.length + 1)}`,
+            summary: 'Summary',
+            items: numbers
+              .slice(i, i + 2)
+              .map((n) => ({ concept: n, name: 'x', description: 'd' })),
+          });
+        }
+        const branches = content.includes('Level: advanced')
+          ? [
+              { name: 'Foundations', description: 'The basics, deeper', modules: [1, 2] },
+              { name: 'Deep dive', description: 'The rest', modules: [3, 4, 5] },
+            ]
+          : [];
+        return { modules, branches };
+      }
+      case 'pathHook':
+        return HOOK;
+      default:
+        throw new Error(`unexpected task ${request.task}`);
+    }
+  }
+
+  const provider: LlmProvider = {
+    generate: () => Promise.reject(new Error('not used')),
+    stream: () => {
+      throw new Error('not used');
+    },
+    generateObject(request, schema) {
+      requests.push(request);
+      const failure = fail[request.task]?.shift();
+      if (failure) return Promise.reject(failure);
+      try {
+        const object = schema.parse(answer(request));
+        return Promise.resolve({
+          object,
+          model: 'fake-llm',
+          usage: { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 },
+        });
+      } catch (err) {
+        return Promise.reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    },
+  };
+  return { provider, requests, fail, failMapFor };
+}
+
 /** Stands in for `processSource`: sets the source as `outcomes` says (only from `PENDING`). */
 async function fakeIngest(sourceId: string) {
   invoked.add(sourceId);
@@ -109,22 +215,28 @@ async function fakeIngest(sourceId: string) {
     .update(sources)
     .set(
       outcome === 'READY'
-        ? { status: 'READY', errorCode: null }
+        ? { status: 'READY', errorCode: null, extractedText: `Text of ${source?.title ?? ''}` }
         : { status: 'FAILED', errorCode: 'PAGE_NOT_FOUND', errorMessage: 'Gone' },
     )
     .where(and(eq(sources.id, sourceId), eq(sources.status, 'PENDING')));
 }
 
 function createFunction() {
-  const service = createLearningPathGenerationService({
+  const deps = {
     repository: createLearningPathsRepository(db),
-    search,
     llm: llm.provider,
     tracer: createFakeTracer().tracer,
     logger,
     limits: learningPathsConfig,
-  });
-  return createGenerateLearningPathFunction(client, service, processSource, logger);
+  };
+  return createGenerateLearningPathFunction(
+    client,
+    createLearningPathGenerationService({ ...deps, search }),
+    createLearningPathOutlineService(deps),
+    processSource,
+    logger,
+    { inFlightRecheck: learningPathsConfig.inFlightRecheck, branchWait: BRANCH_WAIT },
+  );
 }
 
 /**
@@ -148,6 +260,7 @@ function run(attempt = 0, data: Record<string, unknown> = { pathId, userId }) {
           sleeps.add(id);
           return Promise.resolve();
         },
+        waitForEvent: (id: string) => onWaitForBranch(id),
       } as unknown as typeof mocked.step,
     };
   };
@@ -175,7 +288,8 @@ beforeEach(async () => {
   await truncateAllTables();
   searches = [];
   searchFailures = {};
-  llm = createFakeLlm(judgements());
+  llm = createRoutedLlm();
+  onWaitForBranch = () => Promise.resolve(null);
   outcomes = {};
   invoked = new Set();
   sleeps = new Set();
@@ -187,20 +301,26 @@ beforeEach(async () => {
   notebookId = seeded.notebook.id;
 });
 
+/**
+ * A full beginner run: 6 resources mapped into 11 concepts (2 covered by all, 3 by the official
+ * docs only, 6 by one resource each); the 2 high ones pass, 3 more are added back to reach the
+ * minimum; modules of 2 → 3 modules kept.
+ */
+const BEGINNER_READY = { status: 'ready', modules: 3, included: 5, skipped: 6 };
+
 describe('generateLearningPath, part 1 (gather → read)', () => {
-  it('gathers 1 official + popular resources, reads them all, and moves to MAPPING', async () => {
+  it('gathers 1 official + popular resources and reads them all', async () => {
     const { result, error, ctx } = await run();
 
     expect(error).toBeUndefined();
-    expect(result).toEqual({ status: 'read', ready: 6, total: 6 });
-    expect(ctx.step.run.mock.calls.map(([id]) => id)).toEqual([
+    expect(result).toEqual(BEGINNER_READY);
+    expect(ctx.step.run.mock.calls.map(([id]) => id).slice(0, 5)).toEqual([
       'claim',
       'search',
       'select',
       'save-resources',
       'finish-reading-0',
     ]);
-    expect((await path())?.status).toBe('MAPPING');
     expect(searches).toHaveLength(3);
 
     const saved = await resources();
@@ -226,8 +346,8 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
 
     const { result } = await run();
 
-    expect(result).toEqual({ status: 'read', ready: 4, total: 6 });
-    expect((await path())?.status).toBe('MAPPING');
+    expect(result).toMatchObject({ status: 'ready' });
+    expect((await path())?.status).toBe('READY');
   });
 
   it('4 of 6 resources fail → FAILED with the count', async () => {
@@ -255,17 +375,17 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
 
     const { result, ctx } = await run();
 
-    expect(result).toEqual({ status: 'read', ready: 6, total: 6 });
+    expect(result).toEqual(BEGINNER_READY);
     expect(searches).toEqual([]);
     expect(ctx.step.run.mock.calls.map(([id]) => id)).not.toContain('search');
     expect(invoked.size).toBe(4);
     for (const source of readyBefore) expect(invoked.has(source.id)).toBe(false);
     expect(await resources()).toHaveLength(6);
-    expect(await path()).toMatchObject({ status: 'MAPPING', errorCode: null });
+    expect(await path()).toMatchObject({ status: 'READY', errorCode: null });
   });
 
   it('a topic without official docs: the most authoritative page takes the official role', async () => {
-    llm = createFakeLlm(
+    llm = createRoutedLlm(
       judgements((j) => ({
         ...j,
         official: false,
@@ -276,7 +396,7 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
 
     const { result } = await run();
 
-    expect(result).toMatchObject({ status: 'read' });
+    expect(result).toMatchObject({ status: 'ready' });
     expect((await resources()).find((r) => r.role === 'OFFICIAL')).toMatchObject({
       url: 'https://wiki.example.com/dl',
       resourceType: 'ARTICLE',
@@ -285,7 +405,7 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
 
   it('one search failing is fine; all failing retries, then fails the path', async () => {
     searchFailures = { video: new SearchError(false, 'down') };
-    expect((await run()).result).toMatchObject({ status: 'read', total: 6 });
+    expect((await run()).result).toMatchObject({ status: 'ready' });
     expect((await resources()).map((r) => r.resourceType)).not.toContain('VIDEO');
 
     await truncateAllTables();
@@ -306,18 +426,18 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
   });
 
   it('the model down on the last attempt → search order picks the resources', async () => {
-    llm = createFakeLlm(new LlmError(true, 'overloaded'));
+    llm = createRoutedLlm(new LlmError(true, 'overloaded'));
 
     const { result } = await run(learningPathsConfig.jobRetries);
 
-    expect(result).toMatchObject({ status: 'read' });
+    expect(result).toMatchObject({ status: 'ready' });
     expect((await resources()).find((r) => r.role === 'OFFICIAL')?.url).toBe(
       'https://docs.example.org/guide',
     );
   });
 
   it('the model down before the last attempt → the step throws, to be retried', async () => {
-    llm = createFakeLlm(new LlmError(true, 'overloaded'));
+    llm = createRoutedLlm(new LlmError(true, 'overloaded'));
 
     const { error } = await run(0);
 
@@ -326,7 +446,7 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
   });
 
   it('too few usable results → NO_RESOURCES, nothing saved', async () => {
-    llm = createFakeLlm(
+    llm = createRoutedLlm(
       judgements((j) => ({ ...j, relevant: URLS[j.index] === 'https://docs.example.org/guide' })),
     );
 
@@ -365,7 +485,11 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
     const { result } = await run();
 
     expect(sleeps.size).toBe(learningPathsConfig.inFlightRecheck.times);
-    expect(result).toEqual({ status: 'read', ready: 5, total: 6 });
+    expect(result).toMatchObject({ status: 'ready' });
+    const mappedTitles = llm.requests
+      .filter((r) => r.task === 'conceptMap')
+      .map((r) => /Resource: (.*)/.exec(r.messages[0]?.content ?? '')?.[1]);
+    expect(new Set(mappedTitles).size).toBe(5);
   });
 
   it('a path not in GATHERING (a duplicate event) stops at the claim', async () => {
@@ -395,5 +519,146 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
         { limit: learningPathsConfig.concurrencyPerUser, key: 'event.data.userId' },
       ],
     });
+  });
+});
+
+const savedOutline = async () => ({
+  modules: await db
+    .select()
+    .from(modules)
+    .where(eq(modules.pathId, pathId))
+    .orderBy(modules.position),
+  concepts: await db.select().from(concepts).where(eq(concepts.pathId, pathId)),
+  coverage: await db.select().from(conceptCoverage),
+});
+
+async function setLevel(level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED') {
+  await db.update(learningPaths).set({ level }).where(eq(learningPaths.id, pathId));
+}
+
+describe('generateLearningPath, part 2 (map → outline → READY)', () => {
+  it('beginner: concepts, coverage, modules and hook saved; status moves through to READY', async () => {
+    const { result, ctx } = await run();
+
+    expect(result).toEqual(BEGINNER_READY);
+    const steps = ctx.step.run.mock.calls.map(([id]) => (typeof id === 'string' ? id : id.id));
+    expect(steps.filter((id) => id.startsWith('map-'))).toHaveLength(6);
+    expect(steps.slice(-5)).toEqual(['merge', 'order', 'build', 'hook', 'save']);
+    expect(steps).not.toContain('offer-branches');
+    expect((await path())?.status).toBe('READY');
+
+    const outline = await savedOutline();
+    expect(outline.modules.map((m) => [m.position, m.title])).toEqual([
+      [1, 'Module 1'],
+      [2, 'Module 2'],
+      [3, 'Module 3'],
+    ]);
+    const included = outline.concepts.filter((c) => c.status === 'INCLUDED');
+    expect(included.map((c) => c.name).sort()).toEqual([...CORE, ...OFFICIAL_ONLY].sort());
+    expect(included.every((c) => c.moduleId !== null && c.position !== null)).toBe(true);
+    const skipped = outline.concepts.filter((c) => c.status === 'SKIPPED');
+    expect(skipped).toHaveLength(6);
+    expect(skipped[0]).toMatchObject({
+      moduleId: null,
+      skipReason: 'Covered by 1 of 6 resources, beyond the basics',
+    });
+    const neurons = outline.concepts.find((c) => c.name === 'Neurons');
+    expect(neurons?.consensusScore).toBe(1);
+    expect(outline.coverage.filter((r) => r.conceptId === neurons?.id)).toHaveLength(6);
+    expect((await path())?.hook).toEqual(HOOK);
+  });
+
+  it('advanced: pauses at AWAITING_BRANCH with the options; the pick resumes it and only that branch is kept', async () => {
+    await setLevel('ADVANCED');
+    const seen: unknown[] = [];
+    onWaitForBranch = async () => {
+      const row = await path();
+      seen.push({ status: row?.status, options: row?.branchOptions });
+      // What the branch endpoint does (8.5): save the pick, then send the event.
+      await db
+        .update(learningPaths)
+        .set({ selectedBranch: 'Deep dive' })
+        .where(eq(learningPaths.id, pathId));
+      return { name: 'path/branch-selected', data: { pathId, userId } };
+    };
+
+    const { result } = await run();
+
+    expect(seen[0]).toEqual({
+      status: 'AWAITING_BRANCH',
+      options: [
+        { name: 'Foundations', description: 'The basics, deeper' },
+        { name: 'Deep dive', description: 'The rest' },
+      ],
+    });
+    expect(result).toMatchObject({ status: 'ready', modules: 3, included: 6 });
+    const outline = await savedOutline();
+    expect(
+      outline.concepts.filter((c) => c.status === 'INCLUDED').map((c) => c.name),
+    ).not.toContain('Neurons');
+    expect(outline.concepts.find((c) => c.name === 'Neurons')?.skipReason).toBe(
+      'Not in the branch you picked',
+    );
+    expect(await path()).toMatchObject({ status: 'READY', selectedBranch: 'Deep dive' });
+  });
+
+  it('advanced: no pick in time → FAILED BRANCH_NOT_PICKED', async () => {
+    await setLevel('ADVANCED');
+
+    const { result } = await run();
+
+    expect(result).toEqual({ status: 'stopped', reason: 'failed', code: 'BRANCH_NOT_PICKED' });
+    expect((await path())?.errorCode).toBe('BRANCH_NOT_PICKED');
+  });
+
+  it('2 resources not mapped (last attempt) → the path is still built from the rest', async () => {
+    llm.failMapFor.add('A');
+    llm.failMapFor.add('B');
+
+    const { result } = await run(learningPathsConfig.jobRetries);
+
+    expect(result).toMatchObject({ status: 'ready' });
+    expect((await savedOutline()).concepts.find((c) => c.name === 'Neurons')?.consensusScore).toBe(
+      1,
+    );
+  });
+
+  it('4 resources not mapped → FAILED with the count', async () => {
+    for (const title of ['A', 'B', 'C', 'Video']) llm.failMapFor.add(title);
+
+    const { result } = await run(learningPathsConfig.jobRetries);
+
+    expect(result).toEqual({ status: 'stopped', reason: 'failed', code: 'TOO_FEW_RESOURCES' });
+    expect((await path())?.errorMessage).toContain(
+      'Only 2 of 6 resources could be turned into concepts',
+    );
+  });
+
+  it('a map failure before the last attempt throws, to be retried', async () => {
+    llm.failMapFor.add('A');
+
+    const { error } = await run(0);
+
+    expect(error).toBeDefined();
+    expect((await path())?.status).toBe('MAPPING');
+  });
+
+  it('the hook failing on the last attempt → READY without a hook', async () => {
+    llm.fail.pathHook = [new LlmError(true, 'down')];
+
+    const { result } = await run(learningPathsConfig.jobRetries);
+
+    expect(result).toEqual(BEGINNER_READY);
+    expect(await path()).toMatchObject({ status: 'READY', hook: null });
+  });
+
+  it('merge failing throws (retried; the last failure fails the path through onFailure)', async () => {
+    llm.fail.conceptMerge = [new LlmError(true, 'down')];
+
+    const { error } = await run(learningPathsConfig.jobRetries);
+
+    expect(error).toBeDefined();
+    expect((await path())?.status).toBe('MAPPING');
+    expect(await db.select().from(concepts)).toHaveLength(0);
   });
 });

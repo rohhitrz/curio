@@ -30,7 +30,14 @@ export const llmTasks = {
   memoryExtraction: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   /** Judges search results for a learning path (relevant? official? how authoritative?). */
   resourceSelection: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
+  /** Concepts one resource covers (map, one call per resource). */
+  conceptMap: { tier: 'luna', maxOutputTokens: 3_000, reasoningEffort: 'low' },
+  /** Groups the same concept named differently across resources. */
+  conceptMerge: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'low' },
+  /** Prerequisite order, modules, gaps and advanced branches. */
   learningPath: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
+  /** The path's hook: what / why / example / origin. */
+  pathHook: { tier: 'luna', maxOutputTokens: 1_000, reasoningEffort: 'low' },
   lesson: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
   /** Luna, not Sol (owner, 2026-10-01: Luna is enough; decision O-04). */
   evalJudge: { tier: 'luna', maxOutputTokens: 4_000, reasoningEffort: 'medium' },

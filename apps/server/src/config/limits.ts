@@ -253,4 +253,25 @@ export const learningPaths = {
    * not read.
    */
   inFlightRecheck: { every: '1m', times: 10 },
+  /** Map: a resource's text sent to the model, at most (~10k tokens), and concepts kept from it. */
+  mapMaxChars: 40_000,
+  maxConceptsPerResource: 20,
+  /** Missing prerequisites the order step may add ("fills gaps"), at most. */
+  maxGapConcepts: 3,
+  /**
+   * Consensus (decision L-01): a concept's score is the weight of the resources covering it over
+   * the weight of all mapped resources; the official one counts more.
+   */
+  consensus: { officialWeight: 2, popularWeight: 1 },
+  /** Cut rules: kept from this score up (beginner = high consensus; intermediate = + medium). */
+  cut: { beginnerMinScore: 0.5, intermediateMinScore: 0.25, minIncludedConcepts: 5 },
+  /** Advanced branches: offered when they have at least this many concepts. */
+  minBranchConcepts: 3,
+  /**
+   * The paused advanced job waits for the branch pick in slices, re-reading the pick from the
+   * database after each (an event sent just before a wait starts would be missed). 72 × 1h.
+   */
+  branchWait: { every: '1h', times: 72 },
+  /** The official resource's opening, given to the hook so it isn't written from memory alone. */
+  hookSourceChars: 6_000,
 } as const;
