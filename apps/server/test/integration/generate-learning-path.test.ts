@@ -227,7 +227,11 @@ function createFunction() {
     llm: llm.provider,
     tracer: createFakeTracer().tracer,
     logger,
-    limits: learningPathsConfig,
+    // The fixture has 11 concepts: a floor of 5 lets the consensus thresholds decide the cut.
+    limits: {
+      ...learningPathsConfig,
+      cut: { ...learningPathsConfig.cut, beginnerMinConcepts: 5, intermediateMinConcepts: 5 },
+    },
   };
   return createGenerateLearningPathFunction(
     client,
@@ -338,6 +342,13 @@ describe('generateLearningPath, part 1 (gather → read)', () => {
       type: 'YOUTUBE',
       metadata: { videoId: 'aircAruvnKk' },
     });
+    // Only the official docs are read as a section (L-08).
+    const official = 'https://docs.example.org/guide';
+    expect(rows.find((s) => s.url === official)?.metadata).toMatchObject({
+      sectionPages: learningPathsConfig.officialSectionPages,
+    });
+    const others = rows.filter((s) => s.url !== official);
+    expect(others.some((s) => 'sectionPages' in s.metadata)).toBe(false);
     expect(invoked).toEqual(new Set(rows.map((s) => s.id)));
   });
 
@@ -543,6 +554,19 @@ describe('generateLearningPath, part 2 (map → outline → READY)', () => {
     expect(result).toEqual(BEGINNER_READY);
     const steps = ctx.step.run.mock.calls.map(([id]) => (typeof id === 'string' ? id : id.id));
     expect(steps.filter((id) => id.startsWith('map-'))).toHaveLength(6);
+    // The official docs get the bigger map budget (L-08). Parallel steps may run more than once.
+    const asked = new Map(
+      llm.requests
+        .filter((r) => r.task === 'conceptMap')
+        .map((r) => {
+          const content = r.messages[0]?.content ?? '';
+          return [/Resource: (.*)/.exec(content)?.[1], /List at most (\d+)/.exec(content)?.[1]];
+        }),
+    );
+    expect(asked.size).toBe(6);
+    expect(
+      [...asked].filter(([, max]) => max !== String(learningPathsConfig.maxConceptsPerResource)),
+    ).toEqual([['DL Guide', String(learningPathsConfig.officialMaxConcepts)]]);
     expect(steps.slice(-5)).toEqual(['merge', 'order', 'build', 'hook', 'save']);
     expect(steps).not.toContain('offer-branches');
     expect((await path())?.status).toBe('READY');

@@ -14,8 +14,10 @@ function failureQueue() {
   };
 }
 
+/** `page` for every URL, except those in `byUrl` (a page, or an error that URL throws). */
 export function createFakeScraper(
   page: ScrapedPage = { title: 'Example page', markdown: '# Example\n\nSome text.' },
+  byUrl: Record<string, ScrapedPage | Error> = {},
 ) {
   const failures = failureQueue();
   const calls: string[] = [];
@@ -23,7 +25,9 @@ export function createFakeScraper(
     scrape(url) {
       calls.push(url);
       failures.throwNext();
-      return Promise.resolve(page);
+      const own = byUrl[url];
+      if (own instanceof Error) return Promise.reject(own);
+      return Promise.resolve(own ?? page);
     },
   };
   return { provider, calls, failNext: failures.push };

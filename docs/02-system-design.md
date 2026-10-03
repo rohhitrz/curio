@@ -163,6 +163,7 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 |---|---|---|
 | PDF | `unpdf` (from R2) | Page number |
 | Website | Firecrawl | Heading path |
+| Website, a learning path's official docs | Firecrawl: the page + up to 8 pages it links to in its own section, as one text (L-08) | Heading path (page title first) |
 | YouTube | Supadata transcript API | Start timestamp |
 | Text / markdown | none | Heading path / offset |
 
@@ -228,7 +229,9 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 2. Gather     (job)  Tavily searches → Luna judges results → code picks
                      1 official source + up to ~5 popular ones (L-06)
 3. Read       (job)  learning notebook created (draft); resources ingested
-                     via processSource — scraped once, reused for mapping + lessons
+                     via processSource — scraped once, reused for mapping + lessons;
+                     the official docs are read as a section: the page + up to 8
+                     pages it links to (L-08)
 4. Map        (job)  fan-out: concepts per resource (parallel) → merge duplicates
                      → consensus score (official source weighted higher)
 5. Order      (job)  prerequisite order → group into ~5–10 modules

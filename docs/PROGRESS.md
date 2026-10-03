@@ -7,7 +7,7 @@
 - **Phase:** 8 (Learning paths), in progress
 - **Current step:** 8.6 done (learning path frontend)
 - **Blocked on:** nothing
-- **Next step:** 8.7 in progress: cut floor done; next, reading the official resource as several pages (owner chose "crawl official", 2026-10-04; doc changes proposed first), then owner reviews `evals/dataset/paths.json` and approves the full run
+- **Next step:** 8.7 in progress: cut floor + official docs read as a section (L-08) done; re-measure Python with a fresh gather, then owner reviews `evals/dataset/paths.json` and approves the full run
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -130,6 +130,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - **Smoke runs found real problems** (Python, beginner coverage 0, intermediate 0.18–0.36): (1) gather picked navigation pages (python.org landing, docs.python.org index) as "official", which map to 0 concepts; fixed by aiming searches at tutorials and rejecting index/landing pages in the selection prompt (2nd run picked the real tutorial index); (2) single-page ingestion: the official tutorial index page is a table of contents, the content is on ~15 sub-pages, so it maps to few concepts. A real fix is crawling a few pages of the official docs (design change: needs owner approval); (3) the beginner cut keeps ≥ 0.5 consensus, which with 4–5 noisy resources leaves ~5 concepts; tune `cut` (e.g. relative to the top score, higher `minIncludedConcepts`) and re-measure.
   - Results file `evals/results/2026-10-03-paths.json` is from a smoke run (not the committed baseline).
   - **Owner's picks (2026-10-04):** crawl the official resource (up to ~8 pages of its docs section, existing Firecrawl provider; doc changes first) · cut: keep the thresholds, raise the floor per level.
+  - **Official docs as a section done (L-08, owner approved the doc changes 2026-10-04):** the `OFFICIAL` website resource is saved with `metadata.sectionPages` (8); `extractWebsite` then scrapes the links in its main content that stay on the same host under its folder (pure `pipelines/ingestion/section.ts`: page order, no anchors / query / files / repeats), 4 at a time (`extraction.sectionConcurrency`), skips any that fail, joins all under their titles (`joinSection`), records `pagesRead`. Map: official resource gets `officialMapMaxChars` 120k and ≤ `officialMaxConcepts` 40 (`conceptMap` output cap 3k → 5k). Docs: 02 §6 + §8, 03 `sources.metadata`, 06 (unit + integration rows), 07 L-08.
+  - The cut-floor commit broke 4 tests in `generate-learning-path.test.ts` (only unit tests were run for it): the job test now pins the floor to 5 so its 11-concept fixture still tests the thresholds.
   - **Cut floor done:** `beginnerMinConcepts` 10 / `intermediateMinConcepts` 16 (was `minIncludedConcepts` 5 for both; L-07 updated). Re-measured on the same Python resources (`--reuse --runs=1`): beginner 0 → 0.09, intermediate 0.18 → 0.18. Every included concept comes from intro pages (interpreter, print, variables, operators); strings, lists, loops, functions, modules, exceptions, classes are in **no** resource, so depth is the limit, not the cut.
 
 ## Phase 7 notes

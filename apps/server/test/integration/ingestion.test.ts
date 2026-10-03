@@ -219,6 +219,56 @@ describe('process each source type', () => {
     expect(chunks.every((c) => c.pageNumber === null && c.startSeconds === null)).toBe(true);
   });
 
+  it("a learning path's official docs → the page and the pages it links to, as one text", async () => {
+    const base = 'https://docs.example.com/guide/';
+    scraper = createFakeScraper(
+      {
+        title: 'The Guide',
+        markdown: `Contents\n\n- [Basics](basics.html)\n- [Broken](broken.html)\n- [Lists](${base}lists.html)\n- [API](/api/index.html)`,
+      },
+      {
+        [`${base}basics.html`]: { title: 'Basics', markdown: 'Values and names.' },
+        [`${base}broken.html`]: IngestionError.transient('down'),
+        [`${base}lists.html`]: { title: 'Lists', markdown: '# Lists\n\nOrdered values.' },
+      },
+    );
+    service = createService();
+    const ref = await addSource({
+      type: 'WEBSITE',
+      title: 'The Guide',
+      url: base,
+      origin: 'LEARNING_PATH',
+      metadata: { sectionPages: 8 },
+    });
+
+    expect(await runJob(ref)).toMatchObject({ status: 'ok' });
+
+    expect(scraper.calls).toEqual([
+      base,
+      `${base}basics.html`,
+      `${base}broken.html`,
+      `${base}lists.html`,
+    ]);
+    const source = await sourceRow(ref);
+    expect(source).toMatchObject({
+      status: 'READY',
+      metadata: { sectionPages: 8, pagesRead: 3 },
+      extractedText: `# The Guide\n\nContents\n\n- [Basics](basics.html)\n- [Broken](broken.html)\n- [Lists](${base}lists.html)\n- [API](/api/index.html)\n\n# Basics\n\nValues and names.\n\n# Lists\n\nOrdered values.`,
+    });
+    expect((await chunksOf(ref)).map((c) => c.headingPath)).toContain('Lists');
+  });
+
+  it('a website without `sectionPages` reads only its own page', async () => {
+    scraper = createFakeScraper({ title: 'Page', markdown: 'See [next](next.html).' });
+    service = createService();
+    const ref = await websiteSource();
+
+    await runJob(ref);
+
+    expect(scraper.calls).toEqual(['https://www.example.com/articles/rag/']);
+    expect((await sourceRow(ref))?.metadata).toEqual({});
+  });
+
   it('YOUTUBE → READY with the real title, timestamps on chunks, length in metadata', async () => {
     const ref = await youtubeSource();
 

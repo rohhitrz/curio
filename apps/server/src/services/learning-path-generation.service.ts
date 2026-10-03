@@ -82,7 +82,7 @@ export interface LearningPathGenerationDeps {
   llm: LlmProvider;
   tracer: Tracer;
   logger: Logger;
-  limits: GatherLimits & { minResources: number };
+  limits: GatherLimits & { minResources: number; officialSectionPages: number };
 }
 
 export function isRetryable(err: unknown): boolean {
@@ -90,8 +90,11 @@ export function isRetryable(err: unknown): boolean {
   return true;
 }
 
-/** How a selected resource is stored: the same identity rules as a source the user adds. */
-function toNewResource(resource: SelectedResource): NewPathResource {
+/**
+ * How a selected resource is stored: the same identity rules as a source the user adds. The
+ * official docs are read as a section, `sectionPages` linked pages with them (L-08).
+ */
+function toNewResource(resource: SelectedResource, sectionPages: number): NewPathResource {
   const title = resource.title.slice(0, SOURCE_TITLE_MAX);
   const source: NewPathResource['source'] = resource.videoId
     ? {
@@ -100,7 +103,12 @@ function toNewResource(resource: SelectedResource): NewPathResource {
         contentHash: sha256Hex(resource.url),
         metadata: { videoId: resource.videoId },
       }
-    : { type: 'WEBSITE', title, contentHash: sha256Hex(normalizeUrl(resource.url)), metadata: {} };
+    : {
+        type: 'WEBSITE',
+        title,
+        contentHash: sha256Hex(normalizeUrl(resource.url)),
+        metadata: resource.role === 'OFFICIAL' ? { sectionPages } : {},
+      };
   return {
     role: resource.role,
     resourceType: resource.resourceType,
@@ -196,7 +204,10 @@ export function createLearningPathGenerationService(deps: LearningPathGeneration
      * was read) and puts failed sources back to `PENDING`, to be read again.
      */
     async save(ref: PathRef, resources: SelectedResource[]): Promise<SaveStepResult> {
-      const saved = await repository.saveResources(ref, resources.map(toNewResource));
+      const saved = await repository.saveResources(
+        ref,
+        resources.map((r) => toNewResource(r, limits.officialSectionPages)),
+      );
       if (!saved) return { status: 'stopped', reason: 'not_found' };
       await repository.resetFailedSources(ref);
       const listed = await repository.listResources(ref);

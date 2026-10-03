@@ -1,11 +1,12 @@
 import { stripNul } from '@curio/shared';
 import { createHash } from 'node:crypto';
-import { quotas } from '../../config/index.js';
+import { extraction as extractionConfig, quotas } from '../../config/index.js';
 import { IngestionError } from '../../errors/ingestion-error.js';
 import type { PdfPage, PdfParser } from '../../lib/pdf/index.js';
 import type { ScraperProvider } from '../../lib/scraper/index.js';
 import type { StorageProvider } from '../../lib/storage/index.js';
 import type { TranscriptProvider, TranscriptSegment } from '../../lib/transcript/index.js';
+import { joinSection, sectionLinks } from './section.js';
 
 /** What was read, in the shape that keeps each type's citation location. */
 export type ExtractedContent =
@@ -86,11 +87,44 @@ async function extractWebsite(
 ): Promise<Extraction> {
   if (source.url === null) throw IngestionError.permanent('PROCESSING_FAILED', messages.noUrl);
   const page = await deps.scraper.scrape(source.url);
+  const { sectionPages } = source.metadata;
+  if (typeof sectionPages !== 'number' || sectionPages <= 0) {
+    return {
+      title: page.title,
+      content: { kind: 'markdown', markdown: page.markdown },
+      metadata: {},
+    };
+  }
+
+  // A learning path's official docs (L-08): the pages it links to in its section as well.
+  const linked = await scrapeEach(
+    sectionLinks(source.url, page.markdown, sectionPages),
+    deps.scraper,
+    extractionConfig.sectionConcurrency,
+  );
+  const first = { url: source.url, ...page };
   return {
     title: page.title,
-    content: { kind: 'markdown', markdown: page.markdown },
-    metadata: {},
+    content: {
+      kind: 'markdown',
+      markdown: linked.length === 0 ? page.markdown : joinSection(first, linked),
+    },
+    metadata: { pagesRead: 1 + linked.length },
   };
+}
+
+/** Scrapes the URLs, `concurrency` at a time, in order; a page that fails is left out. */
+async function scrapeEach(urls: string[], scraper: ScraperProvider, concurrency: number) {
+  const pages: ({ url: string; title: string | null; markdown: string } | null)[] = [];
+  for (let i = 0; i < urls.length; i += concurrency) {
+    const batch = urls.slice(i, i + concurrency);
+    const results = await Promise.allSettled(batch.map((url) => scraper.scrape(url)));
+    results.forEach((result, j) => {
+      const url = batch[j];
+      pages.push(result.status === 'fulfilled' && url ? { url, ...result.value } : null);
+    });
+  }
+  return pages.filter((page) => page !== null);
 }
 
 async function extractYouTube(

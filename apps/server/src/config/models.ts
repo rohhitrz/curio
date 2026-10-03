@@ -31,7 +31,7 @@ export const llmTasks = {
   /** Judges search results for a learning path (relevant? official? how authoritative?). */
   resourceSelection: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   /** Concepts one resource covers (map, one call per resource). */
-  conceptMap: { tier: 'luna', maxOutputTokens: 3_000, reasoningEffort: 'low' },
+  conceptMap: { tier: 'luna', maxOutputTokens: 5_000, reasoningEffort: 'low' },
   /** Groups the same concept named differently across resources. */
   conceptMerge: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'low' },
   /** Prerequisite order, modules, gaps and advanced branches. */

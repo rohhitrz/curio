@@ -125,6 +125,8 @@ export const uploads = {
 export const extraction = {
   /** Whole Firecrawl call; slow sites are retried by the job rather than waited on. */
   scrapeTimeoutMs: 60_000,
+  /** A learning path's official docs (L-08): linked pages scraped at once. */
+  sectionConcurrency: 4,
   /** Each transcript-service call. */
   transcriptTimeoutMs: 30_000,
   /**
@@ -262,6 +264,13 @@ export const learningPaths = {
   /** Map: a resource's text sent to the model, at most (~10k tokens), and concepts kept from it. */
   mapMaxChars: 40_000,
   maxConceptsPerResource: 20,
+  /**
+   * The official docs are read as a section (L-08): the page + up to `officialSectionPages` pages
+   * it links to, mapped with a bigger budget (~30k tokens, ≤ 40 concepts).
+   */
+  officialSectionPages: 8,
+  officialMapMaxChars: 120_000,
+  officialMaxConcepts: 40,
   /** Missing prerequisites the order step may add ("fills gaps"), at most. */
   maxGapConcepts: 3,
   /**

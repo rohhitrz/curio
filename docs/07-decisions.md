@@ -202,6 +202,10 @@
 - **How:** map (one Luna call per read resource, ≤ 20 concepts) → merge (one call groups same-meaning concepts; code checks the IDs) → **consensus** = weight of covering resources ÷ weight of all mapped ones (official 2, popular 1) → order (one call: prerequisite order, 3–10 modules, ≤ 3 gap prerequisites, 2–4 branches for advanced, each a set of modules; code repairs the output) → **cut** (pure): beginner ≥ 0.5, intermediate ≥ 0.25, at least 10 (beginner) / 16 (intermediate) concepts kept, best-covered added back (was 5 for both; the 8.7 eval kept 5–7 concepts from noisy resources), advanced = only the chosen branch's modules; gap concepts follow their module; every skip gets a reason → hook (one call, from the official resource's opening; failure → no hook)
 - **Why:** consensus and cut are numbers and rules, so a path is explainable ("covered by 1 of 6 resources") and testable; branches as module sets keep the advanced path made of the same modules as the others
 
+**L-08 · A path's official docs are read as a section, not a page (8.7)**
+- **How:** the `OFFICIAL` resource (not a video) is saved with `metadata.sectionPages` = 8. Extraction scrapes it, takes the links in its main content that stay on the same host under the page's folder (in page order = table-of-contents order; no anchors, files or duplicates), scrapes up to 8 of them (4 at a time) and joins everything into one markdown text, each page under its title. A linked page that fails is left out; the first page failing fails the source as before. Still one source and one resource: consensus counts the official docs once. Its map gets a bigger budget (`officialMapMaxChars` 120k, ≤ 40 concepts). Firecrawl `scrape` only (no crawl API). User-added websites are unchanged
+- **Why:** the 8.7 eval: the official tutorial's start page is a table of contents (6 concepts); the content is on the pages it links to, so no cut could reach the core sections. One source keeps L-03 (read once, reused by lessons and chat)
+
 ---
 
 ## 6. Memory decisions

@@ -56,6 +56,7 @@
 | **Citation check** | Invalid `[n]` removed · valid ones mapped to snapshots · repeated markers handled |
 | **Cut rules** | Beginner / intermediate thresholds · advanced keeps only chosen branch · skip reasons generated |
 | **Consensus scoring** | Official source weighted higher · count correct |
+| **Section links (L-08)** | Same host + folder only · page order · anchors / query / files / the page itself / duplicates dropped · at most N · relative links resolved |
 | **Error classification** | Each extractor error → transient or permanent correctly |
 | **Cursor pagination** | Encode/decode round-trip · tampered cursor → 400 |
 
@@ -165,6 +166,7 @@
 | Retry failed path | Ingested resources reused; not counted against daily limit |
 | Outline before `READY` | 409 `PATH_NOT_READY` |
 | Topic without official docs | Path still built |
+| Official docs with linked pages (fake scraper) | One source: first page + linked pages under their titles; a failing linked page left out; `pagesRead` saved; popular resources read one page |
 
 ### Phase 9: Lessons
 | Test | Expected |

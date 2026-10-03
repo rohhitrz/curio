@@ -53,6 +53,8 @@ export interface LearningPathOutlineDeps {
     minResources: number;
     mapMaxChars: number;
     maxConceptsPerResource: number;
+    officialMapMaxChars: number;
+    officialMaxConcepts: number;
     maxGapConcepts: number;
     minBranchConcepts: number;
     hookSourceChars: number;
@@ -139,7 +141,13 @@ export function createLearningPathOutlineService(deps: LearningPathOutlineDeps) 
     ): Promise<MapStepResult> {
       const path = await repository.findForJob(ref);
       if (!path) return NOT_FOUND;
-      const source = await repository.resourceText(ref, resource.resourceId, limits.mapMaxChars);
+      // The official docs were read as a section (L-08): a bigger budget.
+      const official = resource.role === 'OFFICIAL';
+      const source = await repository.resourceText(
+        ref,
+        resource.resourceId,
+        official ? limits.officialMapMaxChars : limits.mapMaxChars,
+      );
       if (!source?.text.trim()) return { status: 'unmapped', resourceId: resource.resourceId };
 
       try {
@@ -150,7 +158,7 @@ export function createLearningPathOutlineService(deps: LearningPathOutlineDeps) 
               level: path.level,
               title: resource.title,
               text: source.text,
-              maxConcepts: limits.maxConceptsPerResource,
+              maxConcepts: official ? limits.officialMaxConcepts : limits.maxConceptsPerResource,
             },
             { llm },
           ),

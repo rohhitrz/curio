@@ -107,7 +107,7 @@ users 1──* notebooks 1──* sources 1──* source_chunks
 | `content_hash` | text | NOT NULL |
 | `extracted_text` | text | nullable |
 | `extracted_locations` | jsonb | nullable (where pages / caption segments sit in `extracted_text`; lets job steps pass only the source ID) |
-| `metadata` | jsonb | NOT NULL, default `{}` |
+| `metadata` | jsonb | NOT NULL, default `{}` (e.g. `videoId`, `pageCount`; a learning path's official docs carry `sectionPages`, how many linked pages to read, and after reading `pagesRead`) |
 | `chunk_count` | int | NOT NULL, default 0 |
 | `embedding_model` | text | nullable |
 | `processing_started_at` | timestamptz | nullable (the sweeper's clock: set when a job claims the source and again at the start of every step) |
