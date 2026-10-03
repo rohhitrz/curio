@@ -11,6 +11,7 @@ import {
 import { fakeVector } from '../fakes/embeddings.js';
 import { bearer, createTestApp } from '../helpers/app.js';
 import { getTestDb, truncateAllTables } from '../helpers/db.js';
+import { seedConcept, seedLearningPath } from '../helpers/learning.js';
 
 const db = getTestDb();
 const repository = createMemoriesRepository(db);
@@ -122,13 +123,15 @@ describe('memories: database checks', () => {
   });
 
   it('second UNDERSTOOD for the same concept → rejected', async () => {
+    const { path } = await seedLearningPath(alice);
+    const concept = await seedConcept(path.id);
     const understood = {
       ...base,
       userId: alice,
       scope: 'TOPIC' as const,
       topicId,
       kind: 'UNDERSTOOD' as const,
-      conceptId: crypto.randomUUID(),
+      conceptId: concept.id,
     };
     await db.insert(memories).values(understood);
     expect(await pgCode(db.insert(memories).values(understood))).toBe(UNIQUE_VIOLATION);

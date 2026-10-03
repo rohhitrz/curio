@@ -235,6 +235,7 @@ Snapshots survive source reprocessing (new chunk IDs) and source deletion (the s
 | `created_at`, `updated_at` | timestamptz | NOT NULL |
 
 - `status` drives the progress UI; `AWAITING_BRANCH` = job paused for the user's branch pick
+- `branch_options`: `[{ name, description }]`; the branch pick must match a `name`
 
 ### `path_resources`
 | Column | Type | Constraints |
@@ -246,6 +247,8 @@ Snapshots survive source reprocessing (new chunk IDs) and source deletion (the s
 | `resource_type` | `resource_type` | NOT NULL |
 | `title` | text | NOT NULL |
 | `url` | text | NOT NULL |
+
+**Indexes:** `(path_id)`
 
 ### `concepts`
 | Column | Type | Constraints |

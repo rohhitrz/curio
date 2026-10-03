@@ -9,11 +9,11 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { concepts } from './learning-paths.js';
+import { level } from './level.js';
 import { topics } from './topics.js';
 import { users } from './users.js';
 
-/** Shared with learning paths (Phase 8). */
-export const level = pgEnum('level', ['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
 export const memoryScope = pgEnum('memory_scope', ['GLOBAL', 'TOPIC']);
 export const memoryKind = pgEnum('memory_kind', ['LEVEL', 'STYLE', 'GOAL', 'UNDERSTOOD', 'FACT']);
 export const memoryOrigin = pgEnum('memory_origin', [
@@ -39,11 +39,8 @@ export const memories = pgTable(
     kind: memoryKind('kind').notNull(),
     content: text('content').notNull(),
     level: level('level'),
-    /**
-     * The concept an `UNDERSTOOD` memory is about. The FK to `concepts` (ON DELETE SET NULL) is
-     * added in Phase 8 with the `concepts` table.
-     */
-    conceptId: uuid('concept_id'),
+    /** The concept an `UNDERSTOOD` memory is about; the text is kept if the concept goes. */
+    conceptId: uuid('concept_id').references(() => concepts.id, { onDelete: 'set null' }),
     origin: memoryOrigin('origin').notNull(),
     /** What wrote it, e.g. the module for `LESSON_COMPLETED` (un-marking removes these). */
     originRef: uuid('origin_ref'),

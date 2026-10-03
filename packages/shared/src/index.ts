@@ -1,5 +1,6 @@
 export * from './chat.js';
 export * from './errors.js';
+export * from './learning.js';
 export * from './memories.js';
 export * from './notebooks.js';
 export * from './pagination.js';
