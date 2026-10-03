@@ -21,9 +21,8 @@ export function createNotebooksController(service: NotebooksService) {
 
   const update: RequestHandler = async (req, res) => {
     const notebookId = notebookIdParam(req);
-    const { title } = updateNotebookSchema.parse(req.body);
-    // The schema guarantees `title` is present until `topic` arrives in Phase 7.
-    res.json(await service.rename(getUserId(req), notebookId, title ?? ''));
+    const input = updateNotebookSchema.parse(req.body);
+    res.json(await service.update(getUserId(req), notebookId, input));
   };
 
   const remove: RequestHandler = async (req, res) => {

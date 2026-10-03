@@ -1,6 +1,6 @@
 import { and, count, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { conversations, notebooks, sources } from '../db/schema/index.js';
+import { conversations, notebooks, sources, topics } from '../db/schema/index.js';
 import type { Cursor } from '../pagination/cursor.js';
 
 /** `updated_at` as ISO text with microseconds, so cursors don't lose precision. */
@@ -14,6 +14,9 @@ const columns = {
   updatedAt: notebooks.updatedAt,
 };
 
+/** `columns` plus the topic, for reads joined with `topics`. */
+const withTopic = { ...columns, topicId: topics.id, topicName: topics.name };
+
 export type NotebookRow = Awaited<ReturnType<NotebooksRepository['findById']>> & {};
 
 export function createNotebooksRepository(db: Db) {
@@ -21,8 +24,9 @@ export function createNotebooksRepository(db: Db) {
     /** Newest-updated first. Fetches `limit + 1` rows so the caller can tell if there's a next page. */
     async listByUser(userId: string, limit: number, cursor?: Cursor) {
       return db
-        .select({ ...columns, cursorTimestamp: updatedAtText })
+        .select({ ...withTopic, cursorTimestamp: updatedAtText })
         .from(notebooks)
+        .leftJoin(topics, eq(topics.id, notebooks.topicId))
         .where(
           and(
             eq(notebooks.userId, userId),
@@ -37,8 +41,9 @@ export function createNotebooksRepository(db: Db) {
 
     async findById(userId: string, notebookId: string) {
       const [row] = await db
-        .select(columns)
+        .select(withTopic)
         .from(notebooks)
+        .leftJoin(topics, eq(topics.id, notebooks.topicId))
         .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, userId)))
         .limit(1);
       return row;
@@ -78,17 +83,23 @@ export function createNotebooksRepository(db: Db) {
           .insert(notebooks)
           .values({ userId, title, kind: 'SOURCE' })
           .returning(columns);
-        return row;
+        return row && { ...row, topicId: null, topicName: null };
       });
     },
 
-    async updateTitle(userId: string, notebookId: string, title: string) {
-      const [row] = await db
+    /** Sets the title and/or topic (`topicId: null` clears it). Undefined if not the user's. */
+    async update(
+      userId: string,
+      notebookId: string,
+      changes: { title?: string; topicId?: string | null },
+    ) {
+      const updated = await db
         .update(notebooks)
-        .set({ title })
+        .set(changes)
         .where(and(eq(notebooks.id, notebookId), eq(notebooks.userId, userId)))
-        .returning(columns);
-      return row;
+        .returning({ id: notebooks.id });
+      if (updated.length === 0) return undefined;
+      return this.findById(userId, notebookId);
     },
 
     /** Returns true if a row was deleted. */

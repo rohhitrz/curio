@@ -22,6 +22,7 @@ import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createChatRepository } from './repositories/chat.repository.js';
+import { createTopicsRepository } from './repositories/topics.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
 import { createRetrievalRepository } from './repositories/retrieval.repository.js';
 import { createSourcesRepository } from './repositories/sources.repository.js';
@@ -31,6 +32,7 @@ import { healthRouter } from './routes/health.routes.js';
 import { createNotebooksRouter } from './routes/notebooks.routes.js';
 import { createSourcesRouter } from './routes/sources.routes.js';
 import { createChatService } from './services/chat.service.js';
+import { createTopicsService } from './services/topics.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
 import { createSourcesService } from './services/sources.service.js';
 import { createUsersService } from './services/users.service.js';
@@ -72,11 +74,17 @@ export function createApp({
   flags = retrievalFlags,
 }: AppOptions): Express {
   const usersService = createUsersService(createUsersRepository(db));
+  const topicsService = createTopicsService({
+    repository: createTopicsRepository(db),
+    embeddings,
+    logger,
+  });
   const notebooksService = createNotebooksService(
     createNotebooksRepository(db),
     storage,
     jobs,
     logger,
+    topicsService,
   );
   const sourcesService = createSourcesService(createSourcesRepository(db), storage, jobs, logger);
   const retrievalRepository = createRetrievalRepository(db);

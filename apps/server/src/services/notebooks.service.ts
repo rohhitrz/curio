@@ -1,4 +1,4 @@
-import type { Notebook, NotebookDetail, Paginated } from '@curio/shared';
+import type { Notebook, NotebookDetail, Paginated, UpdateNotebookInput } from '@curio/shared';
 import type { Logger } from 'pino';
 import { quotas } from '../config/index.js';
 import { AppError, NotFoundError } from '../errors/app-error.js';
@@ -6,6 +6,7 @@ import type { JobsProvider } from '../lib/jobs/index.js';
 import type { StorageProvider } from '../lib/storage/index.js';
 import { decodeCursor, toPage } from '../pagination/cursor.js';
 import type { NotebookRow, NotebooksRepository } from '../repositories/notebooks.repository.js';
+import type { TopicsService } from './topics.service.js';
 import { isOwnUploadKey } from './upload-rules.js';
 
 function toNotebook(row: NotebookRow): Notebook {
@@ -13,6 +14,7 @@ function toNotebook(row: NotebookRow): Notebook {
     id: row.id,
     title: row.title,
     kind: row.kind,
+    topic: row.topicId && row.topicName ? { id: row.topicId, name: row.topicName } : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -25,6 +27,7 @@ export function createNotebooksService(
   storage: StorageProvider,
   jobs: JobsProvider,
   logger: Logger,
+  topics: TopicsService,
 ) {
   return {
     async list(userId: string, limit: number, rawCursor?: string): Promise<Paginated<Notebook>> {
@@ -57,8 +60,25 @@ export function createNotebooksService(
       return toNotebook(row);
     },
 
-    async rename(userId: string, notebookId: string, title: string): Promise<Notebook> {
-      const row = await repository.updateTitle(userId, notebookId, title);
+    /**
+     * Renames and/or sets the topic. A new topic is created (and embedded) first, so nothing
+     * changes if that fails; a topic created for a notebook that turns out not to be the user's
+     * is harmless (topics are shared and hold no personal data).
+     */
+    async update(
+      userId: string,
+      notebookId: string,
+      input: UpdateNotebookInput,
+    ): Promise<Notebook> {
+      if (!(await repository.findById(userId, notebookId))) throw notFound();
+      let topicId: string | null | undefined;
+      if (input.topic === null) topicId = null;
+      else if (input.topic !== undefined) topicId = (await topics.findOrCreate(input.topic)).id;
+
+      const row = await repository.update(userId, notebookId, {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(topicId !== undefined ? { topicId } : {}),
+      });
       if (!row) throw notFound();
       return toNotebook(row);
     },

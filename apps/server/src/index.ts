@@ -45,9 +45,11 @@ import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createChatRepository } from './repositories/chat.repository.js';
 import { createIngestionRepository } from './repositories/ingestion.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
+import { createTopicsRepository } from './repositories/topics.repository.js';
 import { createConversationSummaryService } from './services/conversation-summary.service.js';
 import { createIngestionService } from './services/ingestion.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
+import { createTopicsService } from './services/topics.service.js';
 
 let env: Env;
 try {
@@ -164,6 +166,11 @@ const notebooksService = createNotebooksService(
   storage,
   jobs,
   logger,
+  createTopicsService({
+    repository: createTopicsRepository(db),
+    embeddings: queryEmbeddings,
+    logger,
+  }),
 );
 const summaryService = createConversationSummaryService({
   repository: createChatRepository(db),

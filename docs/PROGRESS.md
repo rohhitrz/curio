@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 7 (Memory), in progress
-- **Current step:** 7.1 done (conversation summary job + context = summary + last ~10)
+- **Current step:** 7.2 done (topic embeddings + `PATCH /notebooks` `topic`)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** 7.2 topic embeddings + `PATCH /notebooks` `topic`
+- **Next step:** 7.3 migration `memories` (checks + partial unique indexes); repository
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 7
 - [x] 7.1 Conversation summary: `summarizeConversation` job (`conversation/summarize`, `inngest/summarize-conversation.ts`) → `conversation-summary.service.ts` (`draft` then `save` as two steps, so a failed save doesn't repeat the model call) · pure `pipelines/memory/summarize.ts` (Luna `conversationSummary`, old summary + new messages, markers stripped, failed answers left out) · optimistic save (`WHERE summarized_through_seq = old`, scoped by user; 0 rows → `superseded`) · chat queues the job after a saved answer when more than `conversation.summarizeAfterMessages` (20) messages sit outside the summary; queueing failure only logs · prompt = summary + last `recentMessages` (10) · traced as `conversation-summary`
-- [ ] 7.2 Topic embeddings + `PATCH /notebooks` `topic`
+- [x] 7.2 Topics: `topics.service.ts` `findOrCreate` (normalized name = NFKC + lower case + single spaces; found → reused, no embedding call; new → name embedded once, `insertOrGet` with `ON CONFLICT (normalized_name) DO NOTHING` so parallel creates make one row, first wording kept; synonyms stay separate) · `PATCH /notebooks` `{ title?, topic? }` (`topic: null` clears; topic resolved before the update, so embeddings down → 503 and nothing changes) · notebook responses carry `topic: { id, name } | null` (API doc updated) · no migration (`topics` + `notebooks.topic_id` exist since 0002)
 - [ ] 7.3 Migration `memories` (checks + partial unique indexes); repository
 - [ ] 7.4 `extractMemories` job: add / update / skip, never overwrites `USER_EDITED`, 200 cap
 - [ ] 7.5 Memory in prompts (tone and depth only)
@@ -80,6 +80,10 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Only COMPLETE messages are summarized; a range with only failed answers moves the marker without a model call.
   - **Inngest:** the new function appears after the deploy syncs the app; if `summarize-conversation` isn't listed in the Inngest dashboard, resync the app there.
   - Vercel's non-strict build reads a parsed `z.string().nullable()` as optional: the job rebuilds the draft field by field before `save` (`typecheck:vercel` caught it).
+
+- **7.2 notes:**
+  - Topics are shared and hold no personal data, so `topics.repository` queries take no user ID; the notebook update is still scoped by user (others' notebooks → 404, checked before a topic is created).
+  - Topic embeddings use the chat embeddings client (5s timeout). No related-topic search yet: the similarity lookup arrives with the level pre-fill (Phase 8). No UI to set a topic yet (not in 7.2); learning notebooks will get theirs from `POST /learning-paths`.
 
 ## Phase 6 notes
 0. **6.1 notes (read before 6.2).** For Phase 6 read `02-system-design.md` §7, `07-decisions.md` R-01–R-08 and the Phase 6 rows of `06-test-plan.md`.
@@ -411,6 +415,10 @@ What it says:
 ### 2026-10-03 (faster tests)
 - Done: tests moved to a local Docker Postgres (PR-06); unit and integration split into Vitest projects
 - Notes: server suite 582 tests in ~25 s (281 unit in ~1.5 s, 301 integration in ~23 s), was ~25 min on Neon `test`. This run covered 7.1, so the full-suite gap since 6.4 is closed
+
+### 2026-10-03 (7.2)
+- Done: 7.2 topics + `PATCH /notebooks` `topic`
+- Notes: first step on the local Docker test DB (PR-06); full suite 697 tests pass (596 server, 77 web, 24 evals)
 
 ### 2026-10-02 (Phase 6 approved, 7.1)
 - Done: 7.1 conversation summary job

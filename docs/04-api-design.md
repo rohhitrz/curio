@@ -133,7 +133,8 @@
 
 - **`POST /notebooks`** `{ title }` → creates **`SOURCE` notebooks only**. Learning notebooks are created only via `POST /learning-paths`.
 - **`GET /notebooks/:notebookId`** → includes source/conversation counts and `learningPathId` (learning notebooks)
-- **`PATCH /notebooks/:notebookId`** `{ title?, topic? }` → `topic` is found/created in `topics`
+- **`PATCH /notebooks/:notebookId`** `{ title?, topic? }` → `topic` is found/created in `topics` (matched by normalized name; a new one is embedded once; embeddings down → 503, nothing changes); `topic: null` clears it
+- Notebook responses include `topic: { id, name } | null`
 - **`DELETE /notebooks/:notebookId`** → DB cascade immediately; R2 files cleaned by a background job (`notebook/deleted`)
 
 ---

@@ -8,7 +8,10 @@ import { notebooks, sourceChunks, sources, users } from '../../src/db/schema/ind
 import { createCleanupNotebookFilesFunction } from '../../src/inngest/cleanup-notebook-files.js';
 import { createInngestClient } from '../../src/lib/jobs/index.js';
 import { createNotebooksRepository } from '../../src/repositories/notebooks.repository.js';
+import { createTopicsRepository } from '../../src/repositories/topics.repository.js';
 import { createNotebooksService } from '../../src/services/notebooks.service.js';
+import { createTopicsService } from '../../src/services/topics.service.js';
+import { createFakeEmbeddings } from '../fakes/embeddings.js';
 import { createFakeJobs, type FakeJobs } from '../fakes/jobs.js';
 import { createFakeStorage, type FakeStorage } from '../fakes/storage.js';
 import { bearer, createTestApp } from '../helpers/app.js';
@@ -18,6 +21,14 @@ const ALICE = bearer('user_alice');
 const BOB = bearer('user_bob');
 const db = getTestDb();
 const logger = pino({ level: 'silent' });
+
+/** The cleanup job never touches topics; the service just needs one. */
+const topicsService = () =>
+  createTopicsService({
+    repository: createTopicsRepository(db),
+    embeddings: createFakeEmbeddings().provider,
+    logger,
+  });
 
 let storage: FakeStorage;
 let jobs: FakeJobs;
@@ -145,6 +156,7 @@ describe('cleanupNotebookFiles function', () => {
       storage.provider,
       jobs.provider,
       logger,
+      topicsService(),
     );
     const client = createInngestClient({
       isDev: true,
@@ -209,6 +221,7 @@ describe('cleanupNotebookFiles function', () => {
       storage.provider,
       jobs.provider,
       logger,
+      topicsService(),
     );
     const fn = createCleanupNotebookFilesFunction(
       createInngestClient({ isDev: true, logger }),
