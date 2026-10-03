@@ -100,7 +100,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Duplicate `path/requested` for one path: the second run stops at `claim` once the first moved past `GATHERING`; per-user concurrency 1 keeps them from running steps at once. Good enough while only our API sends the event.
   - Not done: "Tavily reads when Firecrawl fails" (the scraping side of the fallback; `processSource` change) → `docs/todo-v2.md`.
   - `resourceSelection` is traced as `learning-path-selection`. Search and selection make real API calls only in the deployed job (none in tests).
-  - **Inngest:** needs the PUT resync after the push (new function `generate-learning-path`).
+  - **Inngest:** resynced after the push of `85e67dd` (2026-10-03, `modified: true`); Vercel deploy READY, `/health` ok (boots with `TAVILY_API_KEY`).
 
 ## Phase 7 notes
 - **7.1 notes:**
@@ -471,7 +471,7 @@ What it says:
 ### 2026-10-03 (Phase 7 approved, 8.1)
 - Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1
 - Owner: added `TAVILY_API_KEY` on Vercel and ran `0010` on prod
-- Notes: checkpoint before push: full suite 821 tests pass (716 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean
+- Notes: checkpoint before push: full suite 821 tests pass (716 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean. Pushed `85e67dd`; deploy READY; Inngest resynced
 - Owner: "start with phase 8" (Phase 7 approved)
 
 ### 2026-10-03 (faster tests)
