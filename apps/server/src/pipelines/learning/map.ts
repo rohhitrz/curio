@@ -19,6 +19,32 @@ export const conceptMapSchema = z.object({
 });
 export type MappedConcept = z.infer<typeof conceptMapSchema>['concepts'][number];
 
+/**
+ * A resource's text cut to `maxChars` so every part gets a fair share: the text is split before
+ * each top-level heading (`# `; a section's pages, L-08), each part gets an equal share, and what
+ * short parts leave goes to the longer ones. Text within the budget is returned as it is.
+ */
+export function fairShare(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const parts = text.split(/\n(?=# )/);
+  const allowed = new Map<number, number>();
+  let left = maxChars - (parts.length - 1);
+  // Shortest first: each takes its length or an equal share of what is left, whichever is less.
+  const order = parts
+    .map((part, i) => i)
+    .sort((a, b) => (parts[a]?.length ?? 0) - (parts[b]?.length ?? 0));
+  order.forEach((index, n) => {
+    const share = Math.max(0, Math.floor(left / (order.length - n)));
+    const take = Math.min(parts[index]?.length ?? 0, share);
+    allowed.set(index, take);
+    left -= take;
+  });
+  return parts
+    .map((part, i) => part.slice(0, allowed.get(i) ?? 0))
+    .filter((part) => part !== '')
+    .join('\n');
+}
+
 export interface MapInput {
   topic: string;
   level: Level;

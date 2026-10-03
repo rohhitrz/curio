@@ -270,6 +270,11 @@ export const learningPaths = {
    */
   officialSectionPages: 8,
   officialMapMaxChars: 120_000,
+  /**
+   * A resource's text is read up to this much, then cut to the map budget with every page (top
+   * heading) getting a fair share, so the end of a long section isn't lost.
+   */
+  mapReadMaxChars: 600_000,
   officialMaxConcepts: 40,
   /** Missing prerequisites the order step may add ("fills gaps"), at most. */
   maxGapConcepts: 3,

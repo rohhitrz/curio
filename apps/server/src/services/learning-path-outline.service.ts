@@ -4,7 +4,7 @@ import type { LlmProvider } from '../lib/llm/index.js';
 import type { Tracer } from '../lib/tracing/index.js';
 import { cutPath, type CutPath, type CutRules } from '../pipelines/learning/cut.js';
 import { generateHook } from '../pipelines/learning/hook.js';
-import { mapResource } from '../pipelines/learning/map.js';
+import { fairShare, mapResource } from '../pipelines/learning/map.js';
 import {
   applyMerge,
   mergeConcepts,
@@ -54,6 +54,7 @@ export interface LearningPathOutlineDeps {
     mapMaxChars: number;
     maxConceptsPerResource: number;
     officialMapMaxChars: number;
+    mapReadMaxChars: number;
     officialMaxConcepts: number;
     maxGapConcepts: number;
     minBranchConcepts: number;
@@ -146,7 +147,7 @@ export function createLearningPathOutlineService(deps: LearningPathOutlineDeps) 
       const source = await repository.resourceText(
         ref,
         resource.resourceId,
-        official ? limits.officialMapMaxChars : limits.mapMaxChars,
+        limits.mapReadMaxChars,
       );
       if (!source?.text.trim()) return { status: 'unmapped', resourceId: resource.resourceId };
 
@@ -157,7 +158,10 @@ export function createLearningPathOutlineService(deps: LearningPathOutlineDeps) 
               topic: path.topic,
               level: path.level,
               title: resource.title,
-              text: source.text,
+              text: fairShare(
+                source.text,
+                official ? limits.officialMapMaxChars : limits.mapMaxChars,
+              ),
               maxConcepts: official ? limits.officialMaxConcepts : limits.maxConceptsPerResource,
             },
             { llm },

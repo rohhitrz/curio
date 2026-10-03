@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { learningPaths } from '../../src/config/index.js';
 import { cutPath } from '../../src/pipelines/learning/cut.js';
-import { mapResource } from '../../src/pipelines/learning/map.js';
+import { fairShare, mapResource } from '../../src/pipelines/learning/map.js';
 import {
   applyMerge,
   buildMergeMessage,
@@ -340,6 +340,31 @@ describe('toOutlineRows', () => {
         position: null,
       }),
     ]);
+  });
+});
+
+describe('fairShare', () => {
+  const page = (title: string, length: number) =>
+    `# ${title}\n${'x'.repeat(length - title.length - 3)}`;
+
+  it('text within the budget is returned as it is', () => {
+    expect(fairShare('# A\nshort', 100)).toBe('# A\nshort');
+  });
+
+  it('every page keeps its start; short pages leave their share to the long ones', () => {
+    const text = [page('A', 100), page('B', 10), page('C', 100)].join('\n');
+
+    const cut = fairShare(text, 152);
+
+    expect(cut.length).toBeLessThanOrEqual(152);
+    const parts = cut.split(/\n(?=# )/);
+    expect(parts.map((p) => p.slice(0, 3))).toEqual(['# A', '# B', '# C']);
+    // B keeps all 10; A and C split the rest (150 - 10 = 140, 70 each).
+    expect(parts.map((p) => p.length)).toEqual([70, 10, 70]);
+  });
+
+  it('text without top-level headings is cut from the start', () => {
+    expect(fairShare('abcdef', 3)).toBe('abc');
   });
 });
 

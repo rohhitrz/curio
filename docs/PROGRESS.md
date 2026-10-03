@@ -7,7 +7,7 @@
 - **Phase:** 8 (Learning paths), in progress
 - **Current step:** 8.6 done (learning path frontend)
 - **Blocked on:** nothing
-- **Next step:** 8.7 in progress: cut floor + official docs read as a section (L-08) done; re-measure Python with a fresh gather, then owner reviews `evals/dataset/paths.json` and approves the full run
+- **Next step:** 8.7 in progress: owner decides on the Firecrawl rate limit (see 8.7 notes), reviews `evals/dataset/paths.json` and approves the full run
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -131,6 +131,9 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Results file `evals/results/2026-10-03-paths.json` is from a smoke run (not the committed baseline).
   - **Owner's picks (2026-10-04):** crawl the official resource (up to ~8 pages of its docs section, existing Firecrawl provider; doc changes first) · cut: keep the thresholds, raise the floor per level.
   - **Official docs as a section done (L-08, owner approved the doc changes 2026-10-04):** the `OFFICIAL` website resource is saved with `metadata.sectionPages` (8); `extractWebsite` then scrapes the links in its main content that stay on the same host under its folder (pure `pipelines/ingestion/section.ts`: page order, no anchors / query / files / repeats), 4 at a time (`extraction.sectionConcurrency`), skips any that fail, joins all under their titles (`joinSection`), records `pagesRead`. Map: official resource gets `officialMapMaxChars` 120k and ≤ `officialMaxConcepts` 40 (`conceptMap` output cap 3k → 5k). Docs: 02 §6 + §8, 03 `sources.metadata`, 06 (unit + integration rows), 07 L-08.
+  - **Re-measured (Python, `--runs=1`, fresh gather):** official docs read as 9 pages (233k chars). Beginner 0.09 → 0.64, intermediate 0.18 → 0.82. The missed sections were past the 120k map budget, so the budget is now shared fairly across pages (`fairShare` in `pipelines/learning/map.ts`, text read up to `mapReadMaxChars` 600k); same resources (`--reuse`): beginner 0.73, intermediate 0.73 (single runs are noisy). Still missed: collections, classes (the tutorial's classes chapter is link 9+, past `officialSectionPages` 8), I/O once.
+  - **Firecrawl rate limit (owner decision):** the plan allows ~10 scrapes/min; a path is now ~14 scrapes in a burst. In the fresh run, w3schools got 429 three times in 8s and was not read, leaving 3 resources (the minimum). In the job, Inngest retries with longer backoff, but linked pages that get 429 are just left out, and paths for different users share the limit. Options: a paid Firecrawl plan, or retrying linked pages after a wait.
+  - **Consensus with 3 mapped resources:** official weight 2 of 4 = 0.5, so every official-only concept passes both thresholds. Beginner kept 40 concepts, intermediate 61 with 0 skipped: the levels barely differ. Raised with the owner; no change yet.
   - The cut-floor commit broke 4 tests in `generate-learning-path.test.ts` (only unit tests were run for it): the job test now pins the floor to 5 so its 11-concept fixture still tests the thresholds.
   - **Cut floor done:** `beginnerMinConcepts` 10 / `intermediateMinConcepts` 16 (was `minIncludedConcepts` 5 for both; L-07 updated). Re-measured on the same Python resources (`--reuse --runs=1`): beginner 0 → 0.09, intermediate 0.18 → 0.18. Every included concept comes from intro pages (interpreter, print, variables, operators); strings, lists, loops, functions, modules, exceptions, classes are in **no** resource, so depth is the limit, not the cut.
 

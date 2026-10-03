@@ -1,7 +1,7 @@
 {
   "kind": "learning-paths",
-  "date": "2026-10-03T19:00:54.763Z",
-  "commit": "a6139dc",
+  "date": "2026-10-03T19:18:04.106Z",
+  "commit": "7d893c0",
   "dirty": true,
   "config": {
     "runs": 1,
@@ -31,12 +31,12 @@
     {
       "topic": "python",
       "beginner": {
-        "coverage": 0.091,
+        "coverage": 0.727,
         "consistencyExact": null,
         "consistencySemantic": null
       },
       "intermediate": {
-        "coverage": 0.182,
+        "coverage": 0.727,
         "consistencyExact": null,
         "consistencySemantic": null
       },
@@ -50,11 +50,11 @@
   "cost": {
     "llm": {
       "gpt-6-luna": {
-        "inputTokens": 115334,
-        "cachedInputTokens": 66234,
-        "outputTokens": 21078,
-        "calls": 26,
-        "usd": 0.01611
+        "inputTokens": 158616,
+        "cachedInputTokens": 105210,
+        "outputTokens": 29146,
+        "calls": 20,
+        "usd": 0.02097
       }
     },
     "webSearches": 0,
@@ -76,8 +76,15 @@
         {
           "role": "POPULAR",
           "type": "ARTICLE",
-          "title": "Learn Python - Free Interactive Python Tutorial",
-          "url": "https://www.learnpython.org",
+          "title": "Python Tutorial - GeeksforGeeks",
+          "url": "https://www.geeksforgeeks.org/python/python-programming-language-tutorial",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "VIDEO",
+          "title": "Python Full Course for Beginners",
+          "url": "https://www.youtube.com/watch?v=K5KVEU3aaeQ",
           "read": true
         },
         {
@@ -85,21 +92,7 @@
           "type": "ARTICLE",
           "title": "Introduction to Python",
           "url": "https://www.w3schools.com/python/python_intro.asp",
-          "read": true
-        },
-        {
-          "role": "POPULAR",
-          "type": "VIDEO",
-          "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
-          "url": "https://www.youtube.com/watch?v=kqtD5dpn9C8",
-          "read": true
-        },
-        {
-          "role": "POPULAR",
-          "type": "ARTICLE",
-          "title": "Learn Python Basics - GeeksforGeeks",
-          "url": "https://www.geeksforgeeks.org/python/python-basics",
-          "read": true
+          "read": false
         }
       ],
       "levels": [
@@ -110,112 +103,259 @@
               "level": "BEGINNER",
               "mapped": [
                 {
-                  "title": "The Python Tutorial — Python 3.14.8 documentation",
-                  "concepts": 5
+                  "title": "Python Tutorial - GeeksforGeeks",
+                  "concepts": 9
                 },
                 {
-                  "title": "Introduction to Python",
-                  "concepts": 7
-                },
-                {
-                  "title": "Learn Python Basics - GeeksforGeeks",
-                  "concepts": 14
-                },
-                {
-                  "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
+                  "title": "Python Full Course for Beginners",
                   "concepts": 20
+                },
+                {
+                  "title": "The Python Tutorial — Python 3.14.8 documentation",
+                  "concepts": 40
                 }
               ],
-              "unmapped": [
-                "Learn Python - Free Interactive Python Tutorial"
-              ],
+              "unmapped": [],
               "branchOptions": [],
               "branch": null,
               "modules": [
-                "Python at a Glance",
-                "Code Foundations",
-                "Values and Operators",
-                "Collections and Lists",
-                "Python’s Flexibility"
+                "Python and Its Runtime",
+                "Writing First Programs",
+                "Strings and Formatting",
+                "Decisions and Loops",
+                "Collections and Data",
+                "Functions and Objects",
+                "Errors and Files",
+                "Modules and Libraries"
               ],
               "included": [
                 {
-                  "name": "Interpreted Execution",
-                  "description": "Python code is executed by an interpreter rather than being run directly as a compiled executable.",
-                  "score": 0.6
+                  "name": "Python Interpreter",
+                  "description": "The Python interpreter runs code interactively or from scripts and other invocation modes.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Print Function",
-                  "description": "Python's built-in `print()` function displays text or values in the console or terminal.",
-                  "score": 0.6
+                  "name": "Interactive Mode",
+                  "description": "Interactive mode reads commands from a terminal and uses prompts for input and continuation lines.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Source Code Encoding",
+                  "description": "Python source files use UTF-8 by default and can declare another encoding in an initial comment.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Command-Line Arguments",
+                  "description": "Python exposes a script name and its command-line arguments through `sys.argv`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Syntax Errors",
+                  "description": "A syntax error occurs when Python code does not conform to the language grammar.",
+                  "score": 0.75
+                },
+                {
+                  "name": "Python Comments",
+                  "description": "A `#` outside a string begins a comment that continues to the end of the line.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Numeric Types and Arithmetic",
+                  "description": "Python provides numeric types and arithmetic operations such as division, remainders, and powers.",
+                  "score": 0.5
                 },
                 {
                   "name": "Variables",
-                  "description": "Variables are named references used to store and access values in a program.",
-                  "score": 0.4
+                  "description": "Variables are names bound to values in a program.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Dynamic Typing",
-                  "description": "Python determines the types of values at runtime rather than requiring variable type declarations.",
-                  "score": 0.4
+                  "name": "String Literals",
+                  "description": "String literals represent text and can use different quoting styles and escape behavior.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Arithmetic Operators",
-                  "description": "Arithmetic operators perform mathematical calculations such as addition, division, and exponentiation.",
-                  "score": 0.4
+                  "name": "String Operations",
+                  "description": "String operations include combining strings and, in Python, repeating them with operators.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Comparison Operators",
-                  "description": "Comparison operators compare values and produce a Boolean result.",
-                  "score": 0.4
+                  "name": "String Indexing and Slicing",
+                  "description": "Indexing retrieves characters and slicing extracts substrings from strings.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Logical Operators",
-                  "description": "The `and`, `or`, and `not` operators combine or invert Boolean conditions.",
-                  "score": 0.4
+                  "name": "F-Strings",
+                  "description": "F-strings interpolate expressions into strings and support formatting options.",
+                  "score": 0.75
                 },
                 {
-                  "name": "High-Level Data Structures",
-                  "description": "Python provides built-in high-level structures for organizing and working with data.",
-                  "score": 0.4
+                  "name": "Formatted Output",
+                  "description": "Python offers several ways to control formatted output, including f-strings, `str.format()`, and manual string operations.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Object-Oriented Programming",
-                  "description": "Python supports organizing programs around objects and classes.",
-                  "score": 0.4
+                  "name": "Format Method",
+                  "description": "`str.format()` inserts positional or named arguments into marked fields in a string.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Python Extensions",
-                  "description": "Python can be extended with functions and data types implemented in C, C++, or other compatible languages.",
-                  "score": 0.4
+                  "name": "String Representations",
+                  "description": "`str()` aims for human-readable output, while `repr()` aims for an interpreter-readable representation.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Conditional Statements",
+                  "description": "`if`, `elif`, and `else` branches select code to run according to conditions.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Pattern Matching",
+                  "description": "A `match` statement tests a value against patterns and can bind matched components to names.",
+                  "score": 0.5
+                },
+                {
+                  "name": "For Loops",
+                  "description": "A `for` loop iterates over the items of an iterable.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Range Objects",
+                  "description": "`range()` represents an arithmetic progression of integers, commonly for iteration.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Loop Control",
+                  "description": "`break` exits a loop and `continue` advances to its next iteration.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Loop Else Clauses",
+                  "description": "A loop’s `else` clause runs when the loop completes without being stopped by `break`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Pass Statement",
+                  "description": "`pass` is a no-operation statement used where Python syntax requires a statement.",
+                  "score": 0.5
+                },
+                {
+                  "name": "List Methods",
+                  "description": "List methods provide operations for adding, removing, searching, sorting, and otherwise managing list elements.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Lists as Stacks",
+                  "description": "A list can serve as a last-in, first-out stack using operations such as `append()` and `pop()`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Queues",
+                  "description": "A queue is a first-in, first-out collection, for which `collections.deque` supports efficient operations at both ends.",
+                  "score": 0.5
+                },
+                {
+                  "name": "List Comprehensions",
+                  "description": "List comprehensions compactly construct lists by evaluating expressions over iterables, optionally with filters.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Nested List Comprehensions",
+                  "description": "Nested list comprehensions combine multiple iterations to transform nested data.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Functions",
+                  "description": "Functions package code into reusable units that can perform specific tasks.",
+                  "score": 0.75
+                },
+                {
+                  "name": "Function Arguments",
+                  "description": "Function arguments are bound in the called function’s local scope, with values passed as object references.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Return Values",
+                  "description": "The `return` statement supplies a function result, while an implicit return produces `None`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Function Scope",
+                  "description": "Function scope determines how names are stored and resolved across local, enclosing, global, and built-in scopes.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Object Methods",
+                  "description": "A method is a function associated with an object and accessed through that object.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Exceptions",
+                  "description": "Exceptions are runtime errors whose types and tracebacks describe what happened and where.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Exception Handling",
+                  "description": "Exception handling uses constructs such as `try` and `except` to manage runtime errors.",
+                  "score": 0.75
+                },
+                {
+                  "name": "Finally Cleanup",
+                  "description": "A `finally` clause runs as a `try` statement completes, whether or not an exception occurred.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Python Modules",
+                  "description": "A module is a Python file containing definitions and statements that can be reused through imports.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Import Statements",
+                  "description": "Import statements make modules or selected names available in a program, optionally under aliases.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Module Namespaces",
+                  "description": "Each module has its own namespace, and importing it does not automatically add all its definitions to the importing namespace.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Module Search Path",
+                  "description": "Python searches built-in modules and directories on `sys.path` to locate imports.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Running Modules as Scripts",
+                  "description": "A module can detect direct execution by checking whether `__name__` equals `\"__main__\"`.",
+                  "score": 0.5
                 }
               ],
-              "skipped": 27,
-              "concepts": 37,
+              "skipped": 20,
+              "concepts": 60,
               "hook": true,
               "coverage": {
-                "covered": 1,
+                "covered": 8,
                 "total": 11,
-                "rate": 0.091,
+                "rate": 0.727,
                 "coveredIndexes": [
-                  1
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  8,
+                  10
                 ],
                 "missed": [
-                  "strings",
-                  "lists",
-                  "conditions",
-                  "loops",
-                  "functions",
                   "collections",
-                  "modules",
                   "io",
-                  "exceptions",
                   "classes"
                 ]
               }
             }
           ],
-          "meanCoverage": 0.091,
+          "meanCoverage": 0.727,
           "consistency": {
             "exactJaccard": null,
             "semanticJaccard": null
@@ -228,143 +368,365 @@
               "level": "INTERMEDIATE",
               "mapped": [
                 {
+                  "title": "Python Tutorial - GeeksforGeeks",
+                  "concepts": 11
+                },
+                {
+                  "title": "Python Full Course for Beginners",
+                  "concepts": 18
+                },
+                {
                   "title": "The Python Tutorial — Python 3.14.8 documentation",
-                  "concepts": 5
-                },
-                {
-                  "title": "Introduction to Python",
-                  "concepts": 7
-                },
-                {
-                  "title": "Learn Python Basics - GeeksforGeeks",
-                  "concepts": 14
-                },
-                {
-                  "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
-                  "concepts": 20
+                  "concepts": 38
                 }
               ],
-              "unmapped": [
-                "Learn Python - Free Interactive Python Tutorial"
-              ],
+              "unmapped": [],
               "branchOptions": [],
               "branch": null,
               "modules": [
-                "Python Runtime and Syntax",
-                "Values and Input/Output",
-                "Expressions and Operators",
-                "Collections and Control Flow",
-                "Functions and Paradigms",
-                "Applications and Extensions"
+                "Python Foundations",
+                "Writing Python Code",
+                "Values and Expressions",
+                "Working with Strings",
+                "Control Flow",
+                "Functions and Objects",
+                "Collections and Data",
+                "Modules and Programs",
+                "Errors and External Data"
               ],
               "included": [
                 {
-                  "name": "Interpreted Execution",
-                  "description": "Python code is run by an interpreter, supporting scripting and rapid development.",
-                  "score": 0.6
+                  "name": "High-Level Language",
+                  "description": "Python is a high-level programming language used for a wide range of applications.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Cross-Platform Compatibility",
-                  "description": "Python runs on a range of operating systems and devices.",
-                  "score": 0.2
+                  "name": "Python Readability",
+                  "description": "Python’s clean syntax helps make code easier to write, understand, and maintain.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Readable Concise Syntax",
-                  "description": "Python syntax is designed to be readable and often expresses programs in relatively few lines.",
-                  "score": 0.2
+                  "name": "Python Implementations",
+                  "description": "Python implementations are programs that execute Python code, such as CPython, Jython, and IronPython.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Dynamic Typing",
-                  "description": "Python determines the types of values at runtime rather than requiring declared variable types.",
-                  "score": 0.4
+                  "name": "Python Interpreter",
+                  "description": "The Python interpreter executes code from scripts or interactive input.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Python Data Types",
-                  "description": "Python values belong to types such as numbers, strings, booleans, and collection types.",
-                  "score": 0.4
+                  "name": "Python Bytecode",
+                  "description": "CPython compiles Python code into bytecode for execution by the Python virtual machine.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Code Editors and IDEs",
+                  "description": "Code editors and IDEs provide environments and tools for writing and working with code.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Interactive Mode",
+                  "description": "Interactive mode accepts commands in a terminal and displays prompts for input and continuation lines.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Source Encoding",
+                  "description": "Python source encoding determines how characters in source files are interpreted.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Syntax Errors",
+                  "description": "Syntax errors occur when Python code violates the grammar required to parse it.",
+                  "score": 0.75
+                },
+                {
+                  "name": "Python Comments",
+                  "description": "Comments begin with `#` outside string literals and are ignored during execution.",
+                  "score": 0.5
+                },
+                {
+                  "name": "PEP 8 Formatting",
+                  "description": "PEP 8 describes conventions for formatting Python code consistently and readably.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Linting",
+                  "description": "Linting analyzes code for potential problems and reports issues, often before execution.",
+                  "score": 0.25
+                },
+                {
+                  "name": "String Literals",
+                  "description": "String literals represent text using quoted characters, including optional multiline forms.",
+                  "score": 0.75
+                },
+                {
+                  "name": "Numeric Types",
+                  "description": "Python numeric types include integers and floating-point numbers, among others.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Primitive Data Types",
+                  "description": "Python’s basic data types include integers, floating-point numbers, Booleans, and strings.",
+                  "score": 0.25
                 },
                 {
                   "name": "Variables",
-                  "description": "Variables are named references that let programs store, access, and change values.",
-                  "score": 0.4
+                  "description": "A variable is a name that refers to data.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Assignment Operators",
-                  "description": "Assignment operators store values in variables, and augmented forms update a variable using an operation.",
-                  "score": 0.4
+                  "name": "Variable Assignment",
+                  "description": "Assignment binds a value to a name, which must be assigned before it can be used.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Print Function",
-                  "description": "The built-in `print()` function displays text or values in the console or terminal.",
-                  "score": 0.4
+                  "name": "Variable Naming Conventions",
+                  "description": "Python variable names should be descriptive and follow common naming conventions.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Expressions",
+                  "description": "An expression is code that produces a value.",
+                  "score": 0.25
                 },
                 {
                   "name": "Arithmetic Operators",
-                  "description": "Arithmetic operators perform numeric calculations such as addition, division, and exponentiation.",
-                  "score": 0.4
+                  "description": "Arithmetic operators perform operations such as division, remainder, and exponentiation.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Comparison Operators",
-                  "description": "Comparison operators compare values and produce Boolean results.",
-                  "score": 0.4
+                  "name": "Boolean Values",
+                  "description": "Booleans represent one of two truth values: `True` or `False`.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Logical Operators",
-                  "description": "The `and`, `or`, and `not` operators combine or invert Boolean conditions.",
-                  "score": 0.4
+                  "name": "String Operations",
+                  "description": "Strings can be concatenated, repeated, indexed, and sliced to retrieve individual characters or substrings.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Data Structures",
-                  "description": "Python provides built-in structures for representing and working with collections of data.",
-                  "score": 0.4
+                  "name": "String Escape Sequences",
+                  "description": "Escape sequences let string literals represent special characters and formatting such as newlines.",
+                  "score": 0.25
+                },
+                {
+                  "name": "String Indexing and Slicing",
+                  "description": "Indexing accesses individual string characters, while slicing extracts ranges of characters.",
+                  "score": 0.25
+                },
+                {
+                  "name": "String Concatenation",
+                  "description": "String concatenation joins strings into a combined string.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Formatted Strings",
+                  "description": "F-strings insert evaluated values or expressions into string literals, with support for formatting.",
+                  "score": 0.75
+                },
+                {
+                  "name": "String Format Method",
+                  "description": "`str.format()` substitutes values into marked fields and supports formatting directives.",
+                  "score": 0.5
+                },
+                {
+                  "name": "String Representations",
+                  "description": "`str()` produces a human-readable representation, while `repr()` aims for an interpreter-suitable representation.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Printing Output",
+                  "description": "The `print()` function displays text and other values.",
+                  "score": 0.25
                 },
                 {
                   "name": "Conditional Statements",
-                  "description": "`if`, `elif`, and `else` select code to run based on conditions.",
-                  "score": 0.4
+                  "description": "Conditional statements use `if`, `elif`, and `else` to choose which code runs.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Structural Pattern Matching",
+                  "description": "`match` compares a value against patterns and can bind names or apply guards.",
+                  "score": 0.5
+                },
+                {
+                  "name": "For Loops",
+                  "description": "A `for` loop iterates over items in a sequence or another iterable.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Range Objects",
+                  "description": "`range()` creates an iterable arithmetic progression with configurable bounds and step.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Loop Control",
+                  "description": "`break` exits a loop, while `continue` skips to its next iteration.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Loop Else Clauses",
+                  "description": "A loop’s `else` clause runs when the loop finishes without being terminated by `break`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Pass Statement",
+                  "description": "`pass` is a no-operation statement used where syntax requires a statement.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Function Definitions",
+                  "description": "A `def` statement creates a named function with a body and optional parameters and docstring.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Function Arguments",
+                  "description": "Function arguments become local names in a call, with Python passing object references as values.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Function Calls",
+                  "description": "A function call executes a function and can provide its required arguments.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Return Values",
+                  "description": "A function’s `return` statement supplies its result; without one, the result is `None`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Variable Scope",
+                  "description": "Variable scope determines where names are looked up during function execution.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Functions",
+                  "description": "Functions are reusable blocks of code that perform specific tasks.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Object Methods",
+                  "description": "A method is a function associated with an object and called through that object.",
+                  "score": 0.5
                 },
                 {
                   "name": "Object-Oriented Programming",
-                  "description": "This programming approach organizes programs around objects.",
-                  "score": 0.4
+                  "description": "Object-oriented programming structures code around classes and objects.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Python Applications",
-                  "description": "Python is used across areas such as web development, automation, data processing, and system scripting.",
-                  "score": 0.4
+                  "name": "Data Structures",
+                  "description": "Data structures organize and store data for use in programs.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Extending Python",
-                  "description": "Python can be extended with functions and data types implemented in compatible languages such as C or C++.",
-                  "score": 0.4
+                  "name": "List Methods",
+                  "description": "List methods search, modify, sort, or otherwise operate on list items.",
+                  "score": 0.5
+                },
+                {
+                  "name": "List Comprehensions",
+                  "description": "List comprehensions construct lists concisely from iterable items, optionally applying filters.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Stacks and Queues",
+                  "description": "Lists can implement stacks, while `collections.deque` supports efficient queue operations.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Modules and Imports",
+                  "description": "Modules are Python files whose definitions can be reused through import statements.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Module Search Path",
+                  "description": "Python uses built-in modules and directories in `sys.path` to find imported modules.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Python Libraries and Packages",
+                  "description": "Libraries and packages provide reusable tools and capabilities for Python programs.",
+                  "score": 0.25
+                },
+                {
+                  "name": "Running Modules as Scripts",
+                  "description": "A module can detect script execution because Python sets its `__name__` to `__main__`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Command-Line Arguments",
+                  "description": "Python scripts can access their names and additional command-line arguments through `sys.argv`.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Exceptions",
+                  "description": "Exceptions are runtime errors identified by their type and traceback.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Exception Handling",
+                  "description": "Exception handling lets programs respond to errors rather than stopping unexpectedly.",
+                  "score": 0.75
+                },
+                {
+                  "name": "Finally Clauses",
+                  "description": "A `finally` clause runs as a `try` statement completes, whether or not an exception occurred.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Context Managers",
+                  "description": "Context managers provide setup and cleanup behavior for a `with` statement.",
+                  "score": 0.5
+                },
+                {
+                  "name": "File Handling",
+                  "description": "File handling covers creating, reading, writing, and managing files.",
+                  "score": 0.25
+                },
+                {
+                  "name": "User-Defined Exceptions",
+                  "description": "Programs can define custom exception classes to represent their own error conditions.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Exception Groups",
+                  "description": "Exception groups package multiple exceptions so they can be raised and selectively handled together.",
+                  "score": 0.5
+                },
+                {
+                  "name": "Database Connectivity",
+                  "description": "Database connectivity lets Python applications access and work with stored data.",
+                  "score": 0.25
                 }
               ],
-              "skipped": 20,
-              "concepts": 36,
+              "skipped": 0,
+              "concepts": 61,
               "hook": true,
               "coverage": {
-                "covered": 2,
+                "covered": 8,
                 "total": 11,
-                "rate": 0.182,
+                "rate": 0.727,
                 "coveredIndexes": [
                   1,
-                  4
+                  2,
+                  4,
+                  5,
+                  6,
+                  8,
+                  9,
+                  10
                 ],
                 "missed": [
-                  "strings",
                   "lists",
-                  "loops",
-                  "functions",
                   "collections",
-                  "modules",
-                  "io",
-                  "exceptions",
                   "classes"
                 ]
               }
             }
           ],
-          "meanCoverage": 0.182,
+          "meanCoverage": 0.727,
           "consistency": {
             "exactJaccard": null,
             "semanticJaccard": null
@@ -377,141 +739,118 @@
               "level": "ADVANCED",
               "mapped": [
                 {
-                  "title": "Introduction to Python",
-                  "concepts": 5
+                  "title": "Python Tutorial - GeeksforGeeks",
+                  "concepts": 10
+                },
+                {
+                  "title": "Python Full Course for Beginners",
+                  "concepts": 20
                 },
                 {
                   "title": "The Python Tutorial — Python 3.14.8 documentation",
-                  "concepts": 6
-                },
-                {
-                  "title": "Learn Python Basics - GeeksforGeeks",
-                  "concepts": 15
-                },
-                {
-                  "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
-                  "concepts": 20
+                  "concepts": 40
                 }
               ],
-              "unmapped": [
-                "Learn Python - Free Interactive Python Tutorial"
-              ],
+              "unmapped": [],
               "branchOptions": [
-                "Language and Runtime",
-                "Programming Styles",
-                "Text and Data Processing"
+                "Python’s Execution Model",
+                "Language Design and Abstraction",
+                "Reliable Python Systems"
               ],
-              "branch": "Language and Runtime",
+              "branch": "Python’s Execution Model",
               "modules": [
-                "Python and Execution",
-                "Syntax and First Steps",
-                "Values and Expressions",
-                "Python Ecosystem"
+                "Running Python",
+                "Modules and Code Quality"
               ],
               "included": [
                 {
-                  "name": "Python Setup",
-                  "description": "Python setup involves installing Python and using an editor to create and run projects.",
-                  "score": 0.2
-                },
-                {
-                  "name": "Python Use Cases",
-                  "description": "Python is used for development, scripting, data processing, and other kinds of practical work.",
-                  "score": 0.2
-                },
-                {
-                  "name": "Python Portability",
-                  "description": "Python runs on multiple operating systems and hardware platforms.",
-                  "score": 0.2
-                },
-                {
                   "name": "Python Interpreter",
-                  "description": "Python code is executed by an interpreter, supporting interactive use and rapid development.",
-                  "score": 0.6
+                  "description": "The Python interpreter executes Python code.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Python Syntax and Readability",
-                  "description": "Python emphasizes readable code and uses newlines and indentation as part of its syntax.",
-                  "score": 0.2
+                  "name": "Interpreter Invocation",
+                  "description": "Python can be launched from a command line to run scripts, modules, commands, or an interactive session.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Indentation and Blocks",
-                  "description": "Python uses indentation to mark the bodies of control-flow statements and other code blocks.",
-                  "score": 0.2
+                  "name": "Interactive Mode",
+                  "description": "Interactive mode accepts Python statements and displays their results as they are entered.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Comments",
-                  "description": "Comments provide notes in source code and are not executed as program code.",
-                  "score": 0.4
+                  "name": "Code Editors and IDEs",
+                  "description": "Editors and IDEs provide tools for writing code, with IDEs often adding features such as debugging and testing.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Console Output",
-                  "description": "The built-in `print()` function displays messages and values in the console or terminal.",
-                  "score": 0.4
+                  "name": "Syntax Errors",
+                  "description": "Syntax errors occur when Python code violates the language grammar and cannot be parsed.",
+                  "score": 0.75
                 },
                 {
-                  "name": "Variables",
-                  "description": "Variables are named references that can be assigned values and used to retrieve them.",
-                  "score": 0.4
+                  "name": "Source Code Encoding",
+                  "description": "Python source files default to UTF-8, and an encoding declaration can select another supported encoding.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Assignment Operators",
-                  "description": "Assignment operators bind values to variables, including through augmented forms such as `+=`.",
-                  "score": 0.2
+                  "name": "Python Implementations",
+                  "description": "A Python implementation supports the language’s rules and executes Python code.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Dynamic Typing",
-                  "description": "Python determines the types associated with values at runtime rather than requiring variable types to be declared in advance.",
-                  "score": 0.4
+                  "name": "Bytecode Execution",
+                  "description": "CPython compiles source code into bytecode, which the Python virtual machine executes.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Data Types",
-                  "description": "Python values belong to types that define their kinds and behavior.",
-                  "score": 0.2
+                  "name": "Command-Line Arguments",
+                  "description": "Python exposes a script name and its command-line arguments through `sys.argv`.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Basic Data Types",
-                  "description": "Python's basic data types include integers, floating-point numbers, strings, and booleans.",
-                  "score": 0.2
+                  "name": "Modules and Imports",
+                  "description": "Modules are Python files whose definitions can be reused by importing them or selected names.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Arithmetic Operators",
-                  "description": "Arithmetic operators perform numeric calculations such as addition, division, and exponentiation.",
-                  "score": 0.4
+                  "name": "Module Namespaces",
+                  "description": "Each module has its own namespace, and importing a module binds its name without automatically importing its contents as local names.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Operator Precedence",
-                  "description": "Operator precedence determines the order of evaluation within an expression, and parentheses can change that order.",
-                  "score": 0.2
+                  "name": "Module Search Path",
+                  "description": "Python searches built-in modules and directories in `sys.path` to locate imports.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Comparison Operators",
-                  "description": "Comparison operators compare values and produce Boolean results.",
-                  "score": 0.4
+                  "name": "Compiled Module Cache",
+                  "description": "Python caches compiled module files to speed loading and checks whether they need recompilation.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Logical Operators",
-                  "description": "The `and`, `or`, and `not` operators combine or negate Boolean conditions.",
-                  "score": 0.4
+                  "name": "Running Modules as Scripts",
+                  "description": "A module can detect direct execution by checking whether `__name__` equals `\"__main__\"`.",
+                  "score": 0.5
                 },
                 {
-                  "name": "Bitwise Operators",
-                  "description": "Bitwise operators manipulate values through their binary representations.",
-                  "score": 0.2
+                  "name": "Python Libraries and Packages",
+                  "description": "Libraries and packages provide reusable functionality for Python programs.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Standard Library",
-                  "description": "Python includes an extensive standard library of built-in modules and functionality.",
-                  "score": 0.4
+                  "name": "PEP 8 Formatting",
+                  "description": "PEP 8 defines conventions for formatting Python code, which formatters can apply automatically.",
+                  "score": 0.25
                 },
                 {
-                  "name": "Python Extensibility",
-                  "description": "Python can be extended with functions and data types implemented in other languages.",
-                  "score": 0.4
+                  "name": "Linting",
+                  "description": "Linting analyzes source code and reports potential problems before execution.",
+                  "score": 0.25
                 }
               ],
-              "skipped": 17,
-              "concepts": 37,
+              "skipped": 47,
+              "concepts": 64,
               "hook": true,
               "coverage": null
             }
