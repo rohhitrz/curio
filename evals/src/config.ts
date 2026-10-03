@@ -47,6 +47,16 @@ export const evalConfig = {
    * with 429, and the pipeline then silently keeps the fused order, which skews the comparison.
    */
   rerankCallsPerMinute: 10,
+  /** Learning-path eval (8.7): its own owner, so it never touches the RAG eval's notebook. */
+  pathEvalUserClerkId: 'eval_path_runner',
+  /** Builds per topic and level for consistency (test plan §6.3: 3 runs, same topic + level). */
+  pathRuns: 3,
+  /** Levels measured for coverage + consistency; advanced is built once per topic (end to end). */
+  pathLevels: ['BEGINNER', 'INTERMEDIATE'] as const,
+  /** Two concept names this similar (embedding cosine) count as the same concept across runs. */
+  conceptMatchThreshold: 0.85,
+  /** Resources mapped at the same time (one Luna call each). */
+  mapConcurrency: 3,
   resultsDir: fileURLToPath(new URL('../results/', import.meta.url)),
 } as const;
 

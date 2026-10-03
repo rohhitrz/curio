@@ -48,11 +48,11 @@ describe('searchRequests', () => {
     expect(searchRequests(brief, limits)).toEqual([
       {
         purpose: 'official',
-        request: { query: 'Deep Learning official documentation', maxResults: 5 },
+        request: { query: 'Deep Learning official documentation tutorial', maxResults: 5 },
       },
       {
         purpose: 'popular',
-        request: { query: 'Deep Learning for beginners practical', maxResults: 8 },
+        request: { query: 'Deep Learning tutorial for beginners practical', maxResults: 8 },
       },
       {
         purpose: 'video',

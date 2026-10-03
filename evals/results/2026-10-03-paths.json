@@ -1,0 +1,499 @@
+{
+  "kind": "learning-paths",
+  "date": "2026-10-03T16:44:20.765Z",
+  "commit": "d89d391",
+  "dirty": true,
+  "config": {
+    "runs": 1,
+    "reuse": false,
+    "levels": [
+      "BEGINNER",
+      "INTERMEDIATE",
+      "ADVANCED"
+    ],
+    "conceptMatchThreshold": 0.85,
+    "consensus": {
+      "officialWeight": 2,
+      "popularWeight": 1
+    },
+    "cut": {
+      "beginnerMinScore": 0.5,
+      "intermediateMinScore": 0.25,
+      "minIncludedConcepts": 5
+    },
+    "models": {
+      "learningPath": "gpt-6-luna",
+      "judge": "luna"
+    }
+  },
+  "summary": [
+    {
+      "topic": "python",
+      "beginner": {
+        "coverage": 0,
+        "consistencyExact": null,
+        "consistencySemantic": null
+      },
+      "intermediate": {
+        "coverage": 0.182,
+        "consistencyExact": null,
+        "consistencySemantic": null
+      },
+      "advanced": {
+        "coverage": null,
+        "consistencyExact": null,
+        "consistencySemantic": null
+      }
+    }
+  ],
+  "cost": {
+    "llm": {
+      "gpt-6-luna": {
+        "inputTokens": 116468,
+        "cachedInputTokens": 82202,
+        "outputTokens": 21784,
+        "calls": 27,
+        "usd": 0.01514
+      }
+    },
+    "webSearches": 3,
+    "scrapes": 4
+  },
+  "durationSeconds": 290,
+  "topics": [
+    {
+      "topic": "python",
+      "officialDocs": true,
+      "resources": [
+        {
+          "role": "OFFICIAL",
+          "type": "DOCS",
+          "title": "The Python Tutorial — Python 3.14.8 documentation",
+          "url": "https://docs.python.org/3/tutorial/index.html",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "ARTICLE",
+          "title": "Learn Python - Free Interactive Python Tutorial",
+          "url": "https://www.learnpython.org",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "ARTICLE",
+          "title": "Introduction to Python",
+          "url": "https://www.w3schools.com/python/python_intro.asp",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "VIDEO",
+          "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
+          "url": "https://www.youtube.com/watch?v=kqtD5dpn9C8",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "ARTICLE",
+          "title": "Learn Python Basics - GeeksforGeeks",
+          "url": "https://www.geeksforgeeks.org/python/python-basics",
+          "read": true
+        }
+      ],
+      "levels": [
+        {
+          "level": "BEGINNER",
+          "runs": [
+            {
+              "level": "BEGINNER",
+              "mapped": [
+                {
+                  "title": "The Python Tutorial — Python 3.14.8 documentation",
+                  "concepts": 6
+                },
+                {
+                  "title": "Introduction to Python",
+                  "concepts": 8
+                },
+                {
+                  "title": "Learn Python Basics - GeeksforGeeks",
+                  "concepts": 14
+                },
+                {
+                  "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
+                  "concepts": 20
+                }
+              ],
+              "unmapped": [
+                "Learn Python - Free Interactive Python Tutorial"
+              ],
+              "branchOptions": [],
+              "branch": null,
+              "modules": [
+                "Setup and Syntax",
+                "Values and Types",
+                "Collections and Control",
+                "Functions and Styles"
+              ],
+              "included": [
+                {
+                  "name": "Interpreted Execution",
+                  "description": "Python code runs through an interpreter, supporting scripting and rapid prototyping.",
+                  "score": 0.6
+                },
+                {
+                  "name": "Print Function",
+                  "description": "The built-in `print()` function displays text or values in the console or terminal.",
+                  "score": 0.6
+                },
+                {
+                  "name": "Dynamic Typing",
+                  "description": "Python determines the types of values at runtime rather than requiring variable types to be declared in advance.",
+                  "score": 0.4
+                },
+                {
+                  "name": "High-Level Data Structures",
+                  "description": "Python provides built-in high-level structures for representing and working with data.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Object-Oriented Programming",
+                  "description": "Python supports object-oriented programming as a way to organize and build programs.",
+                  "score": 0.4
+                }
+              ],
+              "skipped": 32,
+              "concepts": 37,
+              "hook": true,
+              "coverage": {
+                "covered": 0,
+                "total": 11,
+                "rate": 0,
+                "coveredIndexes": [],
+                "missed": [
+                  "numbers",
+                  "strings",
+                  "lists",
+                  "conditions",
+                  "loops",
+                  "functions",
+                  "collections",
+                  "modules",
+                  "io",
+                  "exceptions",
+                  "classes"
+                ]
+              }
+            }
+          ],
+          "meanCoverage": 0,
+          "consistency": {
+            "exactJaccard": null,
+            "semanticJaccard": null
+          }
+        },
+        {
+          "level": "INTERMEDIATE",
+          "runs": [
+            {
+              "level": "INTERMEDIATE",
+              "mapped": [
+                {
+                  "title": "The Python Tutorial — Python 3.14.8 documentation",
+                  "concepts": 3
+                },
+                {
+                  "title": "Introduction to Python",
+                  "concepts": 6
+                },
+                {
+                  "title": "Learn Python Basics - GeeksforGeeks",
+                  "concepts": 10
+                },
+                {
+                  "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
+                  "concepts": 20
+                }
+              ],
+              "unmapped": [
+                "Learn Python - Free Interactive Python Tutorial"
+              ],
+              "branchOptions": [],
+              "branch": null,
+              "modules": [
+                "Python's Shape",
+                "Values and Strings",
+                "Decisions and Loops",
+                "Functions and Extensions"
+              ],
+              "included": [
+                {
+                  "name": "Python Design",
+                  "description": "Python combines high-level data structures, object-oriented programming, elegant syntax, dynamic typing, and interpreted execution.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Python Applications",
+                  "description": "Python is used for scripting, rapid development, and applications across many areas.",
+                  "score": 0.6
+                },
+                {
+                  "name": "Variables",
+                  "description": "Variables are named references to values that can be reassigned without declaring a type in advance.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Data Types",
+                  "description": "Python values have types that determine their properties and available operations.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Conditional Statements",
+                  "description": "Conditional statements select which code block to run based on conditions.",
+                  "score": 0.4
+                },
+                {
+                  "name": "While Loops",
+                  "description": "A while loop repeats a block as long as its condition remains true.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Python Extensibility",
+                  "description": "Python can be extended with functions and data types implemented in other languages.",
+                  "score": 0.4
+                }
+              ],
+              "skipped": 27,
+              "concepts": 34,
+              "hook": true,
+              "coverage": {
+                "covered": 2,
+                "total": 11,
+                "rate": 0.182,
+                "coveredIndexes": [
+                  4,
+                  5
+                ],
+                "missed": [
+                  "numbers",
+                  "strings",
+                  "lists",
+                  "functions",
+                  "collections",
+                  "modules",
+                  "io",
+                  "exceptions",
+                  "classes"
+                ]
+              }
+            }
+          ],
+          "meanCoverage": 0.182,
+          "consistency": {
+            "exactJaccard": null,
+            "semanticJaccard": null
+          }
+        },
+        {
+          "level": "ADVANCED",
+          "runs": [
+            {
+              "level": "ADVANCED",
+              "mapped": [
+                {
+                  "title": "The Python Tutorial — Python 3.14.8 documentation",
+                  "concepts": 6
+                },
+                {
+                  "title": "Introduction to Python",
+                  "concepts": 7
+                },
+                {
+                  "title": "Learn Python Basics - GeeksforGeeks",
+                  "concepts": 15
+                },
+                {
+                  "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
+                  "concepts": 19
+                }
+              ],
+              "unmapped": [
+                "Learn Python - Free Interactive Python Tutorial"
+              ],
+              "branchOptions": [
+                "Language Semantics",
+                "Program Design",
+                "Runtime and Ecosystem"
+              ],
+              "branch": "Language Semantics",
+              "modules": [
+                "Syntax and Execution",
+                "Names, Values, and I/O",
+                "Expressions and Operators",
+                "Strings and Collections",
+                "Control Flow"
+              ],
+              "included": [
+                {
+                  "name": "Interpreted Execution",
+                  "description": "Python code is executed by an interpreter, supporting scripting and rapid prototyping.",
+                  "score": 0.6
+                },
+                {
+                  "name": "Portability and Readability",
+                  "description": "Python runs on multiple platforms and uses syntax designed to be relatively readable and concise.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Command Syntax",
+                  "description": "Python uses new lines to end commands rather than requiring statement-ending semicolons.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Indentation and Scope",
+                  "description": "Python uses indentation to mark the scope of constructs such as loops, functions, and classes.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Comments",
+                  "description": "Comments are notes in source code that the interpreter does not execute.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Indentation and Comments",
+                  "description": "Python uses indentation to define code blocks, and `#` begins a comment that is not executed.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Variables",
+                  "description": "Variables are names used to refer to values in a program.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Data Types",
+                  "description": "Data types identify kinds of values and affect which operations can be performed on them.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Dynamic Typing",
+                  "description": "Python determines types at runtime rather than requiring variables to have declared types.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Print Function",
+                  "description": "Python’s built-in `print()` function displays values or messages on the screen or in the console.",
+                  "score": 0.6
+                },
+                {
+                  "name": "User Input",
+                  "description": "The `input()` function reads text entered by a user.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Type Conversion",
+                  "description": "Built-in functions can convert values from one data type to another.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Arithmetic Operators",
+                  "description": "Arithmetic operators perform calculations such as addition, division, and exponentiation.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Assignment Operators",
+                  "description": "Assignment operators set or update the value associated with a variable.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Augmented Assignment",
+                  "description": "Augmented assignment operators such as `+=` update a variable using a compact assignment expression.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Operator Precedence",
+                  "description": "Operator precedence determines the order in which parts of an expression are evaluated.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Comparison Operators",
+                  "description": "Comparison operators compare values and produce boolean results.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Logical Operators",
+                  "description": "The `and`, `or`, and `not` operators combine or invert logical conditions.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Bitwise Operators",
+                  "description": "Bitwise operators perform operations on the binary representations of values.",
+                  "score": 0.2
+                },
+                {
+                  "name": "High-Level Data Structures",
+                  "description": "Python provides efficient, high-level structures for organizing and working with data.",
+                  "score": 0.4
+                },
+                {
+                  "name": "Strings",
+                  "description": "Strings represent textual data and are written inside quotes.",
+                  "score": 0.2
+                },
+                {
+                  "name": "String Concatenation",
+                  "description": "String concatenation combines strings into a single string, commonly using the `+` operator.",
+                  "score": 0.2
+                },
+                {
+                  "name": "String Methods",
+                  "description": "String methods perform operations such as changing case, finding text, or replacing text.",
+                  "score": 0.2
+                },
+                {
+                  "name": "String Immutability",
+                  "description": "Strings cannot be changed in place, so operations that appear to modify them return new strings.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Membership Operator",
+                  "description": "The `in` operator checks whether an item or sequence occurs within a string.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Lists",
+                  "description": "Lists store multiple items in an ordered sequence using square brackets.",
+                  "score": 0.2
+                },
+                {
+                  "name": "Conditional Statements",
+                  "description": "`if`, `elif`, and `else` branches select which code block runs based on conditions.",
+                  "score": 0.4
+                },
+                {
+                  "name": "For Loops",
+                  "description": "A `for` loop runs a block once for each item in a sequence or range.",
+                  "score": 0.2
+                },
+                {
+                  "name": "While Loops",
+                  "description": "A `while` loop repeats a block as long as its condition remains true.",
+                  "score": 0.4
+                }
+              ],
+              "skipped": 6,
+              "concepts": 35,
+              "hook": true,
+              "coverage": null
+            }
+          ],
+          "meanCoverage": null,
+          "consistency": {
+            "exactJaccard": null,
+            "semanticJaccard": null
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -7,7 +7,7 @@
 - **Phase:** 8 (Learning paths), in progress
 - **Current step:** 8.6 done (learning path frontend)
 - **Blocked on:** nothing
-- **Next step:** 8.7 evals: coverage vs official docs + consistency across runs (real API calls: owner go-ahead needed)
+- **Next step:** 8.7 in progress: runner + dataset draft committed; fix the cut/resource problems below, then owner reviews `evals/dataset/paths.json` and approves the full run
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -117,6 +117,18 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **8.6 notes:**
   - Checked by typecheck, web tests (86) and `next build` only: the agent can't sign in (Clerk is hosted), so **the owner checks the screens live** (Pending on owner).
   - "Start learning" opens the path's notebook (lessons per module come in Phase 9).
+
+- **Owner feedback on the first live path (2026-10-03), for Phase 9** (owner: "first complete phase 8, then Phase 9 in another chat"):
+  - The path page feels like a list of links to go and read. The owner wants a **teacher**: Curio studies the resources itself, then teaches; the learner shouldn't need to open the links.
+  - Reference: the owner's own repo `github.com/rohhitrz/notebookLmPlus` (Learn mode: `lib/learn.ts`, `lib/chapters.ts`, `components/learn/`). Ideas to bring into Phase 9 (propose doc changes first): (1) lessons stream on opening a module, sources only as citations; (2) lesson prompt that teaches: intuition first, a worked example after every idea, runnable code for technical topics, misconceptions, "Key takeaways"; (3) a tutor chat per module that stays on its topic, knows sibling modules' summaries, and can mark the module done; (4) a scope check before building: a too-broad goal gets 4–6 focus options; (5) modules show why / difficulty / minutes, count sized to the topic's breadth; (6) one classroom screen (modules left, lesson + tutor right), resources demoted to a collapsed "What your teacher studied", "Start learning" opens the first lesson.
+  - Keep Curio's strengths: full ingestion of each resource (notebookLmPlus writes from ~2.5k-char search snippets), consensus-based outline, lessons grounded via the tested retrieval.
+  - Also: the progress screen should say which resource is being mapped (the mapping stage looked frozen; it was working).
+
+- **8.7 notes (in progress, not pushed):**
+  - `pnpm eval:paths` (`evals/scripts/run-path-eval.ts`): gathers + reads once per topic on dev (real Tavily / Firecrawl / Supadata / OpenAI), then builds beginner + intermediate × `--runs` (3) and advanced × 1 through the real services; coverage by judge (`judges/path-coverage.md`), consistency = pairwise Jaccard (exact names and embedding-matched ≥ 0.85). `--topics=`, `--runs=`, `--reuse`. A Python run with `--runs=1` costs ~$0.02.
+  - Dataset `evals/dataset/paths.json` is a **draft**: Python (official tutorial), Git (Pro Git), French Revolution (no official docs, standard outline). **Owner to review.**
+  - **Smoke runs found real problems** (Python, beginner coverage 0, intermediate 0.18–0.36): (1) gather picked navigation pages (python.org landing, docs.python.org index) as "official", which map to 0 concepts; fixed by aiming searches at tutorials and rejecting index/landing pages in the selection prompt (2nd run picked the real tutorial index); (2) single-page ingestion: the official tutorial index page is a table of contents, the content is on ~15 sub-pages, so it maps to few concepts. A real fix is crawling a few pages of the official docs (design change: needs owner approval); (3) the beginner cut keeps ≥ 0.5 consensus, which with 4–5 noisy resources leaves ~5 concepts; tune `cut` (e.g. relative to the top score, higher `minIncludedConcepts`) and re-measure.
+  - Results file `evals/results/2026-10-03-paths.json` is from a smoke run (not the committed baseline).
 
 ## Phase 7 notes
 - **7.1 notes:**

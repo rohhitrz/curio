@@ -49,14 +49,14 @@ export function searchRequests(
     {
       purpose: 'official',
       request: {
-        query: `${topic} official documentation`,
+        query: `${topic} official documentation tutorial`,
         maxResults: limits.officialSearchResults,
       },
     },
     {
       purpose: 'popular',
       request: {
-        query: `${topic} ${LEVEL_WORDS[brief.level]} ${GOAL_WORDS[brief.goal]}`,
+        query: `${topic} tutorial ${LEVEL_WORDS[brief.level]} ${GOAL_WORDS[brief.goal]}`,
         maxResults: limits.popularSearchResults,
       },
     },
@@ -127,7 +127,7 @@ export function toCandidates(
 export const RESOURCE_SELECTION_INSTRUCTIONS = `You help Curio pick learning resources for a topic. You get the topic, the learner's level and goal, and a numbered list of web search results (title, URL, snippet).
 
 For every result, judge:
-- relevant: true only if the page itself teaches or documents the topic (not a course sales page, forum thread, news item, job ad, login wall or unrelated page).
+- relevant: true only if the page itself teaches or documents the topic in substance: explanations a learner can study. False for a homepage, landing page, table of contents, index or any page that mostly links elsewhere (judge by the URL too: a site's root or an index page usually is one), and for a course sales page, forum thread, news item, job ad, login wall or unrelated page.
 - official: true only if it is the topic's own official documentation or primary source (e.g. the project's or standard body's own docs site). For topics with no official docs (history, a field of science), always false.
 - authority: 1–5, how trustworthy and well-regarded the source is for learning this topic (5 = official docs, a standard textbook or a top university; 1 = thin or unknown content).
 - format: DOCS for reference documentation, ARTICLE for anything else that is read (tutorial, guide, encyclopedia entry, course notes). Videos are recognised by their URL, so judge their content only.

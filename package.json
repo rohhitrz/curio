@@ -19,7 +19,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "eval": "pnpm build:shared && pnpm --filter @curio/evals eval"
+    "eval": "pnpm build:shared && pnpm --filter @curio/evals eval",
+    "eval:paths": "pnpm build:shared && pnpm --filter @curio/evals eval:paths"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

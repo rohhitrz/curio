@@ -1,0 +1,200 @@
+{
+  "description": "Learning-path eval topics (test plan §6.3): each topic's core sections, listed by hand from its official docs (or, with none, the standard outline of the subject). Coverage = core sections matched by a path's included concepts ÷ core sections. DRAFT by the agent (2026-10-03), to be reviewed by the owner.",
+  "topics": [
+    {
+      "id": "python",
+      "topic": "Python programming",
+      "goal": "CURIOSITY",
+      "officialSource": "https://docs.python.org/3/tutorial/",
+      "sections": [
+        {
+          "id": "numbers",
+          "name": "Numbers, variables and arithmetic",
+          "description": "Using Python as a calculator: int and float, operators, assigning variables."
+        },
+        {
+          "id": "strings",
+          "name": "Strings",
+          "description": "String literals, indexing and slicing, concatenation, common string operations."
+        },
+        {
+          "id": "lists",
+          "name": "Lists",
+          "description": "Creating lists, indexing, slicing, appending and other list methods."
+        },
+        {
+          "id": "conditions",
+          "name": "Conditions and if statements",
+          "description": "Booleans, comparisons, if / elif / else."
+        },
+        {
+          "id": "loops",
+          "name": "Loops",
+          "description": "for loops over sequences, range(), while loops, break and continue."
+        },
+        {
+          "id": "functions",
+          "name": "Defining functions",
+          "description": "def, parameters and arguments, return values, default and keyword arguments."
+        },
+        {
+          "id": "collections",
+          "name": "Tuples, sets and dictionaries",
+          "description": "The other built-in collections and when to use each."
+        },
+        {
+          "id": "modules",
+          "name": "Modules and imports",
+          "description": "import, the standard library, writing and using your own modules and packages."
+        },
+        {
+          "id": "io",
+          "name": "Input, output and files",
+          "description": "Formatting output (f-strings), reading input, reading and writing files."
+        },
+        {
+          "id": "exceptions",
+          "name": "Errors and exceptions",
+          "description": "Syntax errors vs exceptions, try / except / finally, raising exceptions."
+        },
+        {
+          "id": "classes",
+          "name": "Classes and objects",
+          "description": "Defining classes, attributes and methods, creating instances, inheritance."
+        }
+      ]
+    },
+    {
+      "id": "git",
+      "topic": "Git version control",
+      "goal": "JOB",
+      "officialSource": "https://git-scm.com/book/en/v2",
+      "sections": [
+        {
+          "id": "version-control",
+          "name": "What version control and Git are",
+          "description": "Why version control; Git stores snapshots and is distributed."
+        },
+        {
+          "id": "setup",
+          "name": "Installing and setting up Git",
+          "description": "Installing Git and first-time configuration (user name, email) with git config."
+        },
+        {
+          "id": "repository",
+          "name": "Creating or cloning a repository",
+          "description": "git init and git clone."
+        },
+        {
+          "id": "three-states",
+          "name": "Working directory, staging area and commits",
+          "description": "The three states; git add to stage, git commit to record a snapshot."
+        },
+        {
+          "id": "status-diff",
+          "name": "Checking status and changes",
+          "description": "git status and git diff to see what changed."
+        },
+        {
+          "id": "history",
+          "name": "Viewing commit history",
+          "description": "git log and its common options."
+        },
+        {
+          "id": "undo",
+          "name": "Undoing changes",
+          "description": "Amending a commit, unstaging and discarding changes (restore / reset)."
+        },
+        {
+          "id": "remotes",
+          "name": "Working with remotes",
+          "description": "Remotes, git fetch, git pull and git push."
+        },
+        {
+          "id": "branches",
+          "name": "Branches",
+          "description": "What a branch is, creating and switching branches."
+        },
+        {
+          "id": "merging",
+          "name": "Merging and merge conflicts",
+          "description": "Merging branches and resolving conflicts."
+        },
+        {
+          "id": "rebasing",
+          "name": "Rebasing",
+          "description": "What rebase does, how it differs from merge, and when not to rebase."
+        }
+      ]
+    },
+    {
+      "id": "french-revolution",
+      "topic": "The French Revolution",
+      "goal": "EXAM",
+      "officialSource": null,
+      "sectionsSource": "The standard outline of the subject (as in encyclopedia articles such as Britannica's \"French Revolution\"); no official docs exist, so this is the topic-without-official-docs case.",
+      "sections": [
+        {
+          "id": "causes",
+          "name": "Causes of the Revolution",
+          "description": "The Ancien Régime, the three estates, the financial crisis, Enlightenment ideas."
+        },
+        {
+          "id": "estates-general",
+          "name": "Estates-General and National Assembly",
+          "description": "The Estates-General of 1789, the Third Estate's National Assembly, the Tennis Court Oath."
+        },
+        {
+          "id": "bastille",
+          "name": "Storming of the Bastille",
+          "description": "14 July 1789 and the popular uprising in Paris."
+        },
+        {
+          "id": "rights-of-man",
+          "name": "Declaration of the Rights of Man and of the Citizen",
+          "description": "The August 1789 declaration and the abolition of feudal privileges."
+        },
+        {
+          "id": "constitutional-monarchy",
+          "name": "Constitutional monarchy",
+          "description": "The Constitution of 1791, the flight to Varennes, the Legislative Assembly."
+        },
+        {
+          "id": "war",
+          "name": "War with European powers",
+          "description": "War with Austria and Prussia from 1792 and its effect on the Revolution."
+        },
+        {
+          "id": "republic",
+          "name": "Fall of the monarchy and the First Republic",
+          "description": "August 1792 uprising, the National Convention, the Republic declared."
+        },
+        {
+          "id": "execution",
+          "name": "Execution of Louis XVI",
+          "description": "The king's trial and execution in January 1793."
+        },
+        {
+          "id": "terror",
+          "name": "The Reign of Terror",
+          "description": "Robespierre, the Committee of Public Safety, mass executions (1793–94)."
+        },
+        {
+          "id": "thermidor-directory",
+          "name": "Thermidor and the Directory",
+          "description": "Robespierre's fall in 1794 and the Directory government (1795–99)."
+        },
+        {
+          "id": "napoleon",
+          "name": "Napoleon's rise and the end of the Revolution",
+          "description": "The coup of 18 Brumaire (1799) and the Consulate."
+        },
+        {
+          "id": "legacy",
+          "name": "Legacy of the Revolution",
+          "description": "Its lasting effects on France, Europe and ideas of rights and democracy."
+        }
+      ]
+    }
+  ]
+}
