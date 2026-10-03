@@ -215,6 +215,11 @@
 **M-05 · Rolling conversation summary + last ~10 messages**
 - **Why:** long chats stay coherent while cost and latency stay flat
 
+**M-06 · Extraction output is screened in code, not just by the prompt** (2026-10-03, 7.4)
+- **Rule:** a proposed memory is dropped if it shares a run of 8+ words with an answer in the scanned messages (answers are built from the sources), is over 300 characters, updates an unknown or `USER_EDITED` memory, is a `TOPIC` fact in a notebook without a topic, or duplicates an existing memory; at most 5 new per run. Chat extraction writes only `STYLE` / `GOAL` / `FACT`
+- **Why:** "facts about the learner only, never source content" (PRD §5.8) must hold even when the model slips; the check is deterministic and testable
+- **Trade-off:** a learner fact that happens to repeat 8 words of an answer is lost; the next mention can add it
+
 ---
 
 ## 7. Data decisions

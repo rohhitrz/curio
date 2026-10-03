@@ -14,6 +14,7 @@ const conversationColumns = {
   title: conversations.title,
   summary: conversations.summary,
   summarizedThroughSeq: conversations.summarizedThroughSeq,
+  memoryExtractedThroughSeq: conversations.memoryExtractedThroughSeq,
   lastMessageAt: conversations.lastMessageAt,
   createdAt: conversations.createdAt,
   updatedAt: conversations.updatedAt,
@@ -191,6 +192,30 @@ export function createChatRepository(db: Db) {
             eq(conversations.id, update.conversationId),
             eq(conversations.userId, update.userId),
             eq(conversations.summarizedThroughSeq, update.expectedThroughSeq),
+          ),
+        )
+        .returning({ id: conversations.id });
+      return rows.length > 0;
+    },
+
+    /**
+     * Moves the memory-extraction marker, only if no other run moved it since it was read
+     * (optimistic, like `saveSummary`). False → another run got there first.
+     */
+    async advanceMemoryMarker(update: {
+      userId: string;
+      conversationId: string;
+      throughSeq: number;
+      expectedThroughSeq: number;
+    }): Promise<boolean> {
+      const rows = await db
+        .update(conversations)
+        .set({ memoryExtractedThroughSeq: update.throughSeq })
+        .where(
+          and(
+            eq(conversations.id, update.conversationId),
+            eq(conversations.userId, update.userId),
+            eq(conversations.memoryExtractedThroughSeq, update.expectedThroughSeq),
           ),
         )
         .returning({ id: conversations.id });

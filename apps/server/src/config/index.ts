@@ -10,6 +10,7 @@ export {
   ingestion,
   llmRequests,
   locks,
+  memoryExtraction,
   quotas,
   rateLimits,
   requests,

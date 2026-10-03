@@ -28,6 +28,7 @@ import type {
   MessageRow,
 } from '../repositories/chat.repository.js';
 import { needsSummary } from './conversation-summary.service.js';
+import { needsExtraction } from './memory-extraction.service.js';
 
 export const DEFAULT_CONVERSATION_TITLE = 'New conversation';
 
@@ -56,7 +57,7 @@ export interface ChatServiceDeps {
   llm: LlmProvider;
   tracer: Tracer;
   locks: LockProvider;
-  /** Queues the summary job (Phase 7). */
+  /** Queues the summary and memory jobs (Phase 7). */
   jobs: JobsProvider;
   countTokens: (text: string) => number;
   logger: Logger;
@@ -169,14 +170,30 @@ export function createChatService(deps: ChatServiceDeps) {
     }
   }
 
-  /** Queues the summary job once enough messages sit outside the summary. Never throws. */
-  async function requestSummary(userId: string, conversation: ConversationRow, lastSeq: number) {
-    if (!needsSummary(lastSeq, conversation.summarizedThroughSeq)) return;
-    try {
-      await deps.jobs.send('conversation/summarize', { conversationId: conversation.id, userId });
-    } catch (err) {
-      // The next answer asks again; until then the prompt has the last messages only.
-      logger.warn({ err, conversationId: conversation.id }, 'summary job not queued');
+  /**
+   * Queues the summary and memory jobs once enough messages are waiting for them (API doc §5,
+   * step 10). Never throws: the next answer asks again.
+   */
+  async function requestBackgroundJobs(
+    userId: string,
+    conversation: ConversationRow,
+    lastSeq: number,
+  ) {
+    const data = { conversationId: conversation.id, userId };
+    const jobs: Promise<void>[] = [];
+    if (needsSummary(lastSeq, conversation.summarizedThroughSeq)) {
+      jobs.push(deps.jobs.send('conversation/summarize', data));
+    }
+    if (needsExtraction(lastSeq, conversation.memoryExtractedThroughSeq)) {
+      jobs.push(deps.jobs.send('memory/extract', data));
+    }
+    for (const result of await Promise.allSettled(jobs)) {
+      if (result.status === 'rejected') {
+        logger.warn(
+          { err: result.reason, conversationId: conversation.id },
+          'background job not queued',
+        );
+      }
     }
   }
 
@@ -303,7 +320,7 @@ export function createChatService(deps: ChatServiceDeps) {
               });
               sink({ type: 'citations', citations: result.citations });
               sink({ type: 'finish', traceId });
-              await requestSummary(userId, conversation, saved.seq);
+              await requestBackgroundJobs(userId, conversation, saved.seq);
             },
           );
         } catch (err) {

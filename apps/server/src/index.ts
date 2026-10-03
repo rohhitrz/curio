@@ -21,6 +21,7 @@ import { createApp } from './create-app.js';
 import { createDb } from './db/client.js';
 import { createCleanupNotebookFilesFunction } from './inngest/cleanup-notebook-files.js';
 import { createProcessSourceFunction } from './inngest/process-source.js';
+import { createExtractMemoriesFunction } from './inngest/extract-memories.js';
 import { createSummarizeConversationFunction } from './inngest/summarize-conversation.js';
 import { createSweepStuckSourcesFunction } from './inngest/sweep-stuck-sources.js';
 import { Redis } from '@upstash/redis';
@@ -43,10 +44,12 @@ import { createSupadataTranscriptProvider } from './lib/transcript/index.js';
 import { createLogger } from './logger.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createChatRepository } from './repositories/chat.repository.js';
+import { createMemoriesRepository } from './repositories/memories.repository.js';
 import { createIngestionRepository } from './repositories/ingestion.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
 import { createTopicsRepository } from './repositories/topics.repository.js';
 import { createConversationSummaryService } from './services/conversation-summary.service.js';
+import { createMemoryExtractionService } from './services/memory-extraction.service.js';
 import { createIngestionService } from './services/ingestion.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
 import { createTopicsService } from './services/topics.service.js';
@@ -178,6 +181,14 @@ const summaryService = createConversationSummaryService({
   tracer,
   logger,
 });
+const memoryExtractionService = createMemoryExtractionService({
+  chat: createChatRepository(db),
+  memories: createMemoriesRepository(db),
+  notebooks: createNotebooksRepository(db),
+  llm,
+  tracer,
+  logger,
+});
 
 const app: Express = createApp({
   logger,
@@ -197,6 +208,7 @@ const app: Express = createApp({
     createSweepStuckSourcesFunction(inngest, ingestionService),
     createCleanupNotebookFilesFunction(inngest, notebooksService),
     createSummarizeConversationFunction(inngest, summaryService),
+    createExtractMemoriesFunction(inngest, memoryExtractionService),
   ]),
 });
 

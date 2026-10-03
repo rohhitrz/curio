@@ -79,6 +79,25 @@ export const conversation = {
   summaryJobRetries: 2,
 } as const;
 
+/** Learner memory extracted from chat (docs/02-system-design.md §10). */
+export const memoryExtraction = {
+  /** After an answer, more than this many messages not yet scanned → the extraction job runs. */
+  afterMessages: 6,
+  /** Retries of the job; a failed run is caught up by the next answer's event. */
+  jobRetries: 2,
+  /** Answers are shown to the model cut to this length: context for the learner's words only. */
+  answerPromptMaxChars: 600,
+  /** Longest memory kept; anything longer reads like copied content, not a fact about the learner. */
+  contentMaxChars: 300,
+  /**
+   * A memory sharing a run of this many words with an answer is dropped: answers are built from
+   * the sources, and source content must never become a memory (PRD §5.8).
+   */
+  sourceOverlapWords: 8,
+  /** New memories written by one run, at most. */
+  maxNewPerRun: 5,
+} as const;
+
 export const uploads = {
   pdfContentType: 'application/pdf',
   /** Signed PUT URL lifetime (API doc: 10 min). */

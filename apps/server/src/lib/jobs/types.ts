@@ -7,6 +7,8 @@ export interface JobEvents {
   'notebook/deleted': { notebookId: string; userId: string; storageKeys: string[] };
   /** Fold older messages into the conversation's rolling summary. */
   'conversation/summarize': { conversationId: string; userId: string };
+  /** Scan new chat messages for facts about the learner. */
+  'memory/extract': { conversationId: string; userId: string };
 }
 
 export type JobEventName = keyof JobEvents;
