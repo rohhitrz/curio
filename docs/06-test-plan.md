@@ -55,7 +55,7 @@
 | **Context building** | Dedupe overlapping chunks · numbering `[1]…[n]` · token budget respected |
 | **Citation check** | Invalid `[n]` removed · valid ones mapped to snapshots · repeated markers handled |
 | **Cut rules** | Beginner / intermediate thresholds · advanced keeps only chosen branch · skip reasons generated |
-| **Consensus scoring** | Official source weighted higher · count correct |
+| **Consensus scoring** | Official source weighted higher · count correct · the model's own list is one lighter vote, never coverage (L-09) |
 | **Section links (L-08)** | Same host + folder only · page order · anchors / query / files / the page itself / duplicates dropped · at most N · relative links resolved |
 | **Error classification** | Each extractor error → transient or permanent correctly |
 | **Cursor pagination** | Encode/decode round-trip · tampered cursor → 400 |
@@ -166,7 +166,8 @@
 | Retry failed path | Ingested resources reused; not counted against daily limit |
 | Outline before `READY` | 409 `PATH_NOT_READY` |
 | Topic without official docs | Path still built |
-| Official docs with linked pages (fake scraper) | One source: first page + linked pages under their titles; a failing linked page left out; `pagesRead` saved; popular resources read one page |
+| Official docs with linked pages (fake scraper) | One source: first page + linked pages under their titles; a linked page busy at first read on the second try, one still failing left out; `pagesRead` saved; popular resources read one page |
+| Model's own list (recall) | Adds to scores, saves no coverage; failing on the last attempt → path built from the resources alone |
 
 ### Phase 9: Lessons
 | Test | Expected |

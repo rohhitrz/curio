@@ -224,15 +224,16 @@ describe('process each source type', () => {
     scraper = createFakeScraper(
       {
         title: 'The Guide',
-        markdown: `Contents\n\n- [Basics](basics.html)\n- [Broken](broken.html)\n- [Lists](${base}lists.html)\n- [API](/api/index.html)`,
+        markdown: `Contents\n\n- [Basics](basics.html)\n- [Broken](broken.html)\n- [Gone](gone.html)\n- [Lists](${base}lists.html)\n- [API](/api/index.html)`,
       },
       {
         [`${base}basics.html`]: { title: 'Basics', markdown: 'Values and names.' },
-        [`${base}broken.html`]: IngestionError.transient('down'),
+        [`${base}broken.html`]: IngestionError.transient('busy'),
+        [`${base}gone.html`]: IngestionError.permanent('PAGE_NOT_FOUND', 'gone'),
         [`${base}lists.html`]: { title: 'Lists', markdown: '# Lists\n\nOrdered values.' },
       },
     );
-    service = createService();
+    service = createService({ sectionRetryWaitMs: 0 });
     const ref = await addSource({
       type: 'WEBSITE',
       title: 'The Guide',
@@ -243,19 +244,48 @@ describe('process each source type', () => {
 
     expect(await runJob(ref)).toMatchObject({ status: 'ok' });
 
+    // The page that failed for now is tried once more; the one gone for good is not.
     expect(scraper.calls).toEqual([
       base,
       `${base}basics.html`,
       `${base}broken.html`,
+      `${base}gone.html`,
       `${base}lists.html`,
+      `${base}broken.html`,
     ]);
     const source = await sourceRow(ref);
     expect(source).toMatchObject({
       status: 'READY',
       metadata: { sectionPages: 8, pagesRead: 3 },
-      extractedText: `# The Guide\n\nContents\n\n- [Basics](basics.html)\n- [Broken](broken.html)\n- [Lists](${base}lists.html)\n- [API](/api/index.html)\n\n# Basics\n\nValues and names.\n\n# Lists\n\nOrdered values.`,
+      extractedText: `# The Guide\n\nContents\n\n- [Basics](basics.html)\n- [Broken](broken.html)\n- [Gone](gone.html)\n- [Lists](${base}lists.html)\n- [API](/api/index.html)\n\n# Basics\n\nValues and names.\n\n# Lists\n\nOrdered values.`,
     });
     expect((await chunksOf(ref)).map((c) => c.headingPath)).toContain('Lists');
+  });
+
+  it('a linked page that is busy at first is read on the second try, in its place', async () => {
+    const base = 'https://docs.example.com/guide/';
+    scraper = createFakeScraper(
+      { title: 'The Guide', markdown: '[A](a.html) [B](b.html)' },
+      {
+        // The first try hits the rate limit.
+        [`${base}a.html`]: [IngestionError.transient('busy'), { title: 'A', markdown: 'Page A.' }],
+        [`${base}b.html`]: { title: 'B', markdown: 'Page B.' },
+      },
+    );
+    service = createService({ sectionRetryWaitMs: 0 });
+    const ref = await addSource({
+      type: 'WEBSITE',
+      title: 'The Guide',
+      url: base,
+      origin: 'LEARNING_PATH',
+      metadata: { sectionPages: 8 },
+    });
+
+    await runJob(ref);
+
+    expect((await sourceRow(ref))?.extractedText).toBe(
+      '# The Guide\n\n[A](a.html) [B](b.html)\n\n# A\n\nPage A.\n\n# B\n\nPage B.',
+    );
   });
 
   it('a website without `sectionPages` reads only its own page', async () => {

@@ -75,7 +75,7 @@ export function whyHere(
   return concept.officialCovers
     ? `${count}, including the official docs.`
     : concept.coveredBy === 0
-      ? 'A prerequisite the other concepts build on.'
+      ? 'Not in the resources: a prerequisite or core idea Curio added from general knowledge.'
       : `${count}.`;
 }
 

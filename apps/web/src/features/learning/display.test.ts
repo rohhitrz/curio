@@ -40,7 +40,7 @@ describe('whyHere', () => {
     );
     expect(whyHere({ coveredBy: 2, officialCovers: false }, 6)).toBe('2 of 6 resources cover it.');
     expect(whyHere({ coveredBy: 0, officialCovers: false }, 6)).toBe(
-      'A prerequisite the other concepts build on.',
+      'Not in the resources: a prerequisite or core idea Curio added from general knowledge.',
     );
   });
 });

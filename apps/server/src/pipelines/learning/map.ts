@@ -71,8 +71,13 @@ export async function mapResource(
     },
     conceptMapSchema,
   );
+  return cleanConcepts(object.concepts, input.maxConcepts);
+}
+
+/** Trimmed, no empty names, each name once (case-insensitive), at most `max`. */
+function cleanConcepts(concepts: MappedConcept[], max: number): MappedConcept[] {
   const seen = new Set<string>();
-  return object.concepts
+  return concepts
     .map((c) => ({ name: c.name.trim(), description: c.description.trim() }))
     .filter((c) => {
       const key = c.name.toLowerCase();
@@ -80,5 +85,47 @@ export async function mapResource(
       seen.add(key);
       return true;
     })
-    .slice(0, input.maxConcepts);
+    .slice(0, max);
+}
+
+/** Fixed for every recall call, so OpenAI caches it as the prompt prefix. */
+export const CONCEPT_RECALL_INSTRUCTIONS = `You list the core concepts of a topic from your own knowledge, for building a study path.
+
+You get the topic and the learner's level. List the concepts a good course on this topic teaches a learner at that level, in teaching order.
+
+Rules:
+- Only well-established concepts that standard courses and the official documentation teach. Nothing obscure, nothing you are unsure of.
+- A concept is a teachable idea, technique or fact about the topic ("Gradient descent", "Overfitting"), not a section title like "Introduction" or "Next steps", and not the topic itself.
+- name: 1–5 words, the usual name of the concept. description: one sentence on what it is.
+- At most the number of concepts asked for; prefer the most important.
+- Write in English.`;
+
+const LEVEL_FOR_RECALL: Record<Level, string> = {
+  BEGINNER: 'a beginner (the fundamentals)',
+  INTERMEDIATE: 'an intermediate learner (the fundamentals and what builds on them)',
+  ADVANCED: 'an advanced learner (in depth)',
+};
+
+/**
+ * The topic's core concepts from the model's own knowledge (decision L-09): one more voter in the
+ * consensus, never a source. Same shape and clean-up as a mapped resource.
+ */
+export async function recallConcepts(
+  input: { topic: string; level: Level; maxConcepts: number },
+  deps: { llm: LlmProvider },
+): Promise<MappedConcept[]> {
+  const { object } = await deps.llm.generateObject(
+    {
+      task: 'conceptRecall',
+      instructions: CONCEPT_RECALL_INSTRUCTIONS,
+      messages: [
+        {
+          role: 'user',
+          content: `Topic: ${input.topic}\nLearner: ${LEVEL_FOR_RECALL[input.level]}\nList at most ${String(input.maxConcepts)} concepts.`,
+        },
+      ],
+    },
+    conceptMapSchema,
+  );
+  return cleanConcepts(object.concepts, input.maxConcepts);
 }

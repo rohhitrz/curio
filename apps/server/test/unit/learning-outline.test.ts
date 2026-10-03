@@ -6,6 +6,7 @@ import {
   applyMerge,
   buildMergeMessage,
   consensusScore,
+  MODEL_KNOWLEDGE_ID,
   type MappedResource,
   type PathConcept,
 } from '../../src/pipelines/learning/merge.js';
@@ -23,7 +24,7 @@ const rules = learningPaths.cut;
 
 const resource = (
   resourceId: string,
-  role: 'OFFICIAL' | 'POPULAR',
+  role: MappedResource['role'],
   names: string[],
 ): MappedResource => ({
   resourceId,
@@ -55,6 +56,14 @@ describe('consensusScore', () => {
     expect(consensusScore(['OFFICIAL'], [...all], weights)).toBe(0.4);
     expect(consensusScore([...all], [...all], weights)).toBe(1);
     expect(consensusScore([], [], weights)).toBe(0);
+  });
+
+  it("the model's own knowledge is one more voter, below the official docs (L-09)", () => {
+    const all = ['OFFICIAL', 'POPULAR', 'POPULAR', 'MODEL'] as const;
+    // total weight 2 + 2 + 1 = 5: the official docs alone no longer reach beginner's 0.5
+    expect(consensusScore(['OFFICIAL'], [...all], weights)).toBe(0.4);
+    expect(consensusScore(['OFFICIAL', 'MODEL'], [...all], weights)).toBe(0.6);
+    expect(consensusScore(['MODEL'], [...all], weights)).toBe(0.2);
   });
 });
 
@@ -105,6 +114,24 @@ describe('applyMerge', () => {
       'Backpropagation algorithm',
     ]);
     expect(merged.find((c) => c.name === 'Neurons')?.resourceIds).toEqual(['r-official']);
+  });
+
+  it("the model's list scores but is never coverage; a concept only it lists covers nothing", () => {
+    const merged = applyMerge(
+      [...resources, resource(MODEL_KNOWLEDGE_ID, 'MODEL', ['Backprop', 'Optimizers'])],
+      [
+        { name: 'Backpropagation', description: 'd', members: ['1.1', '2.1', '3.1', '4.1'] },
+        { name: 'Optimizers', description: 'o', members: ['4.2'] },
+      ],
+      weights,
+    );
+
+    expect(merged.map((c) => [c.name, c.resourceIds, c.score, c.fromModel])).toEqual([
+      ['Backpropagation', ['r-official', 'r-a', 'r-b'], 1, true],
+      ['Optimizers', [], 0.2, true],
+      ['Neurons', ['r-official'], 0.4, false],
+      ['Loss functions', ['r-a'], 0.2, false],
+    ]);
   });
 
   it('two concepts of one resource in a group cover it once', () => {
@@ -256,11 +283,41 @@ describe('cutPath', () => {
     expect(cut.modules.flatMap((m) => m.conceptKeys).sort()).toEqual([0, 1, 2, 3, 5]);
   });
 
+  it('added back: on equal scores, the concept earlier in the path first', () => {
+    const tied: Outline = {
+      concepts: [concept(0, 0.4), concept(1, 0.4), concept(2, 0.4)],
+      modules: [
+        { title: 'M1', summary: 's', conceptKeys: [2] },
+        { title: 'M2', summary: 's', conceptKeys: [1, 0] },
+      ],
+      branches: [],
+    };
+
+    const cut = cutPath(tied, 'BEGINNER', null, 3, { ...noMin, beginnerMinConcepts: 2 });
+
+    expect(cut.modules.map((m) => m.conceptKeys)).toEqual([[2], [1]]);
+  });
+
   it('each level has its own minimum', () => {
     const mins = { ...noMin, beginnerMinConcepts: 2, intermediateMinConcepts: 5 };
 
     expect(cutPath(outline, 'BEGINNER', null, 4, mins).skipped).toHaveLength(3);
     expect(cutPath(outline, 'INTERMEDIATE', null, 4, mins).skipped).toHaveLength(0);
+  });
+
+  it('a concept only the model listed is skipped as general knowledge only', () => {
+    const fromModel: Outline = {
+      ...outline,
+      concepts: outline.concepts.map((c) =>
+        c.key === 4 ? { ...c, resourceIds: [], fromModel: true } : c,
+      ),
+    };
+
+    const cut = cutPath(fromModel, 'BEGINNER', null, 4, noMin);
+
+    expect(cut.skipped.find((s) => s.key === 4)?.reason).toBe(
+      'Not in the resources (general knowledge only), beyond the basics',
+    );
   });
 
   it('a gap concept whose module keeps nothing is skipped with its own reason', () => {

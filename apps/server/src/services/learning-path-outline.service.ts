@@ -4,10 +4,17 @@ import type { LlmProvider } from '../lib/llm/index.js';
 import type { Tracer } from '../lib/tracing/index.js';
 import { cutPath, type CutPath, type CutRules } from '../pipelines/learning/cut.js';
 import { generateHook } from '../pipelines/learning/hook.js';
-import { fairShare, mapResource } from '../pipelines/learning/map.js';
+import {
+  fairShare,
+  mapResource,
+  recallConcepts,
+  type MappedConcept,
+} from '../pipelines/learning/map.js';
 import {
   applyMerge,
+  MODEL_KNOWLEDGE_ID,
   mergeConcepts,
+  type ConsensusWeights,
   type MappedResource,
   type PathConcept,
 } from '../pipelines/learning/merge.js';
@@ -33,6 +40,8 @@ export type MapStepResult =
   | { status: 'mapped'; resource: MappedResource }
   | { status: 'unmapped'; resourceId: string }
   | Stopped;
+export type RecallStepResult =
+  { status: 'recalled'; concepts: MappedConcept[] } | { status: 'unrecalled' } | Stopped;
 export type MergeStepResult =
   { status: 'merged'; concepts: PathConcept[]; resourceCount: number } | Stopped;
 export type OrderStepResult = { status: 'ordered'; outline: Outline } | Stopped;
@@ -59,7 +68,8 @@ export interface LearningPathOutlineDeps {
     maxGapConcepts: number;
     minBranchConcepts: number;
     hookSourceChars: number;
-    consensus: { officialWeight: number; popularWeight: number };
+    consensus: ConsensusWeights;
+    recallMaxConcepts: number;
     cut: CutRules;
   };
 }
@@ -176,8 +186,38 @@ export function createLearningPathOutlineService(deps: LearningPathOutlineDeps) 
       }
     },
 
-    /** Same concepts across resources grouped, then scored by consensus. */
-    async merge(ref: PathRef, mapped: MappedResource[], read: number): Promise<MergeStepResult> {
+    /**
+     * The topic's core concepts from the model's own knowledge (L-09): one more voter for merge.
+     * A failure on the last attempt leaves it out; the resources alone still make the path.
+     */
+    async recall(ref: PathRef, { isLastAttempt }: StepAttempt): Promise<RecallStepResult> {
+      const path = await repository.findForJob(ref);
+      if (!path) return NOT_FOUND;
+      try {
+        const concepts = await traced(ref, 'learning-path-recall', () =>
+          recallConcepts(
+            { topic: path.topic, level: path.level, maxConcepts: limits.recallMaxConcepts },
+            { llm },
+          ),
+        );
+        return concepts.length === 0 ? { status: 'unrecalled' } : { status: 'recalled', concepts };
+      } catch (err) {
+        if (!isLastAttempt && isRetryable(err)) throw err;
+        logger.warn({ err, ...ref }, "model's concepts not recalled");
+        return { status: 'unrecalled' };
+      }
+    },
+
+    /**
+     * Same concepts across the resources (and the model's own list, when there is one) grouped,
+     * then scored by consensus. Only resources count towards the minimum and the resource count.
+     */
+    async merge(
+      ref: PathRef,
+      mapped: MappedResource[],
+      read: number,
+      recalled: MappedConcept[] | null = null,
+    ): Promise<MergeStepResult> {
       const path = await repository.findForJob(ref);
       if (!path) return NOT_FOUND;
       if (mapped.length < limits.minResources) {
@@ -187,12 +227,23 @@ export function createLearningPathOutlineService(deps: LearningPathOutlineDeps) 
           pathMessages.tooFewMapped(mapped.length, read, limits.minResources),
         );
       }
+      const voters: MappedResource[] = recalled
+        ? [
+            ...mapped,
+            {
+              resourceId: MODEL_KNOWLEDGE_ID,
+              role: 'MODEL',
+              title: 'General knowledge of the topic (not a resource)',
+              concepts: recalled,
+            },
+          ]
+        : mapped;
       const groups = await traced(ref, 'learning-path-merge', () =>
-        mergeConcepts(path.topic, mapped, { llm }),
+        mergeConcepts(path.topic, voters, { llm }),
       );
       return {
         status: 'merged',
-        concepts: applyMerge(mapped, groups, limits.consensus),
+        concepts: applyMerge(voters, groups, limits.consensus),
         resourceCount: mapped.length,
       };
     },

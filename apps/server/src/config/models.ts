@@ -32,6 +32,8 @@ export const llmTasks = {
   resourceSelection: { tier: 'luna', maxOutputTokens: 2_000, reasoningEffort: 'low' },
   /** Concepts one resource covers (map, one call per resource). */
   conceptMap: { tier: 'luna', maxOutputTokens: 5_000, reasoningEffort: 'low' },
+  /** The topic's core concepts from the model's own knowledge (L-09). */
+  conceptRecall: { tier: 'luna', maxOutputTokens: 3_000, reasoningEffort: 'low' },
   /** Groups the same concept named differently across resources. */
   conceptMerge: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'low' },
   /** Prerequisite order, modules, gaps and advanced branches. */

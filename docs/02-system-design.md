@@ -233,7 +233,9 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
                      the official docs are read as a section: the page + up to 8
                      pages it links to (L-08)
 4. Map        (job)  fan-out: concepts per resource (parallel) → merge duplicates
-                     → consensus score (official source weighted higher)
+                     + the model's own concept list for the topic (L-09)
+                     → consensus score (official source weighted highest,
+                       the model's list one lighter vote, never a source)
 5. Order      (job)  prerequisite order → group into ~5–10 modules
 6. Cut        (job)  code rules by level:
                        beginner     = high consensus

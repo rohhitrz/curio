@@ -268,7 +268,9 @@ async function main() {
       } catch (error) {
         if (attempt === attempts) throw error;
         console.warn(`\n${label}: attempt ${String(attempt)} failed (${String(error)}); retrying`);
-        await new Promise((resolve) => setTimeout(resolve, 2_000 * attempt));
+        // A busy reader (Firecrawl 429) asks for ~20s; the job's own retries back off longer.
+        const wait = label.endsWith('extract') ? 30_000 : 2_000 * attempt;
+        await new Promise((resolve) => setTimeout(resolve, wait));
       }
     }
   }
@@ -376,8 +378,14 @@ async function main() {
         }),
       );
       const resources = mapped.flatMap((m) => (m.status === 'mapped' ? [m.resource] : []));
+      const recall = await withRetries('recall', (a) => outline.recall(ref, a));
       const merged = await withRetries('merge', () =>
-        outline.merge(ref, resources, listed.resources.length),
+        outline.merge(
+          ref,
+          resources,
+          listed.resources.length,
+          recall.status === 'recalled' ? recall.concepts : null,
+        ),
       );
       if (merged.status !== 'merged') throw stopped('merge', merged);
       const ordered = await withRetries('order', () =>
@@ -410,13 +418,38 @@ async function main() {
       const included = built.cut.modules.flatMap((m) =>
         m.conceptKeys.flatMap((key) => {
           const c = byKey.get(key);
-          return c ? [{ name: c.name, description: c.description, score: c.score }] : [];
+          return c
+            ? [
+                {
+                  name: c.name,
+                  description: c.description,
+                  score: c.score,
+                  resources: c.resourceIds.length,
+                  fromModel: c.fromModel ?? false,
+                },
+              ]
+            : [];
         }),
       );
+      // Why a concept was left out: its score, how many resources and whether the model listed it.
+      const skippedConcepts = built.cut.skipped.flatMap(({ key }) => {
+        const c = byKey.get(key);
+        return c
+          ? [
+              {
+                name: c.name,
+                score: c.score,
+                resources: c.resourceIds.length,
+                fromModel: c.fromModel ?? false,
+              },
+            ]
+          : [];
+      });
       const titleOf = new Map(listed.resources.map((r) => [r.resourceId, r.title]));
       return {
         level,
         mapped: resources.map((r) => ({ title: r.title, concepts: r.concepts.length })),
+        recalled: recall.status === 'recalled' ? recall.concepts.length : 0,
         unmapped: mapped.flatMap((m) =>
           m.status === 'unmapped' ? [titleOf.get(m.resourceId) ?? m.resourceId] : [],
         ),
@@ -425,6 +458,7 @@ async function main() {
         modules: built.cut.modules.map((m) => m.title),
         included,
         skipped: built.cut.skipped.length,
+        skippedConcepts,
         concepts: ordered.outline.concepts.length,
         hook: hooked.hook !== null,
       };

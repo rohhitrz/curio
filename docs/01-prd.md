@@ -114,7 +114,7 @@ Curio is an AI learning workspace with **two entry points**:
 1. **Clarify:** user enters a topic; Curio asks for **level** (beginner / intermediate / advanced) and **goal** (exam, job, curiosity)
    - Level is **per topic**. If memory holds a level for the same or a related topic, Curio **pre-fills it and asks the user to confirm**; it never assumes
 2. **Gather:** finds **official docs** (source of truth) plus a capped number of **popular resources** (tutorials, articles, videos)
-3. **Map:** extracts the concepts each resource covers and scores them by **consensus** (how many resources cover them); the LLM sets **prerequisite order** and fills gaps
+3. **Map:** extracts the concepts each resource covers and scores them by **consensus** (how many resources cover them, plus the LLM's own knowledge of the topic as one lighter vote; the official docs weigh the most); the LLM sets **prerequisite order** and fills gaps
 4. **Cut by level:**
    - **Beginner:** high-consensus concepts only, a gist of everything, breadth over depth
    - **Intermediate:** core plus the next layer, more specific

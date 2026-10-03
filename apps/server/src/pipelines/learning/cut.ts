@@ -40,6 +40,9 @@ export function cutPath(
       : undefined;
 
   const kept = new Set<number>();
+  // Place in the path (prerequisite order): earlier = more basic.
+  const position = new Map(outline.modules.flatMap((m) => m.conceptKeys).map((key, i) => [key, i]));
+  const placeOf = (key: number) => position.get(key) ?? Number.MAX_SAFE_INTEGER;
   let reasonFor: (c: PathConcept) => string;
 
   if (branch) {
@@ -53,17 +56,20 @@ export function cutPath(
     const minConcepts = beginner ? rules.beginnerMinConcepts : rules.intermediateMinConcepts;
     const covered = outline.concepts.filter((c) => !c.gap);
     for (const c of covered) if (c.score >= minScore) kept.add(c.key);
-    // Too few pass: the best-covered of the rest are added back (score, then order).
+    // Too few pass: the best-covered of the rest are added back (score, then the earliest in
+    // the path).
     const rest = covered
       .filter((c) => !kept.has(c.key))
-      .sort((a, b) => b.score - a.score || a.key - b.key);
+      .sort((a, b) => b.score - a.score || placeOf(a.key) - placeOf(b.key) || a.key - b.key);
     for (const c of rest) {
       if (kept.size >= minConcepts) break;
       kept.add(c.key);
     }
     const suffix = beginner ? 'beyond the basics' : 'advanced';
     reasonFor = (c) =>
-      `Covered by ${String(c.resourceIds.length)} of ${String(resourceCount)} resources, ${suffix}`;
+      c.resourceIds.length === 0
+        ? `Not in the resources (general knowledge only), ${suffix}`
+        : `Covered by ${String(c.resourceIds.length)} of ${String(resourceCount)} resources, ${suffix}`;
     // A gap concept stays with its module's kept concepts.
     for (const module of outline.modules) {
       if (!module.conceptKeys.some((key) => kept.has(key) && !byKey.get(key)?.gap)) continue;

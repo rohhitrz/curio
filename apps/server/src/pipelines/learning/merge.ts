@@ -3,11 +3,26 @@ import { z } from 'zod';
 import type { LlmProvider } from '../../lib/llm/index.js';
 import type { MappedConcept } from './map.js';
 
-/** One resource's concepts, as the map step found them. */
+/**
+ * Who votes on a concept: a resource, or the model's own knowledge of the topic (decision L-09),
+ * which counts towards the score but is never a resource.
+ */
+export type VoterRole = ResourceRole | 'MODEL';
+
+export interface ConsensusWeights {
+  officialWeight: number;
+  popularWeight: number;
+  modelWeight: number;
+}
+
+/** The `resourceId` of the model's own concept list: never saved as coverage. */
+export const MODEL_KNOWLEDGE_ID = 'model-knowledge';
+
+/** One resource's concepts, as the map step found them (or the model's own list, L-09). */
 export interface MappedResource {
-  /** `path_resources.id`. */
+  /** `path_resources.id`, or `MODEL_KNOWLEDGE_ID`. */
   resourceId: string;
-  role: ResourceRole;
+  role: VoterRole;
   title: string;
   concepts: MappedConcept[];
 }
@@ -18,12 +33,14 @@ export interface PathConcept {
   key: number;
   name: string;
   description: string;
-  /** `path_resources.id`s covering it; empty for a gap concept. */
+  /** `path_resources.id`s covering it; empty for a gap concept or one only the model listed. */
   resourceIds: string[];
   /** 0–1 (see `consensusScore`). */
   score: number;
   /** Added by the order step as a missing prerequisite; no resource covers it. */
   gap: boolean;
+  /** The model listed it from its own knowledge too (L-09). */
+  fromModel?: boolean;
 }
 
 /** Fixed for every merge call, so OpenAI caches it as the prompt prefix. */
@@ -59,20 +76,23 @@ export function buildMergeMessage(topic: string, resources: MappedResource[]): s
   return `Topic: ${topic}\n\n${lists}`;
 }
 
+const WEIGHT_OF: Record<VoterRole, keyof ConsensusWeights> = {
+  OFFICIAL: 'officialWeight',
+  POPULAR: 'popularWeight',
+  MODEL: 'modelWeight',
+};
+
 /**
- * The weight of the resources covering a concept over the weight of all mapped resources
- * (decision L-01): 1 when every resource covers it. The official resource weighs more.
+ * The weight of the voters covering a concept over the weight of all voters (decisions L-01,
+ * L-09): 1 when every one covers it. The official resource weighs the most.
  */
 export function consensusScore(
-  covering: ResourceRole[],
-  all: ResourceRole[],
-  weights: { officialWeight: number; popularWeight: number },
+  covering: VoterRole[],
+  all: VoterRole[],
+  weights: ConsensusWeights,
 ): number {
-  const weigh = (roles: ResourceRole[]) =>
-    roles.reduce(
-      (sum, role) => sum + (role === 'OFFICIAL' ? weights.officialWeight : weights.popularWeight),
-      0,
-    );
+  const weigh = (roles: VoterRole[]) =>
+    roles.reduce((sum, role) => sum + weights[WEIGHT_OF[role]], 0);
   const total = weigh(all);
   return total === 0 ? 0 : Math.round((weigh(covering) / total) * 1000) / 1000;
 }
@@ -85,7 +105,7 @@ export function consensusScore(
 export function applyMerge(
   resources: MappedResource[],
   groups: MergeGroup[],
-  weights: { officialWeight: number; popularWeight: number },
+  weights: ConsensusWeights,
 ): PathConcept[] {
   const members = new Map<string, { resource: number; concept: MappedConcept }>();
   resources.forEach((r, i) => {
@@ -122,13 +142,14 @@ export function applyMerge(
       key,
       name: m.name,
       description: m.description,
-      resourceIds: covering.map((r) => r.resourceId),
+      resourceIds: covering.flatMap((r) => (r.role === 'MODEL' ? [] : [r.resourceId])),
       score: consensusScore(
         covering.map((r) => r.role),
         allRoles,
         weights,
       ),
       gap: false,
+      fromModel: covering.some((r) => r.role === 'MODEL'),
     };
   });
 }

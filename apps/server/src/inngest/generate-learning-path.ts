@@ -75,9 +75,13 @@ const listed = z.union([
   z.object({ status: z.literal('listed'), resources: z.array(readResource) }),
   stopped,
 ]);
-const mappedResource = readResource.extend({
-  concepts: z.array(z.object({ name: z.string(), description: z.string() })),
-});
+const concepts = z.array(z.object({ name: z.string(), description: z.string() }));
+const mappedResource = readResource.extend({ concepts });
+const recalled = z.union([
+  z.object({ status: z.literal('recalled'), concepts }),
+  z.object({ status: z.literal('unrecalled') }),
+  stopped,
+]);
 const mapped = z.union([
   z.object({ status: z.literal('mapped'), resource: mappedResource }),
   z.object({ status: z.literal('unmapped'), resourceId: z.string() }),
@@ -90,6 +94,7 @@ const pathConcept = z.object({
   resourceIds: z.array(z.string()),
   score: z.number(),
   gap: z.boolean(),
+  fromModel: z.boolean().optional(),
 });
 const merged = z.union([
   z.object({
@@ -240,22 +245,28 @@ export function createGenerateLearningPathFunction(
       const read = listed.parse(await step.run('list-read', () => outlineService.listRead(ref)));
       if (read.status !== 'listed') return read;
 
-      const maps = await Promise.all(
-        read.resources.map(async (r) =>
+      // The model's own concept list (L-09) is recalled alongside the maps.
+      const [recall, ...maps] = await Promise.all([
+        step
+          .run('recall', () => outlineService.recall(ref, stepAttempt))
+          .then((r) => recalled.parse(r)),
+        ...read.resources.map(async (r) =>
           mapped.parse(
             await step.run(`map-${r.resourceId}`, () =>
               outlineService.mapResource(ref, r, stepAttempt),
             ),
           ),
         ),
-      );
+      ]);
+      if (recall.status === 'stopped') return recall;
       const stoppedMap = maps.find((m) => m.status === 'stopped');
       if (stoppedMap) return stoppedMap;
       const mappedResources = maps.flatMap((m) => (m.status === 'mapped' ? [m.resource] : []));
+      const recalledConcepts = recall.status === 'recalled' ? recall.concepts : null;
 
       const merge = merged.parse(
         await step.run('merge', () =>
-          outlineService.merge(ref, mappedResources, read.resources.length),
+          outlineService.merge(ref, mappedResources, read.resources.length, recalledConcepts),
         ),
       );
       if (merge.status !== 'merged') return merge;

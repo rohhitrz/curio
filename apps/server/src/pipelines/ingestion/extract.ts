@@ -39,6 +39,8 @@ export interface ExtractionDeps {
   pdf: PdfParser;
   scraper: ScraperProvider;
   transcript: TranscriptProvider;
+  /** Before linked pages that failed for now (e.g. 429) are tried once more (L-08). */
+  sectionRetryWaitMs?: number;
 }
 
 const messages = {
@@ -97,11 +99,7 @@ async function extractWebsite(
   }
 
   // A learning path's official docs (L-08): the pages it links to in its section as well.
-  const linked = await scrapeEach(
-    sectionLinks(source.url, page.markdown, sectionPages),
-    deps.scraper,
-    extractionConfig.sectionConcurrency,
-  );
+  const linked = await scrapeSection(sectionLinks(source.url, page.markdown, sectionPages), deps);
   const first = { url: source.url, ...page };
   return {
     title: page.title,
@@ -113,18 +111,48 @@ async function extractWebsite(
   };
 }
 
-/** Scrapes the URLs, `concurrency` at a time, in order; a page that fails is left out. */
-async function scrapeEach(urls: string[], scraper: ScraperProvider, concurrency: number) {
-  const pages: ({ url: string; title: string | null; markdown: string } | null)[] = [];
+type LinkedPage = { url: string; title: string | null; markdown: string };
+
+/**
+ * Scrapes a section's linked pages, `sectionConcurrency` at a time. Pages that failed for now
+ * (the reader busy: Firecrawl allows only so many scrapes a minute) are tried once more after a
+ * wait; a page that still fails, or fails for good, is left out. Page order is kept.
+ */
+async function scrapeSection(urls: string[], deps: ExtractionDeps): Promise<LinkedPage[]> {
+  const read = new Map<string, LinkedPage>();
+  const retry = await scrapeEach(urls, deps.scraper, read);
+  if (retry.length > 0) {
+    const waitMs = deps.sectionRetryWaitMs ?? extractionConfig.sectionRetryWaitMs;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    await scrapeEach(retry, deps.scraper, read);
+  }
+  return urls.flatMap((url) => {
+    const page = read.get(url);
+    return page ? [page] : [];
+  });
+}
+
+/** Scrapes the URLs into `read`, a few at a time; returns those that failed for now. */
+async function scrapeEach(
+  urls: string[],
+  scraper: ScraperProvider,
+  read: Map<string, LinkedPage>,
+): Promise<string[]> {
+  const transient: string[] = [];
+  const concurrency = extractionConfig.sectionConcurrency;
   for (let i = 0; i < urls.length; i += concurrency) {
     const batch = urls.slice(i, i + concurrency);
     const results = await Promise.allSettled(batch.map((url) => scraper.scrape(url)));
     results.forEach((result, j) => {
       const url = batch[j];
-      pages.push(result.status === 'fulfilled' && url ? { url, ...result.value } : null);
+      if (!url) return;
+      if (result.status === 'fulfilled') read.set(url, { url, ...result.value });
+      else if (result.reason instanceof IngestionError && result.reason.retryable) {
+        transient.push(url);
+      }
     });
   }
-  return pages.filter((page) => page !== null);
+  return transient;
 }
 
 async function extractYouTube(

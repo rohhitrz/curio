@@ -127,6 +127,11 @@ export const extraction = {
   scrapeTimeoutMs: 60_000,
   /** A learning path's official docs (L-08): linked pages scraped at once. */
   sectionConcurrency: 4,
+  /**
+   * Linked pages that failed for now are tried once more after this wait: Firecrawl's plan allows
+   * ~10 scrapes a minute and asks for ~20s after a 429.
+   */
+  sectionRetryWaitMs: 30_000,
   /** Each transcript-service call. */
   transcriptTimeoutMs: 30_000,
   /**
@@ -279,19 +284,23 @@ export const learningPaths = {
   /** Missing prerequisites the order step may add ("fills gaps"), at most. */
   maxGapConcepts: 3,
   /**
-   * Consensus (decision L-01): a concept's score is the weight of the resources covering it over
-   * the weight of all mapped resources; the official one counts more.
+   * Consensus (decisions L-01, L-09): a concept's score is the weight of the voters covering it
+   * over the weight of all voters: the mapped resources and the model's own knowledge. The
+   * official docs weigh the most.
    */
-  consensus: { officialWeight: 2, popularWeight: 1 },
+  consensus: { officialWeight: 2, popularWeight: 1, modelWeight: 1 },
+  /** Concepts the model lists from its own knowledge (L-09). */
+  recallMaxConcepts: 25,
   /**
    * Cut rules: kept from this score up (beginner = high consensus; intermediate = + medium), and
    * at least this many concepts per level (best-covered added back: a few noisy resources rarely
-   * agree, so the scores alone kept 5–7 concepts in the 8.7 eval).
+   * agree, so the scores alone kept 5–7 concepts in the 8.7 eval; with the model's vote, L-09,
+   * beginner kept 11–14 and missed lists and loops, which the docs list as finer concepts).
    */
   cut: {
     beginnerMinScore: 0.5,
     intermediateMinScore: 0.25,
-    beginnerMinConcepts: 10,
+    beginnerMinConcepts: 20,
     intermediateMinConcepts: 16,
   },
   /** Advanced branches: offered when they have at least this many concepts. */

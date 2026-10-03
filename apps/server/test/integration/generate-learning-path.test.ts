@@ -140,6 +140,14 @@ function createRoutedLlm(selection: string | Error = judgements()) {
         const names = [...CORE, ...(title === 'DL Guide' ? OFFICIAL_ONLY : []), `Only in ${title}`];
         return { concepts: names.map((name) => ({ name, description: `About ${name}` })) };
       }
+      // The model's own list (L-09): the core and one concept the official docs also cover.
+      case 'conceptRecall':
+        return {
+          concepts: [...CORE, 'Gradient descent'].map((name) => ({
+            name,
+            description: `About ${name}`,
+          })),
+        };
       case 'conceptMerge': {
         const groups = new Map<string, string[]>();
         for (const [, id, name] of content.matchAll(/^\s+(\d+\.\d+) ([^:]+):/gm)) {
@@ -589,6 +597,11 @@ describe('generateLearningPath, part 2 (map → outline → READY)', () => {
     const neurons = outline.concepts.find((c) => c.name === 'Neurons');
     expect(neurons?.consensusScore).toBe(1);
     expect(outline.coverage.filter((r) => r.conceptId === neurons?.id)).toHaveLength(6);
+    // The model's own list votes (L-09): official 2 + model 1 of 2 + 5 + 1, never as coverage.
+    expect(steps).toContain('recall');
+    const descent = outline.concepts.find((c) => c.name === 'Gradient descent');
+    expect(descent?.consensusScore).toBe(0.375);
+    expect(outline.coverage.filter((r) => r.conceptId === descent?.id)).toHaveLength(1);
     expect((await path())?.hook).toEqual(HOOK);
   });
 
@@ -665,6 +678,16 @@ describe('generateLearningPath, part 2 (map → outline → READY)', () => {
 
     expect(error).toBeDefined();
     expect((await path())?.status).toBe('MAPPING');
+  });
+
+  it("the model's own list failing on the last attempt → built from the resources alone", async () => {
+    llm.fail.conceptRecall = [new LlmError(true, 'down')];
+
+    const { result } = await run(learningPathsConfig.jobRetries);
+
+    expect(result).toEqual(BEGINNER_READY);
+    const descent = (await savedOutline()).concepts.find((c) => c.name === 'Gradient descent');
+    expect(descent?.consensusScore).toBe(0.286);
   });
 
   it('the hook failing on the last attempt → READY without a hook', async () => {
