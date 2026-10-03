@@ -78,7 +78,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - The job summarizes seqs `(summarized_through_seq, lastSeq − 10]`; the last 10 go to the prompt word for word, so nothing is sent twice. Between runs up to ~10 messages sit in neither (the documented ~20 / ~10 thresholds); fine for now, revisit if long chats lose the thread.
   - The job re-checks the threshold itself, so duplicate events (one per answer until the job runs) end as `up_to_date` without a model call.
   - Only COMPLETE messages are summarized; a range with only failed answers moves the marker without a model call.
-  - **Inngest:** the new function appears after the deploy syncs the app; if `summarize-conversation` isn't listed in the Inngest dashboard, resync the app there.
+  - **Inngest:** registered on 2026-10-03 with the runbook's `curl -X PUT …/api/inngest` (the deploy alone did not sync it).
   - Vercel's non-strict build reads a parsed `z.string().nullable()` as optional: the job rebuilds the draft field by field before `save` (`typecheck:vercel` caught it).
 
 - **7.2 notes:**
@@ -93,7 +93,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - `LEVEL` and `UNDERSTOOD` are never written by chat extraction (direct events only, Phase 8).
   - A re-run of `apply` after a partial failure skips adds whose text already exists; updates are idempotent. The marker moves even when the cap stopped adds, so old messages are never re-read (deleted memories stay deleted).
   - Dropped operations are logged with reasons only (the text is about the learner).
-  - **Inngest:** `extract-memories` appears after the deploy syncs; resync the app in the Inngest dashboard if it's missing.
+  - **Inngest:** registered on 2026-10-03 with the runbook's `curl -X PUT …/api/inngest` (`modified: true`). Pushes don't sync Inngest: the agent runs the PUT after every push that adds or changes a job.
 - **7.3 notes:**
   - `memories.concept_id` has **no FK yet**: `concepts` arrives in Phase 8, whose migration must add `memories.concept_id → concepts.id ON DELETE SET NULL` (like `conversations.lesson_id` for Phase 9).
   - `memories.topic_id → topics` is `NO ACTION` (topics are never deleted).
