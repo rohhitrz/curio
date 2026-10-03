@@ -6,6 +6,7 @@ export function createFakeLocks() {
   let now = 0;
   let nextToken = 0;
   let failNext: Error | null = null;
+  let extensions = 0;
 
   const provider: LockProvider = {
     acquire(key, ttlSeconds) {
@@ -23,6 +24,13 @@ export function createFakeLocks() {
           if (held.get(key)?.token === token) held.delete(key);
           return Promise.resolve();
         },
+        extend(ttl) {
+          const current = held.get(key);
+          if (current?.token !== token || current.expiresAt <= now) return Promise.resolve(false);
+          current.expiresAt = now + ttl * 1000;
+          extensions += 1;
+          return Promise.resolve(true);
+        },
       });
     },
   };
@@ -39,6 +47,8 @@ export function createFakeLocks() {
     },
     /** Takes a lock as another holder would (e.g. a request still generating). */
     hold: (key: string, ttlSeconds: number) => provider.acquire(key, ttlSeconds),
+    /** How many times a holder kept its lock alive. */
+    extensions: () => extensions,
     failNextAcquire(error: Error) {
       failNext = error;
     },

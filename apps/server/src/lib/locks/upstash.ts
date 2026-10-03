@@ -4,6 +4,9 @@ import type { LockProvider } from './types.js';
 /** Deletes the key only if it still holds our token, so we never free someone else's lock. */
 const RELEASE_SCRIPT = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
 
+/** Resets the expiry only if the key still holds our token. */
+const EXTEND_SCRIPT = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("expire", KEYS[1], ARGV[2]) else return 0 end`;
+
 export function createUpstashLocks(redis: Redis, prefix = 'curio:lock:'): LockProvider {
   return {
     async acquire(key, ttlSeconds) {
@@ -14,6 +17,10 @@ export function createUpstashLocks(redis: Redis, prefix = 'curio:lock:'): LockPr
       return {
         async release() {
           await redis.eval(RELEASE_SCRIPT, [fullKey], [token]);
+        },
+        async extend(ttl) {
+          const extended = await redis.eval(EXTEND_SCRIPT, [fullKey], [token, String(ttl)]);
+          return extended === 1;
         },
       };
     },

@@ -22,7 +22,13 @@ export const rateLimits = {
 } as const;
 
 export const locks = {
+  /**
+   * Expiry after the holder stops renewing (a crash). While an answer is generated the lock is
+   * renewed every `conversationRenewSeconds`, so a slow answer (up to 2 model calls of 90s, plus
+   * retries) never outlives it.
+   */
   conversationTtlSeconds: 120,
+  conversationRenewSeconds: 30,
   lessonTtlSeconds: 120,
 } as const;
 

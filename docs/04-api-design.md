@@ -214,12 +214,12 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 ```
 1. Auth + rate limit (20/min, 200/day)
 2. Validate
-3. Busy? → 409 CONVERSATION_BUSY   (Redis lock per conversation, auto-expires ~2 min)
+3. Busy? → 409 CONVERSATION_BUSY   (Redis lock per conversation, renewed while answering, auto-expires ~2 min after)
 4. Save user message (next seq; duplicate id = retry)
 5. Load summary + last ~10 messages + memories
 6. Retrieval pipeline
 7. Stream answer
-8. Citation check → save assistant message (citations, traceId)
+8. Citation check → save assistant message (citations, traceId) right after its question; slot taken → not saved, stream error INVALID_STATE
 9. Update last_message_at
 10. Thresholds passed? → conversation/summarize (> ~20 unsummarized)
                        → memory/extract (> ~6 unscanned)
@@ -227,7 +227,8 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 - **Client disconnects:** generation continues and is saved
 
 ### Retry: `POST /conversations/:id/retry`
-- Regenerates the answer for the last user message, **replacing** the `ERROR` message
+- Regenerates the answer for the last user message, **replacing** the `ERROR` message in its place (same `seq`)
+- Also answers a last user message left with no answer (the server stopped mid-way)
 - Last assistant message not `ERROR` → **409**
 
 ### Feedback: `PUT /messages/:id/feedback`
@@ -411,5 +412,5 @@ Used by `POST /conversations/:id/messages`, `POST /conversations/:id/retry`, and
 ### Redis locks
 | Lock | Released |
 |---|---|
-| Per conversation (generating) | On finish, or auto-expiry ~2 min |
+| Per conversation (generating) | On finish, or auto-expiry ~2 min (renewed every 30s while the answer is written) |
 | Per module (lesson generating) | On finish, or auto-expiry ~2 min |

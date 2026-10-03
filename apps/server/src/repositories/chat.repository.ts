@@ -43,6 +43,8 @@ export interface NewAssistantMessage {
   citations: CitationSnapshot[];
   status: 'COMPLETE' | 'ERROR';
   traceId: string | null;
+  /** The question this answers; the answer goes right after it (`questionSeq + 1`). */
+  questionSeq: number;
   /** An `ERROR` answer this one replaces (retry): removed in the same transaction. */
   replacesId?: string;
   /** Set when the conversation still has its default title. */
@@ -280,20 +282,32 @@ export function createChatRepository(db: Db) {
       });
     },
 
-    /** Saves an answer after the latest message, replacing an `ERROR` answer on retry. */
+    /**
+     * Saves an answer right after its question (`questionSeq + 1`). A replacement takes the
+     * `ERROR` answer's place; a new answer needs the question to be the last message. Undefined
+     * when that slot is no longer free (another run answered, or the conversation moved on):
+     * nothing is saved.
+     */
     async saveAssistantMessage(message: NewAssistantMessage) {
       return db.transaction(async (tx) => {
+        const free = await nextSeq(tx, message.conversationId);
+        const seq = message.questionSeq + 1;
         if (message.replacesId) {
-          await tx
+          const removed = await tx
             .delete(messages)
             .where(
               and(
                 eq(messages.id, message.replacesId),
                 eq(messages.conversationId, message.conversationId),
+                eq(messages.seq, seq),
+                eq(messages.status, 'ERROR'),
               ),
-            );
+            )
+            .returning({ id: messages.id });
+          if (removed.length === 0) return undefined;
+        } else if (free !== seq) {
+          return undefined;
         }
-        const seq = await nextSeq(tx, message.conversationId);
         const [row] = await tx
           .insert(messages)
           .values({

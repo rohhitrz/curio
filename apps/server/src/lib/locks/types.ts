@@ -1,6 +1,11 @@
 export interface Lock {
   /** Frees the lock if this holder still owns it (it may have expired and been taken since). */
   release(): Promise<void>;
+  /**
+   * Resets the expiry to `ttlSeconds` from now, if this holder still owns the lock. False → it
+   * expired (and may have been taken since).
+   */
+  extend(ttlSeconds: number): Promise<boolean>;
 }
 
 /**

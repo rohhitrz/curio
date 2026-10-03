@@ -1,6 +1,6 @@
 import type { Message } from '@curio/shared';
 import { describe, expect, it } from 'vitest';
-import { buildChatItems } from './display';
+import { buildChatItems, isAnswerSaved } from './display';
 import { emptyAnswer } from './stream';
 
 const CONVERSATION = 'c1';
@@ -61,7 +61,8 @@ describe('buildChatItems', () => {
       answer: emptyAnswer,
     };
 
-    expect(buildChatItems([message(1, 'USER')], pending, CONVERSATION)).toHaveLength(1);
+    const saved = [message(1, 'USER'), message(2, 'ASSISTANT')];
+    expect(buildChatItems(saved, pending, CONVERSATION)).toHaveLength(2);
   });
 
   it('a failed last answer is retryable; while retrying it is replaced by the new answer', () => {
@@ -113,5 +114,59 @@ describe('buildChatItems', () => {
     );
 
     expect(items.at(-1)).toMatchObject({ streaming: false, error: 'Please retry.' });
+  });
+
+  it('a last question with no answer gets a failed answer that can be retried', () => {
+    const items = buildChatItems(
+      [message(1, 'USER'), message(2, 'ASSISTANT'), message(3, 'USER')],
+      null,
+      CONVERSATION,
+    );
+
+    expect(items.map((i) => i.key)).toEqual(['m1', 'm2', 'm3', 'unanswered-m3']);
+    expect(items.at(-1)).toMatchObject({
+      kind: 'answer',
+      error: 'This question has no answer yet.',
+      retryable: true,
+      messageId: null,
+    });
+  });
+
+  it('while a turn is pending, an unanswered question shows the turn instead', () => {
+    const items = buildChatItems(
+      [message(1, 'USER', { id: 'q' })],
+      { conversationId: CONVERSATION, question: { id: 'q', content: 'Q' }, answer: emptyAnswer },
+      CONVERSATION,
+    );
+
+    expect(items.map((i) => i.key)).toEqual(['q', 'pending']);
+  });
+});
+
+describe('isAnswerSaved', () => {
+  const turn = (overrides: { messageId?: string; questionId?: string | null }) => ({
+    conversationId: CONVERSATION,
+    question:
+      overrides.questionId === null
+        ? null
+        : { id: overrides.questionId ?? 'm1', content: 'Question 1' },
+    answer: { ...emptyAnswer, messageId: overrides.messageId ?? null },
+  });
+
+  it("finds the streamed answer's ID", () => {
+    const saved = [message(1, 'USER'), message(2, 'ASSISTANT', { id: 'a' })];
+    expect(isAnswerSaved(saved, turn({ messageId: 'a', questionId: null }))).toBe(true);
+  });
+
+  it('a question followed by an answer counts, even under another ID', () => {
+    const saved = [message(1, 'USER'), message(2, 'ASSISTANT')];
+    expect(isAnswerSaved(saved, turn({ messageId: 'other' }))).toBe(true);
+  });
+
+  it('a question still waiting, or a retry whose answer is not there, is not saved', () => {
+    expect(isAnswerSaved([message(1, 'USER')], turn({}))).toBe(false);
+    expect(isAnswerSaved([message(1, 'USER')], turn({ messageId: 'a', questionId: null }))).toBe(
+      false,
+    );
   });
 });

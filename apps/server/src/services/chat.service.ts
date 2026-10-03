@@ -116,7 +116,15 @@ function toHistory(rows: MessageRow[]): LlmMessage[] {
     .map((row) => ({ role: row.role === 'USER' ? 'user' : 'assistant', content: row.content }));
 }
 
+/** The answer's slot was taken while it was generated (see `saveAssistantMessage`). */
+const answerSlotTaken = () =>
+  new AppError(
+    'INVALID_STATE',
+    'This question was answered elsewhere in the meantime. Reload the conversation.',
+  );
+
 function failureEvent(error: unknown): { code: ErrorCode; message: string } {
+  if (error instanceof AppError) return { code: error.code, message: error.message };
   if (error instanceof LlmError) {
     return {
       code: 'SERVICE_UNAVAILABLE',
@@ -158,6 +166,24 @@ export function createChatService(deps: ChatServiceDeps) {
       // It expires on its own.
       logger.warn({ err, conversationId }, 'conversation lock not released');
     }
+  }
+
+  /**
+   * Renews the lock until the returned stop is called, so a slow answer never outlives it. A lock
+   * that was lost is only logged: the answer's save refuses a slot that someone else took.
+   */
+  function keepAlive(lock: Lock, conversationId: string): () => void {
+    const timer = setInterval(() => {
+      lock.extend(locks.conversationTtlSeconds).then(
+        (held) => {
+          if (!held) logger.warn({ conversationId }, 'conversation lock lost while answering');
+        },
+        (err: unknown) => {
+          logger.warn({ err, conversationId }, 'conversation lock not renewed');
+        },
+      );
+    }, locks.conversationRenewSeconds * 1000);
+    return () => clearInterval(timer);
   }
 
   /** Runs `prepare` under the conversation lock; the lock stays held for the returned run. */
@@ -244,6 +270,7 @@ export function createChatService(deps: ChatServiceDeps) {
         const messageId = crypto.randomUUID();
         let traceId: string | null = null;
         let text = '';
+        const stopKeepAlive = keepAlive(lock, conversation.id);
         sink({ type: 'start', messageId });
 
         try {
@@ -332,9 +359,11 @@ export function createChatService(deps: ChatServiceDeps) {
                 citations: result.citations,
                 status: 'COMPLETE',
                 traceId,
+                questionSeq: question.seq,
                 ...(replacesId ? { replacesId } : {}),
                 ...(title ? { title } : {}),
               });
+              if (!saved) throw answerSlotTaken();
               trace.setOutput({
                 text: result.text,
                 citations: result.citations.length,
@@ -349,6 +378,7 @@ export function createChatService(deps: ChatServiceDeps) {
         } catch (err) {
           logger.error({ err, conversationId: conversation.id, traceId }, 'chat answer failed');
           try {
+            // Refused when the slot is taken, like the answer itself.
             await repository.saveAssistantMessage({
               id: messageId,
               conversationId: conversation.id,
@@ -356,6 +386,7 @@ export function createChatService(deps: ChatServiceDeps) {
               citations: [],
               status: 'ERROR',
               traceId,
+              questionSeq: question.seq,
               ...(replacesId ? { replacesId } : {}),
             });
           } catch (saveErr) {
@@ -367,6 +398,7 @@ export function createChatService(deps: ChatServiceDeps) {
           sink({ type: 'error', ...failureEvent(err) });
           sink({ type: 'finish', traceId });
         } finally {
+          stopKeepAlive();
           await release(lock, conversation.id);
           await tracer.flush().catch((err: unknown) => {
             logger.warn({ err }, 'trace flush failed');

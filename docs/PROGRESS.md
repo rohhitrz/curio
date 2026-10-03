@@ -427,6 +427,12 @@ API and server:
   - **Queue wait vs the sweeper (documented, not fixed):** a step that waits in Inngest's queue for more than 15 min before it starts still gets timed out; the database can't tell that from a dead run. Needs a backlog of well over a hundred sources at current concurrency. The misleading comment in `ingestion.repository.ts` and the sentence in `03-database-design.md` are corrected; the full fix (ask Inngest whether the run is alive before failing it) is in `docs/todo-v2.md`.
   - **Test engine quirk:** `@inngest/test` gives every re-execution of the function a new random run ID and applies the engine's own `transformCtx` on the first execution, and one engine remembers earlier executions' steps. `process-source.test.ts` pins `runId`/`attempt` in the engine's `transformCtx` and builds a fresh engine per run.
 
+- **Code review fixes (2026-10-04, 3 findings from the owner's review of Phases 5–6):**
+  - **Chat lock outliving the answer:** an answer can take two model calls of up to 90s each, plus retries, but the lock lasted 120s. `Lock.extend` (Upstash: Lua, only while our token holds the key) renews it every `locks.conversationRenewSeconds` (30) while the answer is written; a crashed run still frees it ~2 min later. A lost lock is only logged, because of the next point.
+  - **Answers saved in the wrong place:** `saveAssistantMessage` now takes `questionSeq` and saves at `questionSeq + 1`. A retry deletes the `ERROR` answer only if it is still in that slot and takes its `seq`, so resending an earlier failed question gives Q1 A1 Q2 A2, not Q1 Q2 A2 A1. A new answer needs its question to be the last message. Slot taken → nothing saved (not even `ERROR`) and the stream ends with `INVALID_STATE`, so a run that lost its lock can't add a second answer or answer the wrong question.
+  - **Dropped connection (web):** `use-answer-stream` keeps the turn on screen ("The connection was lost. Waiting for the answer to be saved…") and polls the newest messages every 3s for up to 150s, until `isAnswerSaved` (the streamed answer's ID, or an answer right after the question). A last question with no answer (`display.ts`) shows "This question has no answer yet." with Retry; the retry endpoint already answers that case (now in the API doc).
+  - Tests: 4 chat integration tests (lock held through 4 min, a stale run not saved over the fresh one, nor after a later question, the earlier-question resend order) and 5 web tests. API doc §5 and the locks table updated.
+
 ## Eval results so far
 **Retrieval baseline, vector only** (`evals/results/2026-09-30-vector.json`, commit `dc908a9`, `text-embedding-3-small`, chunks 500 tokens / 15% overlap, 7 documents, 238 chunks, 60 answerable questions; top 10 retrieved; cost $0.002):
 
@@ -496,6 +502,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-04 (code review fixes)
+- Done: 3 findings from the owner's review of Phases 5–6 (chat lock renewal, answer placement, dropped connection in the web app); see "Code review fixes (2026-10-04)"
+- Notes: full suite green (server 765, web 91, evals 29). A first run failed widely because another vitest run was using the test database at the same time; rerun alone it passed
 
 ### 2026-10-03 (Phase 7 approved, 8.1)
 - Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1; 8.4 part 2 (map → outline → READY); 8.5 learning path API; 8.6 frontend

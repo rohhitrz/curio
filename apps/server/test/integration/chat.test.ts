@@ -11,7 +11,7 @@ import {
 import { eq } from 'drizzle-orm';
 import type { AddressInfo } from 'node:net';
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RetrievalFlags } from '../../src/config/index.js';
 import { RerankError } from '../../src/errors/rerank-error.js';
 import type { RerankProvider } from '../../src/lib/rerank/index.js';
@@ -155,6 +155,48 @@ async function listMessages(conversationId: string, query = '') {
     .set('authorization', ALICE);
   expect(res.status).toBe(200);
   return messageListSchema.parse(res.body);
+}
+
+/**
+ * An LLM whose first answer stalls after its first part until `finish()`; later answers come at
+ * once. `stalled` resolves when the first answer is waiting.
+ */
+function createStallingLlm(first: string, ...later: string[]) {
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  let stalledResolve!: () => void;
+  const stalled = new Promise<void>((resolve) => {
+    stalledResolve = resolve;
+  });
+  let calls = 0;
+  const usage = { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 };
+
+  const provider: LlmProvider = {
+    generate: () => Promise.reject(new Error('not used')),
+    generateObject: () => Promise.reject(new Error('not used')),
+    stream() {
+      const text = calls === 0 ? first : (later[calls - 1] ?? 'Extra [1].');
+      const stalls = calls === 0;
+      calls += 1;
+      let resolve!: (result: LlmResult) => void;
+      const result = new Promise<LlmResult>((res) => {
+        resolve = res;
+      });
+      async function* textStream() {
+        yield text.slice(0, 4);
+        if (stalls) {
+          stalledResolve();
+          await gate;
+        }
+        yield text.slice(4);
+        resolve({ text, model: 'fake-llm', usage });
+      }
+      return { textStream: textStream(), result };
+    },
+  };
+  return { provider, stalled, finish };
 }
 
 describe('conversations', () => {
@@ -551,6 +593,84 @@ describe('client disconnects mid-stream', () => {
   });
 });
 
+describe('a slow answer', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('keeps the conversation lock while it is written, however long it takes', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const slow = createStallingLlm('Dropout drops units [1].');
+    buildApp(slow.provider);
+    const { conversationId } = await setup();
+    const key = `conversation:${conversationId}`;
+
+    const first = send(conversationId, 'What is dropout?').then((res) => res);
+    await slow.stalled;
+    // 4 minutes pass, renewing every 30s: twice the lock's own expiry.
+    for (let i = 0; i < 8; i += 1) {
+      locks.advance(30_000);
+      vi.advanceTimersByTime(30_000);
+    }
+    expect(locks.extensions()).toBe(8);
+
+    expect(locks.isHeld(key)).toBe(true);
+    const other = await send(conversationId, 'What is dropout?');
+    expect(errorCode(other.body)).toBe('CONVERSATION_BUSY');
+
+    slow.finish();
+    expect(textOf(parseStream((await first).text))).toBe('Dropout drops units [1].');
+    expect(locks.isHeld(key)).toBe(false);
+  });
+
+  it('an answer whose lock was lost is not saved over the one written meanwhile', async () => {
+    const slow = createStallingLlm('Stale answer [1].', 'Fresh answer [1].');
+    buildApp(slow.provider);
+    const { conversationId } = await setup();
+    const id = crypto.randomUUID();
+
+    const first = send(conversationId, 'What is dropout?', id).then((res) => res);
+    await slow.stalled;
+    // The lock expires without being renewed (e.g. Redis was unreachable), and another tab
+    // resends the same question.
+    locks.advance(120_000);
+    const second = await send(conversationId, 'What is dropout?', id);
+    expect(textOf(parseStream(second.text))).toBe('Fresh answer [1].');
+
+    slow.finish();
+    const chunks = parseStream((await first).text);
+    expect(chunks.find((c) => c.type === 'data-error')?.data).toMatchObject({
+      code: 'INVALID_STATE',
+    });
+    const { items } = await listMessages(conversationId);
+    expect(items.map((m) => [m.seq, m.role, m.status, m.content])).toEqual([
+      [2, 'ASSISTANT', 'COMPLETE', 'Fresh answer [1].'],
+      [1, 'USER', 'COMPLETE', 'What is dropout?'],
+    ]);
+  });
+
+  it('an answer whose question is no longer the last message is not saved', async () => {
+    const slow = createStallingLlm('Stale answer [1].', 'Second answer [1].');
+    buildApp(slow.provider);
+    const { conversationId } = await setup();
+
+    const first = send(conversationId, 'First?').then((res) => res);
+    await slow.stalled;
+    locks.advance(120_000);
+    await send(conversationId, 'Second?');
+
+    slow.finish();
+    await first;
+    const { items } = await listMessages(conversationId);
+    // No answer to "First?" lands after the second turn; it is left unanswered.
+    expect(items.map((m) => [m.seq, m.role, m.content])).toEqual([
+      [3, 'ASSISTANT', 'Second answer [1].'],
+      [2, 'USER', 'Second?'],
+      [1, 'USER', 'First?'],
+    ]);
+  });
+});
+
 describe('retry', () => {
   it('replaces the ERROR answer; the new answer keeps its place', async () => {
     const { conversationId } = await setup();
@@ -608,6 +728,24 @@ describe('retry', () => {
     expect(items.map((m) => [m.role, m.status])).toEqual([
       ['ASSISTANT', 'COMPLETE'],
       ['USER', 'COMPLETE'],
+    ]);
+  });
+  it('resending an earlier question whose answer failed regenerates it in its own place', async () => {
+    const { conversationId } = await setup();
+    llm.reply(new LlmError(true, 'down'), 'Second [1].', 'First again [1].');
+    const firstId = crypto.randomUUID();
+    await send(conversationId, 'First?', firstId);
+    await send(conversationId, 'Second?');
+
+    const res = await send(conversationId, 'First?', firstId);
+
+    expect(textOf(parseStream(res.text))).toBe('First again [1].');
+    const { items } = await listMessages(conversationId);
+    expect(items.reverse().map((m) => [m.seq, m.role, m.content])).toEqual([
+      [1, 'USER', 'First?'],
+      [2, 'ASSISTANT', 'First again [1].'],
+      [3, 'USER', 'Second?'],
+      [4, 'ASSISTANT', 'Second [1].'],
     ]);
   });
 });

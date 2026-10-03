@@ -14,16 +14,18 @@ export type ChatItem =
       streaming: boolean;
       error: string | null;
       feedback: Feedback | null;
-      /** A failed answer at the end of the conversation can be retried. */
+      /** A failed or missing answer at the end of the conversation can be retried. */
       retryable: boolean;
     };
 
 const FAILED_ANSWER = 'This answer failed.';
+const NO_ANSWER = 'This question has no answer yet.';
 
 /**
  * Saved messages (oldest first) plus the turn that is streaming, if it belongs to this
  * conversation. A question already saved isn't shown twice; a retried answer replaces the failed
- * one it is regenerating.
+ * one it is regenerating. A last question with no answer (the server stopped mid-way) gets a
+ * failed answer that can be retried.
  */
 export function buildChatItems(
   messages: Message[],
@@ -54,6 +56,22 @@ export function buildChatItems(
         },
   );
 
+  const last = saved.at(-1);
+  if (!turn && last?.role === 'USER') {
+    items.push({
+      kind: 'answer',
+      key: `unanswered-${last.id}`,
+      messageId: null,
+      text: '',
+      citations: [],
+      status: null,
+      streaming: false,
+      error: NO_ANSWER,
+      feedback: null,
+      retryable: true,
+    });
+  }
+
   if (turn) {
     if (turn.question && !saved.some((m) => m.id === turn.question?.id)) {
       items.push({ kind: 'question', key: turn.question.id, content: turn.question.content });
@@ -72,4 +90,17 @@ export function buildChatItems(
     });
   }
   return items;
+}
+
+/**
+ * Whether the turn's answer is among the saved messages (oldest first): the streamed answer's ID,
+ * or for a new question any answer right after it.
+ */
+export function isAnswerSaved(messages: Message[], turn: PendingTurn): boolean {
+  const { messageId } = turn.answer;
+  if (messageId && messages.some((m) => m.id === messageId)) return true;
+  const questionId = turn.question?.id;
+  if (!questionId) return false;
+  const index = messages.findIndex((m) => m.id === questionId);
+  return index !== -1 && messages[index + 1]?.role === 'ASSISTANT';
 }
