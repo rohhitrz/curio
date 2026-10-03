@@ -226,7 +226,7 @@ describe('cutPath', () => {
       { name: 'Wide', description: 'd', moduleIndexes: [0] },
     ],
   };
-  const noMin = { ...rules, minIncludedConcepts: 0 };
+  const noMin = { ...rules, beginnerMinConcepts: 0, intermediateMinConcepts: 0 };
 
   it('beginner keeps high consensus only (with its module’s gap concept)', () => {
     const cut = cutPath(outline, 'BEGINNER', null, 4, noMin);
@@ -251,9 +251,16 @@ describe('cutPath', () => {
   });
 
   it('too few kept → the best-covered skipped concepts are added back', () => {
-    const cut = cutPath(outline, 'BEGINNER', null, 4, { ...rules, minIncludedConcepts: 4 });
+    const cut = cutPath(outline, 'BEGINNER', null, 4, { ...noMin, beginnerMinConcepts: 4 });
 
     expect(cut.modules.flatMap((m) => m.conceptKeys).sort()).toEqual([0, 1, 2, 3, 5]);
+  });
+
+  it('each level has its own minimum', () => {
+    const mins = { ...noMin, beginnerMinConcepts: 2, intermediateMinConcepts: 5 };
+
+    expect(cutPath(outline, 'BEGINNER', null, 4, mins).skipped).toHaveLength(3);
+    expect(cutPath(outline, 'INTERMEDIATE', null, 4, mins).skipped).toHaveLength(0);
   });
 
   it('a gap concept whose module keeps nothing is skipped with its own reason', () => {

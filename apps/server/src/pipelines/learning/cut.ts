@@ -5,8 +5,9 @@ import type { Outline, OutlineModule } from './order.js';
 export interface CutRules {
   beginnerMinScore: number;
   intermediateMinScore: number;
-  /** Beginner / intermediate: fewer kept → the best-covered skipped ones are added back. */
-  minIncludedConcepts: number;
+  /** Fewer kept → the best-covered skipped ones are added back, up to this many. */
+  beginnerMinConcepts: number;
+  intermediateMinConcepts: number;
 }
 
 export interface CutPath {
@@ -47,7 +48,9 @@ export function cutPath(
     }
     reasonFor = () => 'Not in the branch you picked';
   } else {
-    const minScore = level === 'BEGINNER' ? rules.beginnerMinScore : rules.intermediateMinScore;
+    const beginner = level === 'BEGINNER';
+    const minScore = beginner ? rules.beginnerMinScore : rules.intermediateMinScore;
+    const minConcepts = beginner ? rules.beginnerMinConcepts : rules.intermediateMinConcepts;
     const covered = outline.concepts.filter((c) => !c.gap);
     for (const c of covered) if (c.score >= minScore) kept.add(c.key);
     // Too few pass: the best-covered of the rest are added back (score, then order).
@@ -55,10 +58,10 @@ export function cutPath(
       .filter((c) => !kept.has(c.key))
       .sort((a, b) => b.score - a.score || a.key - b.key);
     for (const c of rest) {
-      if (kept.size >= rules.minIncludedConcepts) break;
+      if (kept.size >= minConcepts) break;
       kept.add(c.key);
     }
-    const suffix = level === 'BEGINNER' ? 'beyond the basics' : 'advanced';
+    const suffix = beginner ? 'beyond the basics' : 'advanced';
     reasonFor = (c) =>
       `Covered by ${String(c.resourceIds.length)} of ${String(resourceCount)} resources, ${suffix}`;
     // A gap concept stays with its module's kept concepts.

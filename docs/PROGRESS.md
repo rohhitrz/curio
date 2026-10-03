@@ -7,7 +7,7 @@
 - **Phase:** 8 (Learning paths), in progress
 - **Current step:** 8.6 done (learning path frontend)
 - **Blocked on:** nothing
-- **Next step:** 8.7 in progress: runner + dataset draft committed; fix the cut/resource problems below, then owner reviews `evals/dataset/paths.json` and approves the full run
+- **Next step:** 8.7 in progress: cut floor done; next, reading the official resource as several pages (owner chose "crawl official", 2026-10-04; doc changes proposed first), then owner reviews `evals/dataset/paths.json` and approves the full run
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -129,6 +129,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Dataset `evals/dataset/paths.json` is a **draft**: Python (official tutorial), Git (Pro Git), French Revolution (no official docs, standard outline). **Owner to review.**
   - **Smoke runs found real problems** (Python, beginner coverage 0, intermediate 0.18–0.36): (1) gather picked navigation pages (python.org landing, docs.python.org index) as "official", which map to 0 concepts; fixed by aiming searches at tutorials and rejecting index/landing pages in the selection prompt (2nd run picked the real tutorial index); (2) single-page ingestion: the official tutorial index page is a table of contents, the content is on ~15 sub-pages, so it maps to few concepts. A real fix is crawling a few pages of the official docs (design change: needs owner approval); (3) the beginner cut keeps ≥ 0.5 consensus, which with 4–5 noisy resources leaves ~5 concepts; tune `cut` (e.g. relative to the top score, higher `minIncludedConcepts`) and re-measure.
   - Results file `evals/results/2026-10-03-paths.json` is from a smoke run (not the committed baseline).
+  - **Owner's picks (2026-10-04):** crawl the official resource (up to ~8 pages of its docs section, existing Firecrawl provider; doc changes first) · cut: keep the thresholds, raise the floor per level.
+  - **Cut floor done:** `beginnerMinConcepts` 10 / `intermediateMinConcepts` 16 (was `minIncludedConcepts` 5 for both; L-07 updated). Re-measured on the same Python resources (`--reuse --runs=1`): beginner 0 → 0.09, intermediate 0.18 → 0.18. Every included concept comes from intro pages (interpreter, print, variables, operators); strings, lists, loops, functions, modules, exceptions, classes are in **no** resource, so depth is the limit, not the cut.
 
 ## Phase 7 notes
 - **7.1 notes:**

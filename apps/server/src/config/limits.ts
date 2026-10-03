@@ -269,8 +269,17 @@ export const learningPaths = {
    * the weight of all mapped resources; the official one counts more.
    */
   consensus: { officialWeight: 2, popularWeight: 1 },
-  /** Cut rules: kept from this score up (beginner = high consensus; intermediate = + medium). */
-  cut: { beginnerMinScore: 0.5, intermediateMinScore: 0.25, minIncludedConcepts: 5 },
+  /**
+   * Cut rules: kept from this score up (beginner = high consensus; intermediate = + medium), and
+   * at least this many concepts per level (best-covered added back: a few noisy resources rarely
+   * agree, so the scores alone kept 5–7 concepts in the 8.7 eval).
+   */
+  cut: {
+    beginnerMinScore: 0.5,
+    intermediateMinScore: 0.25,
+    beginnerMinConcepts: 10,
+    intermediateMinConcepts: 16,
+  },
   /** Advanced branches: offered when they have at least this many concepts. */
   minBranchConcepts: 3,
   /**
