@@ -64,6 +64,13 @@
       "when": 1790797469322,
       "tag": "0008_conversations_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791036492307,
+      "tag": "0009_memories",
+      "breakpoints": true
     }
   ]
 }

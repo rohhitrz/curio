@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 7 (Memory), in progress
-- **Current step:** 7.2 done (topic embeddings + `PATCH /notebooks` `topic`)
+- **Current step:** 7.3 done (`memories` migration + repository)
 - **Blocked on:** nothing. Rerank is live on the owner's Trial key (10 calls/min; over the limit, chat falls back to the fused order). Switch to a Production key when there are other users
-- **Next step:** 7.3 migration `memories` (checks + partial unique indexes); repository
+- **Next step:** 7.4 `extractMemories` job (needs `0009_memories` on prod first: owner)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -31,7 +31,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 7
 - [x] 7.1 Conversation summary: `summarizeConversation` job (`conversation/summarize`, `inngest/summarize-conversation.ts`) → `conversation-summary.service.ts` (`draft` then `save` as two steps, so a failed save doesn't repeat the model call) · pure `pipelines/memory/summarize.ts` (Luna `conversationSummary`, old summary + new messages, markers stripped, failed answers left out) · optimistic save (`WHERE summarized_through_seq = old`, scoped by user; 0 rows → `superseded`) · chat queues the job after a saved answer when more than `conversation.summarizeAfterMessages` (20) messages sit outside the summary; queueing failure only logs · prompt = summary + last `recentMessages` (10) · traced as `conversation-summary`
 - [x] 7.2 Topics: `topics.service.ts` `findOrCreate` (normalized name = NFKC + lower case + single spaces; found → reused, no embedding call; new → name embedded once, `insertOrGet` with `ON CONFLICT (normalized_name) DO NOTHING` so parallel creates make one row, first wording kept; synonyms stay separate) · `PATCH /notebooks` `{ title?, topic? }` (`topic: null` clears; topic resolved before the update, so embeddings down → 503 and nothing changes) · notebook responses carry `topic: { id, name } | null` (API doc updated) · no migration (`topics` + `notebooks.topic_id` exist since 0002)
-- [ ] 7.3 Migration `memories` (checks + partial unique indexes); repository
+- [x] 7.3 Migration `0009_memories` (enums `level`, `memory_scope`, `memory_kind`, `memory_origin`; checks: `scope = 'TOPIC'` ⇔ `topic_id` set, `LEVEL` ⇒ level + `TOPIC`; partial unique indexes: one `LEVEL` per (user, topic), one `UNDERSTOOD` per (user, concept); index `(user_id, scope, topic_id)`) on dev + test · `memories.repository.ts`: `list` (scope / topic / since, topic name joined), `findById`, `count`, `insertWithinCap` + `upsertLevel` (per-user advisory lock, cap `quotas.memoriesPerUser` = 200; updating an existing level works at the cap), `update` (`unlessUserEdited` for the extraction job), `delete`, `deleteAll`; all scoped by user
 - [ ] 7.4 `extractMemories` job: add / update / skip, never overwrites `USER_EDITED`, 200 cap
 - [ ] 7.5 Memory in prompts (tone and depth only)
 - [ ] 7.6 Memory API (4 endpoints) + memory page + "Noted" notice
@@ -85,6 +85,12 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Topics are shared and hold no personal data, so `topics.repository` queries take no user ID; the notebook update is still scoped by user (others' notebooks → 404, checked before a topic is created).
   - Topic embeddings use the chat embeddings client (5s timeout). No related-topic search yet: the similarity lookup arrives with the level pre-fill (Phase 8). No UI to set a topic yet (not in 7.2); learning notebooks will get theirs from `POST /learning-paths`.
 
+- **7.3 notes:**
+  - `memories.concept_id` has **no FK yet**: `concepts` arrives in Phase 8, whose migration must add `memories.concept_id → concepts.id ON DELETE SET NULL` (like `conversations.lesson_id` for Phase 9).
+  - `memories.topic_id → topics` is `NO ACTION` (topics are never deleted).
+  - Not wired into the app yet (7.4 job, 7.6 API), so the deploy doesn't need the table; **run `0009_memories` on prod before 7.4 is pushed.**
+  - `level` lives in `db/schema/memories.ts`; learning paths (Phase 8) import it from there.
+
 ## Phase 6 notes
 0. **6.1 notes (read before 6.2).** For Phase 6 read `02-system-design.md` §7, `07-decisions.md` R-01–R-08 and the Phase 6 rows of `06-test-plan.md`.
    - `runRetrieval` (`pipelines/retrieval/pipeline.ts`) is the one entry point for chat and the eval; `retrieve` is now just the vector-search half. With every flag off it is the vector baseline (same top chunks, cosine scores kept since fusion doesn't run on one list).
@@ -137,6 +143,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Run the `0009_memories` migration on prod** before 7.4 is pushed: `cd apps/server && pnpm db:migrate:prod`.
 - **Phase 6 live check** (Phase 6 approved; still worth doing): ask a few questions on the live app, including a follow-up ("what are its disadvantages?") and something not in your sources (should say "not in your sources" right away); in Langfuse, a `chat` trace shows `understand` → `search` → `rerank` under `retrieve` and **time to first token under ~3s**; numbers in "Eval results so far" (ablation table).
 - **Re-process the YouTube source that came out in Arabic** (Process again), now that transcripts ask for English.
 - **Later:** swap Vercel `COHERE_API_KEY` for a Cohere Production key once other people use Curio (Trial keys: 10 calls/min, not for production; the variable name stays the same).
@@ -184,7 +191,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - **Local jobs:** `pnpm dev:inngest` runs the Inngest dev server (UI on :8288) against `:4000/api/inngest`; `.env` has `INNGEST_DEV=1`, so the API sends events there and skips signatures. It polls the endpoint every 5 s (`PUT /api/inngest` in the API log is that). `.claude/launch.json` has an `inngest` config for it.
 - **Local:** `pnpm dev` (web :3000, API :4000; CORS only allows :3000). `.claude/launch.json` runs it with `autoPort: false`; it's untracked local tooling. Known quirk: the preview tool injects `PORT=3000` into the whole process, so the API also binds 3000 and the web app can't reach it. For API checks, run the server alone.
 - **Local DB** = Neon `dev` (`DATABASE_URL`). **Tests** = local Docker Postgres (`TEST_DATABASE_URL=postgres://curio:curio@localhost:5434/curio_test`; `pnpm db:test:up` / `db:test:down`, data in tmpfs so it's empty after every restart; decision PR-06). The old Neon `test` URL is kept in `.env` as `NEON_TEST_DATABASE_URL`, unused. `test/helpers/db.ts` `assertSafeTestDatabase` refuses when its host + database (ignoring `-pooler`, credentials, params) matches `DATABASE_URL`, `DATABASE_URL_UNPOOLED` or `PROD_DATABASE_URL`, at setup and before every truncate. Tables are truncated per integration file; integration files run serially, unit files in parallel (`pnpm test:unit` / `pnpm test:integration`). **Prod** = Neon `main`.
-- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:prod` (main); the test database is migrated by every integration run. `drizzle.config.ts` maps `DB_TARGET` dev/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30); `0007_sources_processing_run_id` on all three (prod run by the owner, 2026-10-01); `0008_conversations_messages` on all three (prod run by the owner, 2026-10-01). The agent can't verify production; prod runs are as reported by the owner.
+- **Migrations:** `pnpm db:generate --name=<x>` then `pnpm db:migrate` (dev) · `pnpm db:migrate:prod` (main); the test database is migrated by every integration run. `drizzle.config.ts` maps `DB_TARGET` dev/prod explicitly and fails on unknown targets. Current: `0000_enable_vector`, `0001_users`, `0002_topics_notebooks`, `0003_sources` applied on all three branches; `0004_sources_storage_key_unique` on all three (prod run by the owner, 2026-09-30); `0005_source_chunks` on all three (prod run by the owner, 2026-09-30); `0006_sources_extracted_locations` on all three (prod run by the owner, 2026-09-30); `0007_sources_processing_run_id` on all three (prod run by the owner, 2026-10-01); `0008_conversations_messages` on all three (prod run by the owner, 2026-10-01); `0009_memories` on dev + test (2026-10-03), **prod pending (owner)**. The agent can't verify production; prod runs are as reported by the owner.
 - **Vercel `curio-server` env:** `DATABASE_URL` (Neon `main` pooled), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `NODE_ENV=production`, `CORS_ORIGINS=https://curio-web-theta.vercel.app` (Production + Preview, 2026-09-30), `LOG_LEVEL=info`, `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + `OPENAI_API_KEY` + `FIRECRAWL_API_KEY` + `TRANSCRIPT_API_KEY` (Secret, Production only; all five are required at boot), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=curio-prod`. The server always reads `DATABASE_URL`; `PROD_DATABASE_URL` exists only in local `.env` for migrations.
 - **Vercel `curio-web` env:** `NEXT_PUBLIC_API_URL=https://curio-server-ten.vercel.app`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, sign-in/up URLs.
 - **Projects:** root dirs `apps/server` / `apps/web`, Node 22.x, Vercel Authentication on **preview only** (production URLs are public). Preview URLs aren't in `CORS_ORIGINS`, so previews can't reach the API.
@@ -415,6 +422,10 @@ What it says:
 ### 2026-10-03 (faster tests)
 - Done: tests moved to a local Docker Postgres (PR-06); unit and integration split into Vitest projects
 - Notes: server suite 582 tests in ~25 s (281 unit in ~1.5 s, 301 integration in ~23 s), was ~25 min on Neon `test`. This run covered 7.1, so the full-suite gap since 6.4 is closed
+
+### 2026-10-03 (7.3)
+- Done: 7.3 `memories` migration + repository
+- Notes: full suite 710 tests pass (609 server, 77 web, 24 evals); `0009` applied on dev (test migrates itself), prod pending
 
 ### 2026-10-03 (7.2)
 - Done: 7.2 topics + `PATCH /notebooks` `topic`
