@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 8 (Learning paths), in progress
-- **Current step:** 8.4 done (`generateLearningPath` part 2: map → outline → READY)
+- **Current step:** 8.5 done (learning path API)
 - **Blocked on:** nothing
-- **Next step:** 8.5 API: start, get, branch, retry, outline, module `PATCH`
+- **Next step:** 8.6 frontend: clarify, progress, branch picker, outline, skipped list, module toggles
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -33,7 +33,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 8.2 Tavily provider `lib/search/` (`SearchProvider.search` → title / url / snippet / score; `SearchError` retryable on timeout, network, 429, 5xx; `webSearch` config: 15s, `basic` depth) · `GET /learning-paths/prefill?topic=` (`learning-paths` route → controller → service): user has no levels → `null` without an embedding call; same normalized topic with a level → `EXACT`; else the nearest of the user's levels by topic-name cosine ≥ `learningPaths.relatedTopicMinSimilarity` (0.6) → `RELATED` (known topic → stored embedding; unseen topic → embedded, **not created**: the endpoint is read-only); embeddings down → `null` · repo: `memories.levels`, `memories.nearestLevel`, `topics.findWithEmbedding` · shared `prefillQuerySchema` / `prefillResponseSchema`
 - [x] 8.3 `generateLearningPath` job (`path/requested`), part 1: `claim` (only a `GATHERING` path) → `search` (3 searches via Tavily, Firecrawl search as fallback; some failing is fine, all failing retries then `SEARCH_FAILED`) → `select` (Luna `resourceSelection` judges every result; pure `selectResources` picks 1 `OFFICIAL` + ≤ 5 `POPULAR`, ≤ 1 video, one per site; model down on the last attempt → search order; < 3 → `NO_RESOURCES`) → `save-resources` (one transaction: sources `LEARNING_PATH`/`PENDING` + `path_resources`, status `READING`; a page already in the notebook is reused) → `step.invoke(processSource)` per source, in parallel → `finish-reading-N` (sources still in flight: `step.sleep` 1m, up to 10×) → `MAPPING`, or `TOO_FEW_RESOURCES` with the count · retry reuses saved resources (no search), resets `FAILED` sources · `onFailure` → `GENERATION_FAILED` · decision L-06 · `TAVILY_API_KEY` required at boot
 - [x] 8.4 Part 2 (decision L-07): `list-read` → `map-<resourceId>` per read resource in parallel (Luna `conceptMap`; last-attempt failure leaves the resource out) → `merge` (< 3 mapped → `TOO_FEW_RESOURCES`; Luna `conceptMerge`, pure `applyMerge` + `consensusScore`) → `order` (Luna `learningPath`, pure `applyOrder`: modules, ≤ 3 gaps, branches) → advanced: `offer-branches` (`AWAITING_BRANCH` + `branch_options`) then `waitForEvent('path/branch-selected', match data.pathId)` in 1h slices × 72, re-reading `selected_branch` after each (`BRANCH_NOT_PICKED` after) → `build` (`BUILDING`, pure `cutPath`) → `hook` (Luna `pathHook` from the official resource's opening; failure → none) → `save` (one transaction: modules, concepts with status/reason/position, coverage, hook → `READY`) · every status move is safe to repeat
-- [ ] 8.5 API: start, get, branch, retry, outline, module `PATCH`
+- [x] 8.5 API (`learning-paths` route → controller → service → repository): `POST /learning-paths` (rate limit 5/day; topic `findOrCreate`; one transaction: `LEARNING` notebook within the notebook cap + path + `LEVEL` memory via `upsertLevelIn` (extracted from the memories repository); `path/requested` not sent → `FAILED` at once) · `GET /learning-paths/:id` · `POST /:id/branch` (409 `INVALID_STATE` / 400 not offered; pick saved, then `path/branch-selected`) · `POST /:id/retry` (only `FAILED`; reset to `GATHERING`, not rate-limited) · `GET /:id/outline` (409 `PATH_NOT_READY`; modules + concepts with `coveredBy` / `officialCovers`, skipped, resources, progress) · `PATCH /modules/:id` `{ isEnabled }` · notebook detail `learningPathId` wired · shared schemas in `learning.ts`
 - [ ] 8.6 Frontend: clarify, progress, branch picker, outline, skipped list, module toggles
 - [ ] 8.7 Evals: coverage vs official docs + consistency across runs
 - [ ] 🛑 Owner approves Phase 8
@@ -107,6 +107,12 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - The branch endpoint (8.5) must save `selected_branch` (status `AWAITING_BRANCH`, name in `branch_options`) **before** sending `path/branch-selected { pathId, userId }`: the job reads the pick from the database, the event only wakes it. A pick sent just before a wait starts is caught by the next slice's re-read (≤ 1h).
   - Integration: beginner end to end with fakes (concepts, coverage, modules, hook), advanced pause + resume (only the branch kept), no pick in time, 2 / 4 resources unmapped, hook down, merge down. Waits are injectable (`waits`), so the test uses 3 branch slices instead of 72.
   - No real LLM calls (none in tests, and no eval in this step: 8.7 is the eval).
+
+- **8.5 notes:**
+  - The `LEVEL` memory reads "intermediate in Deep Learning" (`content`); the profile shows `level` + topic anyway. `origin_ref` is the path.
+  - "Start path, DB fails midway" is tested with a temporary trigger that makes the memory insert fail: no notebook, no path, no event.
+  - The outline's resources carry `url` too (the API doc example didn't; doc updated).
+  - Rate limiting is per request like sources (a rejected start still counts).
 
 ## Phase 7 notes
 - **7.1 notes:**
@@ -475,10 +481,11 @@ What it says:
 -->
 
 ### 2026-10-03 (Phase 7 approved, 8.1)
-- Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1; 8.4 part 2 (map → outline → READY)
+- Done: 8.1 learning tables migration (`0010`, dev + test); 8.2 Tavily provider + prefill endpoint; 8.3 `generateLearningPath` part 1; 8.4 part 2 (map → outline → READY); 8.5 learning path API
 - Owner: added `TAVILY_API_KEY` on Vercel and ran `0010` on prod
 - Notes: checkpoint before push: full suite 821 tests pass (716 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean. Pushed `85e67dd`; deploy READY; Inngest resynced
 - Notes (8.4): checkpoint before push: full suite 847 tests pass (742 server, 81 web, 24 evals); the learning-path job file passed 5 runs in a row; lint, typecheck, `typecheck:vercel` clean. Pushed `555059b`; deploy READY, `/health` ok; Inngest resynced (`modified: true`)
+- Notes (8.5): checkpoint before push: full suite 866 tests pass (761 server, 81 web, 24 evals); lint, typecheck, `typecheck:vercel` clean
 - Owner: "start with phase 8" (Phase 7 approved)
 
 ### 2026-10-03 (faster tests)

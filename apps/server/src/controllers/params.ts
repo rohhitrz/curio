@@ -20,3 +20,7 @@ export const conversationIdParam = (req: Request) =>
 export const memoryIdParam = (req: Request) => uuidParam(req, 'memoryId', 'Memory not found.');
 
 export const messageIdParam = (req: Request) => uuidParam(req, 'messageId', 'Message not found.');
+
+export const pathIdParam = (req: Request) => uuidParam(req, 'pathId', 'Learning path not found.');
+
+export const moduleIdParam = (req: Request) => uuidParam(req, 'moduleId', 'Module not found.');

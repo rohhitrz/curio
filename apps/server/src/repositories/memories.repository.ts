@@ -41,7 +41,7 @@ export interface MemoryFilters {
 }
 
 /** An open transaction. */
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /** Serializes a user's memory writes so count + insert can't overshoot the cap. */
 async function lockUser(tx: Tx, userId: string) {
@@ -51,6 +51,55 @@ async function lockUser(tx: Tx, userId: string) {
 async function countFor(tx: Tx, userId: string): Promise<number> {
   const [row] = await tx.select({ n: count() }).from(memories).where(eq(memories.userId, userId));
   return row?.n ?? 0;
+}
+
+export interface LevelMemory {
+  topicId: string;
+  level: Level;
+  content: string;
+  origin: MemoryOrigin;
+  originRef?: string | null;
+}
+
+/**
+ * The user's level for a topic, inside an open transaction: one row per topic (partial unique
+ * index), so a second level updates it. A new row counts toward the cap; undefined when it's
+ * reached. Also used by `POST /learning-paths`, whose transaction writes the level.
+ */
+export async function upsertLevelIn(
+  tx: Tx,
+  userId: string,
+  level: LevelMemory,
+  max: number,
+): Promise<string | undefined> {
+  await lockUser(tx, userId);
+  const [existing] = await tx
+    .select({ id: memories.id })
+    .from(memories)
+    .where(
+      and(
+        eq(memories.userId, userId),
+        eq(memories.topicId, level.topicId),
+        eq(memories.kind, 'LEVEL'),
+      ),
+    )
+    .for('update');
+  const values = {
+    level: level.level,
+    content: level.content,
+    origin: level.origin,
+    originRef: level.originRef ?? null,
+  };
+  if (existing) {
+    await tx.update(memories).set(values).where(eq(memories.id, existing.id));
+    return existing.id;
+  }
+  if ((await countFor(tx, userId)) >= max) return undefined;
+  const [row] = await tx
+    .insert(memories)
+    .values({ userId, scope: 'TOPIC', topicId: level.topicId, kind: 'LEVEL', ...values })
+    .returning({ id: memories.id });
+  return row?.id;
 }
 
 /** Every query is scoped by `userId`; another user's memory reads as missing. */
@@ -189,47 +238,8 @@ export function createMemoriesRepository(db: Db) {
      * The user's level for a topic: one row per topic (partial unique index), so a second level
      * updates it. A new row counts toward the cap; undefined when it's reached.
      */
-    async upsertLevel(
-      userId: string,
-      level: {
-        topicId: string;
-        level: Level;
-        content: string;
-        origin: MemoryOrigin;
-        originRef?: string | null;
-      },
-      max: number,
-    ) {
-      const id = await db.transaction(async (tx) => {
-        await lockUser(tx, userId);
-        const [existing] = await tx
-          .select({ id: memories.id })
-          .from(memories)
-          .where(
-            and(
-              eq(memories.userId, userId),
-              eq(memories.topicId, level.topicId),
-              eq(memories.kind, 'LEVEL'),
-            ),
-          )
-          .for('update');
-        const values = {
-          level: level.level,
-          content: level.content,
-          origin: level.origin,
-          originRef: level.originRef ?? null,
-        };
-        if (existing) {
-          await tx.update(memories).set(values).where(eq(memories.id, existing.id));
-          return existing.id;
-        }
-        if ((await countFor(tx, userId)) >= max) return undefined;
-        const [row] = await tx
-          .insert(memories)
-          .values({ userId, scope: 'TOPIC', topicId: level.topicId, kind: 'LEVEL', ...values })
-          .returning({ id: memories.id });
-        return row?.id;
-      });
+    async upsertLevel(userId: string, level: LevelMemory, max: number) {
+      const id = await db.transaction((tx) => upsertLevelIn(tx, userId, level, max));
       return reread(userId, id);
     },
 

@@ -253,8 +253,9 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 ```json
 { "topic": "Deep Learning", "level": "INTERMEDIATE", "goal": "JOB" }
 ```
-- **One transaction:** learning notebook + path (`GATHERING`) + `LEVEL` memory (`LEVEL_CONFIRMED`)
-- Then `path/requested` event
+- **One transaction:** learning notebook (`LEARNING`, titled and topic-tagged with the topic; counts toward the notebook cap → `QUOTA_EXCEEDED`) + path (`GATHERING`) + `LEVEL` memory (`LEVEL_CONFIRMED`, `origin_ref` = path; updates the topic's existing level; at the memory cap it is skipped, never blocking the path)
+- The topic is found or created first (new → embedded; embeddings down → 503, nothing created)
+- Then `path/requested` event; if it can't be sent the path is `FAILED` (`GENERATION_FAILED`) at once, so the learner can retry
 - ← **202** `{ pathId, notebookId, status }` · rate limit **5 / day**
 
 ### Progress: `GET /learning-paths/:id`
@@ -267,10 +268,11 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 ```
 - Status must be `AWAITING_BRANCH` → otherwise **409 `INVALID_STATE`**
 - Branch must be in `branch_options` → otherwise **400**
-- Saves `selected_branch` + sends the resume event → **202**
+- Saves `selected_branch` + sends the resume event → **202** with the path (the job reads the pick from the database; a lost event only delays it)
 
 ### Retry: `POST /learning-paths/:id/retry`
-- Only `FAILED` → otherwise **409**
+- Only `FAILED` → otherwise **409 `INVALID_STATE`**
+- Back to `GATHERING` (error, branch options and pick cleared), `path/requested` sent again → **202** with the path
 - Already-ingested resources reused; **does not count** against the daily limit
 
 ### Outline: `GET /learning-paths/:id/outline`
@@ -288,13 +290,14 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
     }
   ],
   "skipped": [ { "name": "Kernel methods", "reason": "Covered by 1 of 6 resources, advanced" } ],
-  "resources": [ { "id": "…", "title": "…", "role": "OFFICIAL", "type": "DOCS", "sourceId": "…" } ],
+  "resources": [ { "id": "…", "title": "…", "url": "…", "role": "OFFICIAL", "type": "DOCS", "sourceId": "…" } ],
   "progress": { "completed": 2, "enabled": 7 }
 }
 ```
 
 ### Modules
-- **`PATCH /modules/:id`** `{ isEnabled }`
+- **`PATCH /modules/:id`** `{ isEnabled }` → the module (without concepts)
+- Outline `progress`: `enabled` = enabled modules, `completed` = enabled modules marked done; `hasLesson` is `false` until lessons (Phase 9)
 - **`PUT /modules/:id/completion`** `{ completed }`
   - `true` → set `completed_at` + write `UNDERSTOOD` memories (origin `LESSON_COMPLETED`, `origin_ref` = module)
   - `false` → clear `completed_at` + remove memories with this `origin_ref`

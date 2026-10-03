@@ -7,16 +7,18 @@ import type {
   ResourceRole,
   ResourceType,
 } from '@curio/shared';
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import {
   conceptCoverage,
   concepts,
   learningPaths,
   modules,
+  notebooks,
   pathResources,
   sources,
 } from '../db/schema/index.js';
+import { upsertLevelIn } from './memories.repository.js';
 
 /** A learning path as a job run sees it. */
 export interface PathRef {
@@ -56,6 +58,48 @@ export interface OutlineToSave {
   hook: PathHook | null;
 }
 
+/** What `POST /learning-paths` creates. */
+export interface NewPath {
+  title: string;
+  topic: string;
+  topicId: string;
+  level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+  goal: 'EXAM' | 'JOB' | 'CURIOSITY';
+  /** The `LEVEL` memory's text. */
+  levelContent: string;
+}
+
+export type CreatePathResult =
+  | { kind: 'created'; path: typeof learningPaths.$inferSelect; levelSaved: boolean }
+  | { kind: 'quota' };
+
+const pathColumns = {
+  id: learningPaths.id,
+  notebookId: learningPaths.notebookId,
+  topic: learningPaths.topic,
+  level: learningPaths.level,
+  goal: learningPaths.goal,
+  status: learningPaths.status,
+  branchOptions: learningPaths.branchOptions,
+  selectedBranch: learningPaths.selectedBranch,
+  hook: learningPaths.hook,
+  errorCode: learningPaths.errorCode,
+  errorMessage: learningPaths.errorMessage,
+  createdAt: learningPaths.createdAt,
+  updatedAt: learningPaths.updatedAt,
+};
+export type PathRow = NonNullable<Awaited<ReturnType<LearningPathsRepository['findById']>>>;
+
+const moduleColumns = {
+  id: modules.id,
+  pathId: modules.pathId,
+  position: modules.position,
+  title: modules.title,
+  summary: modules.summary,
+  isEnabled: modules.isEnabled,
+  completedAt: modules.completedAt,
+};
+
 const owned = (ref: PathRef) =>
   and(eq(learningPaths.id, ref.pathId), eq(learningPaths.userId, ref.userId));
 
@@ -81,6 +125,151 @@ export function createLearningPathsRepository(db: Db) {
 
   return {
     listResources,
+
+    /**
+     * Learning notebook (topic set) + path (`GATHERING`) + the confirmed `LEVEL` memory, in one
+     * transaction (docs/04-api-design.md §6). The notebook cap applies; the memory cap only skips
+     * the memory (`levelSaved: false`), it never blocks the path.
+     */
+    async createPath(
+      userId: string,
+      path: NewPath,
+      caps: { notebooks: number; memories: number },
+    ): Promise<CreatePathResult> {
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`notebooks:${userId}`}))`);
+        const [existing] = await tx
+          .select({ n: count() })
+          .from(notebooks)
+          .where(eq(notebooks.userId, userId));
+        if ((existing?.n ?? 0) >= caps.notebooks) return { kind: 'quota' };
+
+        const [notebook] = await tx
+          .insert(notebooks)
+          .values({ userId, title: path.title, kind: 'LEARNING', topicId: path.topicId })
+          .returning({ id: notebooks.id });
+        if (!notebook) throw new Error('learning notebook not created');
+        const [created] = await tx
+          .insert(learningPaths)
+          .values({
+            notebookId: notebook.id,
+            userId,
+            topic: path.topic,
+            level: path.level,
+            goal: path.goal,
+          })
+          .returning();
+        if (!created) throw new Error('learning path not created');
+        const memoryId = await upsertLevelIn(
+          tx,
+          userId,
+          {
+            topicId: path.topicId,
+            level: path.level,
+            content: path.levelContent,
+            origin: 'LEVEL_CONFIRMED',
+            originRef: created.id,
+          },
+          caps.memories,
+        );
+        return { kind: 'created', path: created, levelSaved: memoryId !== undefined };
+      });
+    },
+
+    async findById(userId: string, pathId: string) {
+      const [row] = await db
+        .select(pathColumns)
+        .from(learningPaths)
+        .where(owned({ userId, pathId }))
+        .limit(1);
+      return row;
+    },
+
+    async findIdByNotebook(userId: string, notebookId: string): Promise<string | undefined> {
+      const [row] = await db
+        .select({ id: learningPaths.id })
+        .from(learningPaths)
+        .where(and(eq(learningPaths.notebookId, notebookId), eq(learningPaths.userId, userId)))
+        .limit(1);
+      return row?.id;
+    },
+
+    /** Saves the pick while the path waits for it; undefined when it isn't waiting (or gone). */
+    async selectBranch(userId: string, pathId: string, branch: string) {
+      const [row] = await db
+        .update(learningPaths)
+        .set({ selectedBranch: branch })
+        .where(and(owned({ userId, pathId }), eq(learningPaths.status, 'AWAITING_BRANCH')))
+        .returning(pathColumns);
+      return row;
+    },
+
+    /**
+     * A `FAILED` path back to `GATHERING` (error, branch options and pick cleared), ready for a
+     * new run. Undefined when it isn't `FAILED` (or gone).
+     */
+    async resetForRetry(userId: string, pathId: string) {
+      const [row] = await db
+        .update(learningPaths)
+        .set({
+          status: 'GATHERING',
+          errorCode: null,
+          errorMessage: null,
+          branchOptions: null,
+          selectedBranch: null,
+        })
+        .where(and(owned({ userId, pathId }), eq(learningPaths.status, 'FAILED')))
+        .returning(pathColumns);
+      return row;
+    },
+
+    /** The saved outline: modules in order, every concept with its coverage, the resources. */
+    async outline(userId: string, pathId: string) {
+      const ref = { userId, pathId };
+      const moduleRows = await db
+        .select(moduleColumns)
+        .from(modules)
+        .innerJoin(learningPaths, eq(learningPaths.id, modules.pathId))
+        .where(owned(ref))
+        .orderBy(asc(modules.position));
+      const conceptRows = await db
+        .select({
+          id: concepts.id,
+          name: concepts.name,
+          status: concepts.status,
+          skipReason: concepts.skipReason,
+          moduleId: concepts.moduleId,
+          position: concepts.position,
+          consensusScore: concepts.consensusScore,
+          coveredBy: sql<number>`count(${conceptCoverage.pathResourceId})`.mapWith(Number),
+          officialCovers: sql<boolean>`coalesce(bool_or(${pathResources.role} = 'OFFICIAL'), false)`,
+        })
+        .from(concepts)
+        .innerJoin(learningPaths, eq(learningPaths.id, concepts.pathId))
+        .leftJoin(conceptCoverage, eq(conceptCoverage.conceptId, concepts.id))
+        .leftJoin(pathResources, eq(pathResources.id, conceptCoverage.pathResourceId))
+        .where(owned(ref))
+        .groupBy(concepts.id)
+        .orderBy(asc(concepts.position), asc(concepts.name));
+      return { modules: moduleRows, concepts: conceptRows, resources: await listResources(ref) };
+    },
+
+    /** Enables or disables a module of one of the user's paths; undefined if not theirs. */
+    async setModuleEnabled(userId: string, moduleId: string, isEnabled: boolean) {
+      const [row] = await db
+        .update(modules)
+        .set({ isEnabled })
+        .from(learningPaths)
+        .where(
+          and(
+            eq(modules.id, moduleId),
+            eq(learningPaths.id, modules.pathId),
+            eq(learningPaths.userId, userId),
+          ),
+        )
+        .returning(moduleColumns);
+      return row;
+    },
 
     async findForJob(ref: PathRef) {
       const [row] = await db

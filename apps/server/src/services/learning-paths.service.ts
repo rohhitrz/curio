@@ -1,20 +1,220 @@
-import type { PrefillResponse } from '@curio/shared';
+import {
+  NOTEBOOK_TITLE_MAX,
+  type LearningPath,
+  type Module,
+  type Outline,
+  type PrefillResponse,
+  type StartPathInput,
+  type StartPathResponse,
+} from '@curio/shared';
 import type { Logger } from 'pino';
-import { learningPaths as learningPathsConfig } from '../config/index.js';
+import { learningPaths as learningPathsConfig, quotas } from '../config/index.js';
+import { AppError, NotFoundError, ValidationError } from '../errors/app-error.js';
 import type { EmbeddingsProvider } from '../lib/embeddings/index.js';
+import type { JobsProvider } from '../lib/jobs/index.js';
+import type {
+  LearningPathsRepository,
+  PathRow,
+} from '../repositories/learning-paths.repository.js';
 import type { MemoriesRepository } from '../repositories/memories.repository.js';
 import type { TopicsRepository } from '../repositories/topics.repository.js';
+import type { TopicsService } from './topics.service.js';
 import { normalizeTopicName } from './topics.service.js';
+
+const pathNotFound = () => new NotFoundError('Learning path not found.');
+const notStarted = "We couldn't start building this path. Please retry.";
+
+function toPath(row: PathRow): LearningPath {
+  return {
+    id: row.id,
+    notebookId: row.notebookId,
+    topic: row.topic,
+    level: row.level,
+    goal: row.goal,
+    status: row.status,
+    branchOptions: row.branchOptions ?? null,
+    selectedBranch: row.selectedBranch,
+    hook: row.hook ?? null,
+    error:
+      row.status === 'FAILED' && row.errorCode
+        ? { code: row.errorCode, message: row.errorMessage ?? '' }
+        : null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toModule(row: {
+  id: string;
+  position: number;
+  title: string;
+  summary: string;
+  isEnabled: boolean;
+  completedAt: Date | null;
+}): Module {
+  return {
+    id: row.id,
+    position: row.position,
+    title: row.title,
+    summary: row.summary,
+    isEnabled: row.isEnabled,
+    completedAt: row.completedAt?.toISOString() ?? null,
+    // Lessons arrive in Phase 9.
+    hasLesson: false,
+  };
+}
 
 export function createLearningPathsService(deps: {
   topics: TopicsRepository;
+  topicsService: TopicsService;
   memories: MemoriesRepository;
+  paths: LearningPathsRepository;
   embeddings: EmbeddingsProvider;
+  jobs: JobsProvider;
   logger: Logger;
 }) {
-  const { topics, memories, embeddings, logger } = deps;
+  const { topics, topicsService, memories, paths, embeddings, jobs, logger } = deps;
+
+  /** Starts (or restarts) the job. Not queued → the path fails, so the learner can retry. */
+  async function requestBuild(userId: string, pathId: string): Promise<boolean> {
+    try {
+      await jobs.send('path/requested', { pathId, userId });
+      return true;
+    } catch (err) {
+      logger.error({ err, pathId }, 'path/requested not sent: path failed');
+      await paths.markFailed({ userId, pathId }, 'GENERATION_FAILED', notStarted);
+      return false;
+    }
+  }
+
+  async function findOwn(userId: string, pathId: string): Promise<PathRow> {
+    const row = await paths.findById(userId, pathId);
+    if (!row) throw pathNotFound();
+    return row;
+  }
 
   return {
+    /**
+     * Learning notebook + path + `LEVEL` memory in one transaction, then the job is queued
+     * (docs/04-api-design.md §6). The topic is found or created first (embeddings down → 503,
+     * nothing created).
+     */
+    async start(userId: string, input: StartPathInput): Promise<StartPathResponse> {
+      const topic = await topicsService.findOrCreate(input.topic);
+      const result = await paths.createPath(
+        userId,
+        {
+          title: input.topic.slice(0, NOTEBOOK_TITLE_MAX),
+          topic: input.topic,
+          topicId: topic.id,
+          level: input.level,
+          goal: input.goal,
+          levelContent: `${input.level.toLowerCase()} in ${topic.name}`,
+        },
+        { notebooks: quotas.notebooksPerUser, memories: quotas.memoriesPerUser },
+      );
+      if (result.kind === 'quota') {
+        throw new AppError(
+          'QUOTA_EXCEEDED',
+          `You can have up to ${String(quotas.notebooksPerUser)} notebooks. Delete one to start a new path.`,
+        );
+      }
+      if (!result.levelSaved)
+        logger.warn({ pathId: result.path.id }, 'level not saved: memory cap');
+      const queued = await requestBuild(userId, result.path.id);
+      return {
+        pathId: result.path.id,
+        notebookId: result.path.notebookId,
+        status: queued ? result.path.status : 'FAILED',
+      };
+    },
+
+    async get(userId: string, pathId: string): Promise<LearningPath> {
+      return toPath(await findOwn(userId, pathId));
+    },
+
+    /**
+     * Saves the pick of a paused advanced path, then wakes the job (which reads the pick from
+     * the database, so a lost wake-up only delays it until the job's next check).
+     */
+    async selectBranch(userId: string, pathId: string, branch: string): Promise<LearningPath> {
+      const path = await findOwn(userId, pathId);
+      if (path.status !== 'AWAITING_BRANCH') {
+        throw new AppError('INVALID_STATE', 'This path is not waiting for a branch.');
+      }
+      if (!(path.branchOptions ?? []).some((option) => option.name === branch)) {
+        throw new ValidationError({ branch: 'Not one of the branches offered.' });
+      }
+      const saved = await paths.selectBranch(userId, pathId, branch);
+      if (!saved) throw new AppError('INVALID_STATE', 'This path is not waiting for a branch.');
+      try {
+        await jobs.send('path/branch-selected', { pathId, userId });
+      } catch (err) {
+        logger.warn({ err, pathId }, 'path/branch-selected not sent: the job finds the pick later');
+      }
+      return toPath(saved);
+    },
+
+    /** A failed path, built again: what was read is reused; not counted against the daily limit. */
+    async retry(userId: string, pathId: string): Promise<LearningPath> {
+      const path = await findOwn(userId, pathId);
+      if (path.status !== 'FAILED') {
+        throw new AppError('INVALID_STATE', 'Only a failed path can be retried.');
+      }
+      const reset = await paths.resetForRetry(userId, pathId);
+      if (!reset) throw new AppError('INVALID_STATE', 'Only a failed path can be retried.');
+      await requestBuild(userId, pathId);
+      return toPath(await findOwn(userId, pathId));
+    },
+
+    async outline(userId: string, pathId: string): Promise<Outline> {
+      const path = await findOwn(userId, pathId);
+      if (path.status !== 'READY') {
+        throw new AppError('PATH_NOT_READY', 'This path is not ready yet.');
+      }
+      const saved = await paths.outline(userId, pathId);
+      const included = saved.concepts.filter((c) => c.status === 'INCLUDED' && c.moduleId);
+      const modules = saved.modules.map((m) => ({
+        ...toModule(m),
+        concepts: included
+          .filter((c) => c.moduleId === m.id)
+          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            coveredBy: c.coveredBy,
+            officialCovers: c.officialCovers,
+          })),
+      }));
+      const enabled = modules.filter((m) => m.isEnabled);
+      return {
+        hook: path.hook ?? null,
+        modules,
+        skipped: saved.concepts
+          .filter((c) => c.status === 'SKIPPED')
+          .sort((a, b) => b.consensusScore - a.consensusScore || a.name.localeCompare(b.name))
+          .map((c) => ({ name: c.name, reason: c.skipReason ?? '' })),
+        resources: saved.resources.map((r) => ({
+          id: r.id,
+          title: r.title,
+          url: r.url,
+          role: r.role,
+          type: r.resourceType,
+          sourceId: r.sourceId,
+        })),
+        progress: {
+          completed: enabled.filter((m) => m.completedAt !== null).length,
+          enabled: enabled.length,
+        },
+      };
+    },
+
+    async updateModule(userId: string, moduleId: string, isEnabled: boolean): Promise<Module> {
+      const row = await paths.setModuleEnabled(userId, moduleId, isEnabled);
+      if (!row) throw new NotFoundError('Module not found.');
+      return toModule(row);
+    },
+
     /**
      * The level to pre-fill on the clarify screen: the one confirmed for this topic, else the
      * one of the most similar topic studied. Read-only: an unseen topic is embedded but not

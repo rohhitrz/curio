@@ -5,6 +5,7 @@ import { AppError, NotFoundError } from '../errors/app-error.js';
 import type { JobsProvider } from '../lib/jobs/index.js';
 import type { StorageProvider } from '../lib/storage/index.js';
 import { decodeCursor, toPage } from '../pagination/cursor.js';
+import type { LearningPathsRepository } from '../repositories/learning-paths.repository.js';
 import type { NotebookRow, NotebooksRepository } from '../repositories/notebooks.repository.js';
 import type { TopicsService } from './topics.service.js';
 import { isOwnUploadKey } from './upload-rules.js';
@@ -28,6 +29,7 @@ export function createNotebooksService(
   jobs: JobsProvider,
   logger: Logger,
   topics: TopicsService,
+  learningPaths?: Pick<LearningPathsRepository, 'findIdByNotebook'>,
 ) {
   return {
     async list(userId: string, limit: number, rawCursor?: string): Promise<Paginated<Notebook>> {
@@ -44,8 +46,10 @@ export function createNotebooksService(
         ...toNotebook(row),
         sourceCount: await repository.countSources(row.id),
         conversationCount: await repository.countConversations(row.id),
-        // Wired when learning paths exist (Phase 8).
-        learningPathId: null,
+        learningPathId:
+          row.kind === 'LEARNING' && learningPaths
+            ? ((await learningPaths.findIdByNotebook(userId, row.id)) ?? null)
+            : null,
       };
     },
 

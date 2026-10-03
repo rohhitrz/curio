@@ -22,6 +22,7 @@ import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createChatRepository } from './repositories/chat.repository.js';
+import { createLearningPathsRepository } from './repositories/learning-paths.repository.js';
 import { createMemoriesRepository } from './repositories/memories.repository.js';
 import { createTopicsRepository } from './repositories/topics.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
@@ -85,12 +86,14 @@ export function createApp({
     embeddings,
     logger,
   });
+  const learningPathsRepository = createLearningPathsRepository(db);
   const notebooksService = createNotebooksService(
     createNotebooksRepository(db),
     storage,
     jobs,
     logger,
     topicsService,
+    learningPathsRepository,
   );
   const sourcesService = createSourcesService(createSourcesRepository(db), storage, jobs, logger);
   const retrievalRepository = createRetrievalRepository(db);
@@ -126,10 +129,14 @@ export function createApp({
     createLearningPathsRouter(
       createLearningPathsService({
         topics: topicsRepository,
+        topicsService,
         memories: memoriesRepository,
+        paths: learningPathsRepository,
         embeddings,
+        jobs,
         logger,
       }),
+      rateLimiter,
     ),
   );
 
