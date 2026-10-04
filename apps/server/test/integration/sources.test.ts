@@ -248,6 +248,25 @@ describe('upload URL', () => {
     expect(errorOf(res.body).code).toBe('FILE_TOO_LARGE');
   });
 
+  it('stored file over 25 MB (larger than declared) → 400 FILE_TOO_LARGE, nothing saved', async () => {
+    const notebookId = await createNotebook(ALICE);
+    const res = await requestUpload(ALICE, notebookId, pdfUpload);
+    const { storageKey } = uploadResponseSchema.parse(res.body);
+    storage.put(storageKey, quotas.pdfMaxBytes + 1);
+
+    const added = await addSource(ALICE, notebookId, {
+      type: 'PDF',
+      title: 'Lecture',
+      storageKey,
+      contentHash: PDF_HASH,
+    });
+
+    expect(added.status).toBe(400);
+    expect(errorOf(added.body).code).toBe('FILE_TOO_LARGE');
+    expect(await getTestDb().select().from(sources)).toEqual([]);
+    expect(jobs.sent).toEqual([]);
+  });
+
   it('not a PDF → 400 UNSUPPORTED_FILE_TYPE', async () => {
     const notebookId = await createNotebook(ALICE);
 

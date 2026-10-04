@@ -34,7 +34,12 @@ import {
   websitePlaceholderTitle,
   youtubePlaceholderTitle,
 } from './source-identity.js';
-import { assertUploadAllowed, isOwnUploadKey, newUploadKey } from './upload-rules.js';
+import {
+  assertPdfSize,
+  assertUploadAllowed,
+  isOwnUploadKey,
+  newUploadKey,
+} from './upload-rules.js';
 
 /** Explicit fields, so internal columns (e.g. `storageKey`) never leak into responses. */
 function toSource(row: SourceRow): Source {
@@ -127,6 +132,8 @@ export function createSourcesService(
         if (!isOwnUploadKey(userId, input.storageKey)) throw uploadNotFound();
         const stored = await callStorage(() => storage.head(input.storageKey));
         if (!stored) throw uploadNotFound();
+        // The signed upload URL binds the declared size; this guards anything else in the bucket.
+        assertPdfSize(stored.size);
         return {
           type: 'PDF',
           title: input.title,

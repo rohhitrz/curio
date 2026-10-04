@@ -7,7 +7,12 @@ export function assertUploadAllowed(input: { fileSize: number; contentType: stri
   if (input.contentType.toLowerCase() !== uploads.pdfContentType) {
     throw new AppError('UNSUPPORTED_FILE_TYPE', 'Only PDF files can be uploaded.');
   }
-  if (input.fileSize > quotas.pdfMaxBytes) {
+  assertPdfSize(input.fileSize);
+}
+
+/** The size the browser declared, and again the stored file's real size when the source is added. */
+export function assertPdfSize(bytes: number): void {
+  if (bytes > quotas.pdfMaxBytes) {
     const maxMb = Math.round(quotas.pdfMaxBytes / (1024 * 1024));
     throw new AppError('FILE_TOO_LARGE', `PDFs can be at most ${maxMb} MB.`);
   }

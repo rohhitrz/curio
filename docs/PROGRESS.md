@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 10 (Hardening), in progress
-- **Current step:** 10.1 rate limits done
+- **Current step:** 10.2 quota audit done
 - **Blocked on:** nothing
-- **Next step:** 10.2 quota enforcement audit (file size, video length, text length, counts)
+- **Next step:** 10.3 ownership test suite (every endpoint as another user → 404)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 10
 - [x] 10.1 Rate limits: all 5 limited endpoints (6 routes: chat send + retry share `chatMessages`) were already behind `rateLimit`; audit fixes: the Upstash limiter checks rules shortest window first and stops at the first denial (they ran in parallel, so every per-minute 429 still counted against the daily 200: retrying after a 429 used up the day) · the 429 message names the real wait (`formatWait`: "42 seconds" / "5 minutes" / "about 24 hours"; it said "wait a moment" for daily limits too) · CORS already exposes `retry-after` · fake limiter gets `enforce()` (counts against the real rules like Upstash) · tests: `rate-limits.test.ts` (22: each route lets the last allowed request through and 429s the next with `Retry-After` + message, per user, the rule set = the endpoint list, chat's 21st per minute → 60s and the daily count untouched, send + retry share a count, path retry / prefill / upload URL / lesson read never checked, 401 before any check), `rate-limit.test.ts` unit (11: rule order, stop on denial, reset → seconds ≥ 1, `formatWait`)
-- [ ] 10.2 Quota enforcement audit (file size, video length, text length, counts)
+- [x] 10.2 Quota audit: every quota already enforced and tested: PDF size (upload URL, `FILE_TOO_LARGE`; the R2 URL signs `content-length`), video length (before the transcript; unknown length → last caption's end, `VIDEO_TOO_LONG`), pasted text (100k after normalising, `QUOTA_EXCEEDED`; 1 MB JSON body fits it), sources per notebook (create under a notebook row lock, upload URL pre-check), notebooks per user (advisory lock; paths too), memories (extraction, lesson completion, path start; no API creates one); path sources go into a fresh notebook (≤ a handful). One gap fixed: adding a PDF source now checks the **stored** file's size too (`assertPdfSize`), so a file larger than declared can't reach ingestion · test: stored file over 25 MB → 400 `FILE_TOO_LARGE`, nothing saved, no job
 - [ ] 10.3 Ownership test suite: every endpoint as another user → 404
 - [ ] 10.4 Prompt-injection check
 - [ ] 10.5 Degradation tests
