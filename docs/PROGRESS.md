@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 9 (Lessons), in progress
-- **Current step:** Phase 9 built (9.1–9.7); 🛑 waiting for the owner's approval
-- **Blocked on:** owner approval of Phase 9 (and the live classroom check in Pending on owner)
-- **Next step:** Phase 10 (Hardening) after approval
+- **Phase:** 10 (Hardening), not started
+- **Current step:** Phase 9 approved by the owner (2026-10-04, after the live classroom check)
+- **Blocked on:** nothing
+- **Next step:** Phase 10 in a new chat (10.1 rate limits: 5 limited endpoints now, scope check included)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -22,7 +22,7 @@
 | 6 | Advanced retrieval | ✅ Done (owner approved) |
 | 7 | Memory | ✅ Done (owner approved) |
 | 8 | Learning paths | ✅ Done (owner approved) |
-| 9 | Lessons | 🔨 In progress |
+| 9 | Lessons | ✅ Done (owner approved) |
 | 10 | Hardening | ⏳ Not started |
 | 11 | Final evals + polish | ⏳ Not started |
 
@@ -37,7 +37,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 9.5 Tutor: `POST /notebooks/:id/conversations { lessonId }` checks the lesson is the user's and in that notebook (else 404) and saves the link · retrieval takes an optional `sourceIds` (vector + keyword searches; empty → nothing), a tutor chat searches only its lesson version's cited sources · `generateAnswer` with `tutor`: `TUTOR_INSTRUCTIONS` (stay on the module, redirect off-topic in one line, answer from the lesson when the sources miss, no new facts), module + enabled path modules (done / this one) + the lesson (markers stripped) before the sources; no fixed refusal when nothing matched · final `<<MODULE_DONE>>` line → `suggestComplete`: held back from the live stream (`createMarkerFilter`), stripped from the saved message, `action` stream event `{ SUGGEST_COMPLETE, moduleId }` (`data-action`, shared schema); nothing is marked done · tutor context missing → normal notebook chat (logged) · tests: 4 integration (link checks + `conversationId`, scoped search + prompt, no sources still asks, marker → action not saved), 5 unit (filter across parts, look-alikes, mid-text marker, strip, context block)
 - [x] 9.6 Frontend: clarify screen asks the scope check on "Build my path" (broad → question + 4–6 topic chips that start at once; the button becomes "Keep “topic”"; check failing → starts) · progress names the resources being read / mapped with a done count (`resourceProgress`) · outline: difficulty badge, minutes, why, done tick, total time; resources folded into "What your teacher studied"; "Start learning" / "Continue learning" → `/learn/[pathId]/classroom?module=` (first module on and not done) · **classroom** (`classroom-view.tsx`): modules list (phone: picker), lesson panel (`lesson-panel.tsx`: saved lesson or written at once on 404, once per module per visit; streams via `use-lesson-stream.ts`, which waits for the saved lesson on 409 or a dropped connection; regenerate, mark done / not done, next module), tutor panel (`tutor-panel.tsx`: lesson-linked chat created on the first question, continues the module's `conversationId`, "Mark as done" offer from the `action` event), phone tabs Lesson / Tutor · citation opening moved to `use-citation-opener.tsx` (chat panel uses it too) · checked by typecheck, lint, web tests (97) and `next build`; the agent can't sign in (Clerk), so **the owner checks the screens live**
 - [x] 9.7 Eval: `pnpm eval:lessons` (`evals/scripts/run-lesson-eval.ts`): lessons for the first `--modules` (3) modules of each topic's eval path on dev, real pipeline (per-concept retrieval with Cohere paced for a Trial key → Luna → citation check), not saved · `judges/lesson-faithfulness.md` (claims only, skips examples / analogies) after code blocks and general-knowledge sections are removed in code (`evals/src/lessons.ts`, tested) · judge task `evalLessonJudge` (16k output: a 40-claim lesson overflowed `evalJudge`'s 4k) · a lesson is written again on a dropped Neon connection, and the eval closes idle connections after 5s (`createDb`'s new `idleTimeoutMillis`) · result **0.936** pooled (see Eval results) → L-12 Luna
-- [ ] 🛑 Owner approves Phase 9
+- [x] 🛑 Owner approves Phase 9 (2026-10-04: "things are working fine, approved")
 
 ## Phase 8 steps (done)
 - [x] 8.1 Migration `0010_learning_paths` (enums `goal`, `path_status`, `resource_role`, `resource_type`, `concept_status`; tables `learning_paths` (one per notebook), `path_resources`, `modules` (unique `(path_id, position)`), `concepts` (indexes `(path_id)`, `(module_id, position)`), `concept_coverage` (PK `(concept_id, path_resource_id)`); plus the deferred FK `memories.concept_id → concepts.id ON DELETE SET NULL`) on dev + test · shared `learning.ts` (enums, `pathHookSchema`, `branchOptionsSchema`) · `level` enum moved to `db/schema/level.ts` (memories ↔ learning paths would import each other)
@@ -238,7 +238,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
-- **Try the classroom live** once Phase 9 is pushed: Learn → a broad topic (e.g. "programming") shows focus options → pick one; watch the progress name the resources; the outline shows why / difficulty / time and "What your teacher studied"; Start learning → the lesson streams on opening (intuition, worked example, code for a technical topic, takeaways, citations you can open; a concept marked "General knowledge" if the resources miss it); ask the tutor something on topic and something off topic (redirect); say you've understood → "Mark as done" offer; mark done → the Memory page lists the concepts; regenerate → version 2; a phone-width window switches Lesson / Tutor.
+- Classroom live check done by the owner (2026-10-04: working).
 - **Try a learning path live** (8.1–8.6 are deployed): Learn → a topic you know → level + goal → Build my path. Watch the stages (a few minutes), then check the outline: hook, modules, "why is this here?", the skipped list, unchecking a module, Start learning → the notebook with the resources as sources. Also try an advanced path (branch picker) and a topic without official docs (e.g. a history topic). The first real runs make real Tavily + OpenAI calls (one search set + ~10 Luna calls per path). Tell me what looks off; 8.7 measures coverage and consistency.
 - **Phase 7 live check** (Phase 7 approved; still worth doing):
   1. Open a notebook with a READY source and chat 4+ exchanges, saying something about yourself in one of them (e.g. "I'm a nurse, keep answers short").
