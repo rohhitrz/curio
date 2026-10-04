@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 10 (Hardening), not started
-- **Current step:** Phase 9 approved by the owner (2026-10-04, after the live classroom check)
+- **Phase:** 10 (Hardening), in progress
+- **Current step:** 10.1 rate limits done
 - **Blocked on:** nothing
-- **Next step:** Phase 10 in a new chat (10.1 rate limits: 5 limited endpoints now, scope check included)
+- **Next step:** 10.2 quota enforcement audit (file size, video length, text length, counts)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -23,12 +23,21 @@
 | 7 | Memory | ✅ Done (owner approved) |
 | 8 | Learning paths | ✅ Done (owner approved) |
 | 9 | Lessons | ✅ Done (owner approved) |
-| 10 | Hardening | ⏳ Not started |
+| 10 | Hardening | 🔨 In progress |
 | 11 | Final evals + polish | ⏳ Not started |
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 9
+## Current phase steps: Phase 10
+- [x] 10.1 Rate limits: all 5 limited endpoints (6 routes: chat send + retry share `chatMessages`) were already behind `rateLimit`; audit fixes: the Upstash limiter checks rules shortest window first and stops at the first denial (they ran in parallel, so every per-minute 429 still counted against the daily 200: retrying after a 429 used up the day) · the 429 message names the real wait (`formatWait`: "42 seconds" / "5 minutes" / "about 24 hours"; it said "wait a moment" for daily limits too) · CORS already exposes `retry-after` · fake limiter gets `enforce()` (counts against the real rules like Upstash) · tests: `rate-limits.test.ts` (22: each route lets the last allowed request through and 429s the next with `Retry-After` + message, per user, the rule set = the endpoint list, chat's 21st per minute → 60s and the daily count untouched, send + retry share a count, path retry / prefill / upload URL / lesson read never checked, 401 before any check), `rate-limit.test.ts` unit (11: rule order, stop on denial, reset → seconds ≥ 1, `formatWait`)
+- [ ] 10.2 Quota enforcement audit (file size, video length, text length, counts)
+- [ ] 10.3 Ownership test suite: every endpoint as another user → 404
+- [ ] 10.4 Prompt-injection check
+- [ ] 10.5 Degradation tests
+- [ ] 10.6 Security review: CORS, headers, signed Inngest, private R2, no secrets in frontend
+- [ ] 🛑 Owner approves Phase 10
+
+## Phase 9 steps (done)
 - [x] 9.0 Doc changes from the owner's teacher feedback (approved 2026-10-04): PRD 5.6–5.7 + flow B, system design §8–9 (teaching lessons, tutor), DB (`modules.why` / `difficulty`, `path_resources.mapped_at`, tutor lookup), API (scope check, resource states in the poll, module why / difficulty / minutes, lesson `conversationId`, `action` stream event), build plan Phase 9 (9.1–9.7), test plan, decisions L-10 + L-11 · owner's picks: uncovered concepts taught under "General knowledge, not in the resources"; the tutor only suggests mark done
 - [x] 9.1 Migration `0011_lessons` on dev + test: `lessons` (unique `(module_id, version)`, citations default `[]`) + FK `conversations.lesson_id → lessons` ON DELETE SET NULL + index `conversations (lesson_id)`, `modules.why` + `modules.difficulty` (`level`), `path_resources.mapped_at` · `generation_status` enum moved to `db/schema/generation-status.ts` (lessons would otherwise import the chat tables) · schema tests (new columns empty, versions unique, cascade from notebook, tutor chat unlinked on lesson delete, FK rejects a missing lesson)
 - [x] 9.2 Path upgrades: order step returns `why` + `difficulty` per module, prompt sizes the count to the topic's breadth (3–10, no padding); the job's step schema defaults both to null for runs in flight across the deploy; saved on `modules` · `minutes` on outline modules = included concepts × `learningPaths.minutesPerConcept` (6 / 8 / 10) rounded up to 5 (pure `pipelines/learning/minutes.ts`) · `hasLesson` real (exists subquery, also on `PATCH /modules`) · map steps set `path_resources.mapped_at` (`markMapped`, keeps the first time); `GET /learning-paths/:id` (and branch / retry responses) return `resources: [{ id, title, state }]` (`resourceState`: MAPPED › FAILED › READING › READ) · `GET /learning-paths/scope?topic=&level=` (rate limit `pathScopeChecks` 30/day; Luna task `pathScope`; pure `toScopeResult`: blank / repeated options dropped, topics cut at a word to 100 chars, ≤ 6, broad with < 4 usable → not broad; model failing → not broad; traced `learning-path-scope`) · tests: unit (minutes, scope clean-up, resource state, order fixtures), job (why / difficulty saved, unmapped resources keep `mapped_at` null), API (resource states, outline fields, hasLesson, scope cases, 400 / 429)

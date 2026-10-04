@@ -22,17 +22,19 @@ export function createUpstashRateLimiter(redis: Redis, prefix = 'curio:rl'): Rat
 
   return {
     async check(name, identifier, rules) {
-      const results = await Promise.all(
-        rules.map((rule) => limiterFor(name, rule).limit(identifier)),
-      );
-      const denied = results.filter((result) => !result.success);
-      if (denied.length === 0) return { allowed: true };
-      // Wait for the window that frees up last.
-      const reset = Math.max(...denied.map((result) => result.reset));
-      return {
-        allowed: false,
-        retryAfterSeconds: Math.max(1, Math.ceil((reset - Date.now()) / 1000)),
-      };
+      // Shortest window first, stopping at the first rule that's over: a denied request isn't
+      // counted, so retrying after a per-minute 429 doesn't use up the daily allowance.
+      const ordered = [...rules].sort((a, b) => a.windowSeconds - b.windowSeconds);
+      for (const rule of ordered) {
+        const result = await limiterFor(name, rule).limit(identifier);
+        if (!result.success) {
+          return {
+            allowed: false,
+            retryAfterSeconds: Math.max(1, Math.ceil((result.reset - Date.now()) / 1000)),
+          };
+        }
+      }
+      return { allowed: true };
     },
   };
 }

@@ -24,8 +24,19 @@ export function rateLimit(limiter: RateLimiter, name: RateLimitName): RequestHan
     }
     if (!result.allowed) {
       res.set('Retry-After', String(result.retryAfterSeconds));
-      throw new AppError('RATE_LIMITED', 'Too many requests. Please wait a moment and try again.');
+      throw new AppError(
+        'RATE_LIMITED',
+        `Too many requests. Try again in ${formatWait(result.retryAfterSeconds)}.`,
+      );
     }
     next();
   };
+}
+
+/** "42 seconds", "5 minutes", "about 3 hours": a daily limit can be hours away. */
+export function formatWait(seconds: number): string {
+  const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
+  if (seconds < 60) return plural(seconds, 'second');
+  if (seconds < 60 * 60) return plural(Math.ceil(seconds / 60), 'minute');
+  return `about ${plural(Math.round(seconds / 3600), 'hour')}`;
 }
