@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 8 (Learning paths), in progress
-- **Current step:** 8.7 done (owner skipped the full eval run, 2026-10-04)
+- **Phase:** 9 (Lessons), not started
+- **Current step:** Phase 8 approved by the owner (2026-10-04)
 - **Blocked on:** nothing
-- **Next step:** 🛑 owner approves Phase 8 (then Phase 9 in a new chat)
+- **Next step:** Phase 9 in a new chat: start by proposing the doc changes from the owner's teacher feedback ("Owner feedback on the first live path" under Phase 8 notes)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -21,7 +21,7 @@
 | 5 | Basic RAG chat | ✅ Done (owner approved) |
 | 6 | Advanced retrieval | ✅ Done (owner approved) |
 | 7 | Memory | ✅ Done (owner approved) |
-| 8 | Learning paths | 🔨 In progress |
+| 8 | Learning paths | ✅ Done (owner approved) |
 | 9 | Lessons | ⏳ Not started |
 | 10 | Hardening | ⏳ Not started |
 | 11 | Final evals + polish | ⏳ Not started |
@@ -36,7 +36,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 8.5 API (`learning-paths` route → controller → service → repository): `POST /learning-paths` (rate limit 5/day; topic `findOrCreate`; one transaction: `LEARNING` notebook within the notebook cap + path + `LEVEL` memory via `upsertLevelIn` (extracted from the memories repository); `path/requested` not sent → `FAILED` at once) · `GET /learning-paths/:id` · `POST /:id/branch` (409 `INVALID_STATE` / 400 not offered; pick saved, then `path/branch-selected`) · `POST /:id/retry` (only `FAILED`; reset to `GATHERING`, not rate-limited) · `GET /:id/outline` (409 `PATH_NOT_READY`; modules + concepts with `coveredBy` / `officialCovers`, skipped, resources, progress) · `PATCH /modules/:id` `{ isEnabled }` · notebook detail `learningPathId` wired · shared schemas in `learning.ts`
 - [x] 8.6 Frontend (`features/learning/`): `/learn` clarify screen (topic, level and goal as card radios; prefill looked up 0.5s after typing, pre-selects the level with a "Still right?" note until the learner picks) → `POST` → `/learn/[pathId]`: progress stages (polled every 2s until `READY` / `FAILED` / waiting on the learner; again after a branch pick), branch picker, failure with "Try again" (retry), outline: hook, modules with checkboxes (optimistic `PATCH`), concepts with "why is this here?" (coverage evidence), "Skipped for now" with reasons, resources · "Learn" in the header, "Learn a topic" on the notebooks page, "Learning path" link on a learning notebook · pure helpers in `display.ts` (tested)
 - [x] 8.7 Evals: `pnpm eval:paths` (coverage by judge vs hand-listed core sections, consistency = Jaccard across runs) · fixes it drove: official docs read as a section (L-08), map budget shared per page, cut floor 20 / 16, the model's own knowledge as a vote (L-09), merge groups a concept with its kinds · **no committed full-run numbers**: the owner skipped the full run; numbers below are from partial runs
-- [ ] 🛑 Owner approves Phase 8
+- [x] 🛑 Owner approves Phase 8 (2026-10-04: "approved")
 
 ## Phase 7 steps (done)
 - [x] 7.1 Conversation summary: `summarizeConversation` job (`conversation/summarize`, `inngest/summarize-conversation.ts`) → `conversation-summary.service.ts` (`draft` then `save` as two steps, so a failed save doesn't repeat the model call) · pure `pipelines/memory/summarize.ts` (Luna `conversationSummary`, old summary + new messages, markers stripped, failed answers left out) · optimistic save (`WHERE summarized_through_seq = old`, scoped by user; 0 rows → `superseded`) · chat queues the job after a saved answer when more than `conversation.summarizeAfterMessages` (20) messages sit outside the summary; queueing failure only logs · prompt = summary + last `recentMessages` (10) · traced as `conversation-summary`
