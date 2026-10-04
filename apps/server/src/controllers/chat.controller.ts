@@ -4,83 +4,12 @@ import {
   paginationQuerySchema,
   sendMessageSchema,
   updateConversationSchema,
-  type ChatMessageMetadata,
-  type CitationSnapshot,
 } from '@curio/shared';
-import {
-  createUIMessageStream,
-  pipeUIMessageStreamToResponse,
-  type UIMessage,
-  type UIMessageStreamWriter,
-} from 'ai';
-import type { RequestHandler, Response } from 'express';
+import type { RequestHandler } from 'express';
 import { getUserId } from '../middleware/auth.js';
-import type { ChatEvent, ChatRun, ChatService } from '../services/chat.service.js';
+import type { ChatService } from '../services/chat.service.js';
 import { conversationIdParam, messageIdParam, notebookIdParam } from './params.js';
-
-/** The chat stream's message type (shared data schemas: `chatStreamDataSchemas`). */
-type ChatUIMessage = UIMessage<
-  ChatMessageMetadata,
-  {
-    status: { message: string };
-    citations: CitationSnapshot[];
-    error: { code: string; message: string };
-  }
->;
-
-/** One stream event → AI SDK UI message chunks. */
-function write(writer: UIMessageStreamWriter<ChatUIMessage>, event: ChatEvent, textId: string) {
-  switch (event.type) {
-    case 'start':
-      writer.write({ type: 'start', messageId: event.messageId });
-      writer.write({ type: 'text-start', id: textId });
-      return;
-    case 'status':
-      writer.write({ type: 'data-status', data: { message: event.message }, transient: true });
-      return;
-    case 'text':
-      writer.write({ type: 'text-delta', id: textId, delta: event.delta });
-      return;
-    case 'citations':
-      writer.write({ type: 'data-citations', data: event.citations });
-      return;
-    case 'error':
-      writer.write({ type: 'data-error', data: { code: event.code, message: event.message } });
-      writer.write({ type: 'error', errorText: event.message });
-      return;
-    case 'finish':
-      writer.write({ type: 'text-end', id: textId });
-      writer.write({
-        type: 'finish',
-        messageMetadata: event.traceId ? { traceId: event.traceId } : {},
-      });
-      return;
-  }
-}
-
-/**
- * Streams a run as SSE (docs/04-api-design.md §8). The run is awaited to the end even if the
- * client goes away, so the answer is still generated and saved; writes to a closed stream are
- * dropped.
- */
-async function stream(res: Response, chatRun: ChatRun): Promise<void> {
-  let finished: Promise<void> = Promise.resolve();
-  const uiStream = createUIMessageStream<ChatUIMessage>({
-    execute: ({ writer }) => {
-      const textId = crypto.randomUUID();
-      finished = chatRun.run((event) => {
-        try {
-          write(writer, event, textId);
-        } catch {
-          // The client disconnected; keep generating.
-        }
-      });
-      return finished;
-    },
-  });
-  await pipeUIMessageStreamToResponse({ response: res, stream: uiStream });
-  await finished;
-}
+import { stream } from './stream.js';
 
 export function createChatController(service: ChatService) {
   const listConversations: RequestHandler = async (req, res) => {

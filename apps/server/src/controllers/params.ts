@@ -24,3 +24,5 @@ export const messageIdParam = (req: Request) => uuidParam(req, 'messageId', 'Mes
 export const pathIdParam = (req: Request) => uuidParam(req, 'pathId', 'Learning path not found.');
 
 export const moduleIdParam = (req: Request) => uuidParam(req, 'moduleId', 'Module not found.');
+
+export const lessonIdParam = (req: Request) => uuidParam(req, 'lessonId', 'Lesson not found.');

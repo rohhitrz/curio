@@ -260,6 +260,17 @@ export function createLearningPathsRepository(db: Db) {
       return { modules: moduleRows, concepts: conceptRows, resources: await listResources(ref) };
     },
 
+    /** One of the user's modules (without its concepts); undefined if not theirs. */
+    async findModule(userId: string, moduleId: string) {
+      const [row] = await db
+        .select(moduleColumns)
+        .from(modules)
+        .innerJoin(learningPaths, eq(learningPaths.id, modules.pathId))
+        .where(and(eq(modules.id, moduleId), eq(learningPaths.userId, userId)))
+        .limit(1);
+      return row;
+    },
+
     /** Enables or disables a module of one of the user's paths; undefined if not theirs. */
     async setModuleEnabled(userId: string, moduleId: string, isEnabled: boolean) {
       const [row] = await db

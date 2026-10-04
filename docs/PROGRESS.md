@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 9 (Lessons), in progress
-- **Current step:** 9.2 done (path upgrades: module why / difficulty / minutes, map progress, scope check)
+- **Current step:** 9.3 + 9.4 done (lesson pipeline, lesson API, completion)
 - **Blocked on:** nothing
-- **Next step:** 9.3 lesson pipeline
+- **Next step:** 9.5 tutor
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -32,8 +32,8 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 9.0 Doc changes from the owner's teacher feedback (approved 2026-10-04): PRD 5.6–5.7 + flow B, system design §8–9 (teaching lessons, tutor), DB (`modules.why` / `difficulty`, `path_resources.mapped_at`, tutor lookup), API (scope check, resource states in the poll, module why / difficulty / minutes, lesson `conversationId`, `action` stream event), build plan Phase 9 (9.1–9.7), test plan, decisions L-10 + L-11 · owner's picks: uncovered concepts taught under "General knowledge, not in the resources"; the tutor only suggests mark done
 - [x] 9.1 Migration `0011_lessons` on dev + test: `lessons` (unique `(module_id, version)`, citations default `[]`) + FK `conversations.lesson_id → lessons` ON DELETE SET NULL + index `conversations (lesson_id)`, `modules.why` + `modules.difficulty` (`level`), `path_resources.mapped_at` · `generation_status` enum moved to `db/schema/generation-status.ts` (lessons would otherwise import the chat tables) · schema tests (new columns empty, versions unique, cascade from notebook, tutor chat unlinked on lesson delete, FK rejects a missing lesson)
 - [x] 9.2 Path upgrades: order step returns `why` + `difficulty` per module, prompt sizes the count to the topic's breadth (3–10, no padding); the job's step schema defaults both to null for runs in flight across the deploy; saved on `modules` · `minutes` on outline modules = included concepts × `learningPaths.minutesPerConcept` (6 / 8 / 10) rounded up to 5 (pure `pipelines/learning/minutes.ts`) · `hasLesson` real (exists subquery, also on `PATCH /modules`) · map steps set `path_resources.mapped_at` (`markMapped`, keeps the first time); `GET /learning-paths/:id` (and branch / retry responses) return `resources: [{ id, title, state }]` (`resourceState`: MAPPED › FAILED › READING › READ) · `GET /learning-paths/scope?topic=&level=` (rate limit `pathScopeChecks` 30/day; Luna task `pathScope`; pure `toScopeResult`: blank / repeated options dropped, topics cut at a word to 100 chars, ≤ 6, broad with < 4 usable → not broad; model failing → not broad; traced `learning-path-scope`) · tests: unit (minutes, scope clean-up, resource state, order fixtures), job (why / difficulty saved, unmapped resources keep `mapped_at` null), API (resource states, outline fields, hasLesson, scope cases, 400 / 429)
-- [ ] 9.3 Lesson pipeline (retrieval per concept → teaching prompt → citation check → stream → save; versions, lock)
-- [ ] 9.4 Lesson API + `PUT /completion` with `UNDERSTOOD` memories
+- [x] 9.3 Lesson pipeline (`pipelines/lessons/`): `retrieveForConcepts` = one `runRetrieval` per included concept (query "name: description", chat flags minus rewrite / sub-queries / HyDE, `lessons.chunksPerConcept` 4, 4 at a time); a gated concept has no passages → general knowledge · pure `buildLessonContext` numbers passages round-robin across concepts (best of each first, shared passages numbered once, budget `lessons.contextMaxTokens` 14k) · `LESSON_INSTRUCTIONS` (L-10: intro → per concept intuition / cited idea / worked example or runnable code / misconception → key takeaways; examples uncited; general-knowledge concepts open with `> General knowledge, not in the resources.`) + level guidance, module, why, the module before, the learner profile · `generateLesson` streams (task `lesson`) then the chat citation check · `lessons.service.ts` run: lock `lesson:<module>` (renewed every 30s), trace `lesson` (retrieve span lists gated concepts; output names general-knowledge concepts), saves the next version under a module row lock; failure → `ERROR` version + error event
+- [x] 9.4 Lesson API (`lessons` route → controller → service → repository): `GET /modules/:id/lesson` (latest `COMPLETE`, `conversationId` = module's latest tutor chat; no lesson → 404 `LESSON_NOT_GENERATED`, not yours → 404 `NOT_FOUND`) · `POST /modules/:id/lessons` (50/day; 404 / 409 `PATH_NOT_READY` / `MODULE_DISABLED` / `LESSON_GENERATING` before streaming) · `GET /lessons/:id` · `PUT /modules/:id/completion` (one transaction: `completed_at` + an `UNDERSTOOD` memory per included concept, existing ones skipped, within the cap; un-mark deletes `LESSON_COMPLETED` memories with that `origin_ref`, so a user-edited one stays) · SSE helper moved to `controllers/stream.ts` (chat + lessons) · shared `lessonSchema`, `moduleCompletionSchema` · tests: 11 integration (stream + saved version + prompt contents, regenerate, lock, disabled / not ready / not yours, model down → ERROR, 429, disconnect, completion add / repeat / un-mark / 400 / 404), 5 unit (round-robin context, prompt lines, query + flags)
 - [ ] 9.5 Tutor (lesson-scoped chat with path context, on topic, suggests done)
 - [ ] 9.6 Frontend: scope options, progress with resource names, outline additions, classroom
 - [ ] 9.7 Eval: lesson faithfulness
@@ -526,6 +526,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-04 (9.1–9.4)
+- Done: 9.1 migration (owner ran it on prod), 9.2 path upgrades (pushed at a mid-phase checkpoint: full suite green, server 797 / web 91 / evals 29; Vercel READY, `/health` ok), 9.3 lesson pipeline + 9.4 lesson API (one commit: the pipeline is only reachable through the API)
+- Notes: a lesson makes one rerank call per concept (3–8 per module). The Cohere **trial** key allows 10 calls/min, so two lessons in a minute can hit it; rerank failing falls back to fused order with the gate off (every concept then counts as covered). The production key in Pending on owner fixes it
 
 ### 2026-10-04 (Phase 9 doc changes)
 - Done: 9.0, the doc changes for "Curio teaches" (owner approved, with the recommended picks: uncovered concepts taught as marked general knowledge; the tutor suggests mark done, the learner clicks)

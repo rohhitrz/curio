@@ -311,13 +311,13 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 - Outline `progress`: `enabled` = enabled modules, `completed` = enabled modules marked done; `hasLesson` = the module has a saved lesson
 - `why` (why this module matters, how it builds on the last) and `difficulty` (`level` enum, relative within the path) come from the order step; `null` on paths built before Phase 9. `minutes` = included concepts × `learningPaths.minutesPerConcept[level]` (computed at read time)
 - **`PUT /modules/:id/completion`** `{ completed }`
-  - `true` → set `completed_at` + write `UNDERSTOOD` memories (origin `LESSON_COMPLETED`, `origin_ref` = module)
+  - `true` → set `completed_at` + write `UNDERSTOOD` memories (one per included concept, content = its name; origin `LESSON_COMPLETED`, `origin_ref` = module; a concept already remembered is skipped; stops at the memory cap) → the module
   - `false` → clear `completed_at` + remove memories with this `origin_ref`
 
 ### Lessons
 ```
 GET /modules/:id/lesson
-   ├── 200 → saved lesson (latest version)
+   ├── 200 → saved lesson (latest COMPLETE version; a failed one is saved as ERROR, not shown)
    └── 404 LESSON_NOT_GENERATED → the client calls POST /modules/:id/lessons at once (no button) → stream
 ```
 ```json
@@ -332,6 +332,7 @@ GET /modules/:id/lesson
   - Checks: path `READY` · module enabled (**409 `MODULE_DISABLED`**) · not generating (**409 `LESSON_GENERATING`**, Redis lock)
   - Rate limit **50 / day**
   - Client disconnects → still completes and saves
+  - Same stream format as chat: `start` carries the lesson ID; status lines "Studying your resources…" then "Writing the lesson…"
   - Concepts with no relevant source are taught under a *"General knowledge, not in the resources"* note, without citations
 - **`GET /lessons/:id`** → a specific version (used by tutor chats linked to older versions)
 - **Tutor** ("ask about this") = `POST /notebooks/:id/conversations` with `lessonId`; its messages may end with an `action` stream event `{ "type": "SUGGEST_COMPLETE", "moduleId": "…" }` → the UI offers "Mark module done" (→ `PUT /modules/:id/completion`); the server never marks it done itself

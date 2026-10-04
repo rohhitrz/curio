@@ -32,6 +32,20 @@ export const locks = {
   conversationTtlSeconds: 120,
   conversationRenewSeconds: 30,
   lessonTtlSeconds: 120,
+  lessonRenewSeconds: 30,
+} as const;
+
+/** The lesson pipeline (docs/02-system-design.md §9, decision L-10). */
+export const lessons = {
+  /** Passages kept per concept after rerank (one retrieval per concept). */
+  chunksPerConcept: 4,
+  /** Concepts retrieved at once (each is an embed, two searches and a rerank call). */
+  retrievalConcurrency: 4,
+  /**
+   * Passages in the prompt, at most: a module teaches several concepts, so more than one chat
+   * answer's 6k. Shared round-robin, so every covered concept keeps its best passage.
+   */
+  contextMaxTokens: 14_000,
 } as const;
 
 export const chunking = {

@@ -11,6 +11,7 @@ export {
   llmRequests,
   learnerProfile,
   learningPaths,
+  lessons,
   locks,
   memoryExtraction,
   quotas,

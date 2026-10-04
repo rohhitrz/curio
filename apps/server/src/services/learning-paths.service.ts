@@ -63,7 +63,7 @@ function toPath(row: PathRow, resources: ResourceRow[]): LearningPath {
   };
 }
 
-function toModule(row: {
+export function toModule(row: {
   id: string;
   position: number;
   title: string;

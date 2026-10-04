@@ -123,7 +123,7 @@ const answerSlotTaken = () =>
     'This question was answered elsewhere in the meantime. Reload the conversation.',
   );
 
-function failureEvent(error: unknown): { code: ErrorCode; message: string } {
+export function failureEvent(error: unknown): { code: ErrorCode; message: string } {
   if (error instanceof AppError) return { code: error.code, message: error.message };
   if (error instanceof LlmError) {
     return {

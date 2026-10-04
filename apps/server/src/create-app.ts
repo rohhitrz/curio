@@ -5,6 +5,7 @@ import { requests, retrievalFlags, type RetrievalFlags } from './config/index.js
 import type { RerankProvider } from './lib/rerank/index.js';
 import { hypotheticalPassage } from './pipelines/retrieval/hyde.js';
 import { rerankChunks } from './pipelines/retrieval/rerank.js';
+import type { RetrievalPipelineDeps } from './pipelines/retrieval/pipeline.js';
 import { understandQuery } from './pipelines/retrieval/understand.js';
 import type { Db } from './db/client.js';
 import type { AuthProvider } from './lib/auth/index.js';
@@ -23,6 +24,7 @@ import { securityHeaders } from './middleware/security-headers.js';
 import { countTokens } from './pipelines/ingestion/tokens.js';
 import { createChatRepository } from './repositories/chat.repository.js';
 import { createLearningPathsRepository } from './repositories/learning-paths.repository.js';
+import { createLessonsRepository } from './repositories/lessons.repository.js';
 import { createMemoriesRepository } from './repositories/memories.repository.js';
 import { createTopicsRepository } from './repositories/topics.repository.js';
 import { createNotebooksRepository } from './repositories/notebooks.repository.js';
@@ -31,12 +33,14 @@ import { createSourcesRepository } from './repositories/sources.repository.js';
 import { createUsersRepository } from './repositories/users.repository.js';
 import { createChatRouter } from './routes/chat.routes.js';
 import { createLearningPathsRouter } from './routes/learning-paths.routes.js';
+import { createLessonsRouter } from './routes/lessons.routes.js';
 import { createMemoriesRouter } from './routes/memories.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createNotebooksRouter } from './routes/notebooks.routes.js';
 import { createSourcesRouter } from './routes/sources.routes.js';
 import { createChatService } from './services/chat.service.js';
 import { createLearningPathsService } from './services/learning-paths.service.js';
+import { createLessonsService } from './services/lessons.service.js';
 import { createMemoriesService } from './services/memories.service.js';
 import { createTopicsService } from './services/topics.service.js';
 import { createNotebooksService } from './services/notebooks.service.js';
@@ -98,19 +102,20 @@ export function createApp({
   const sourcesService = createSourcesService(createSourcesRepository(db), storage, jobs, logger);
   const retrievalRepository = createRetrievalRepository(db);
   const memoriesRepository = createMemoriesRepository(db);
+  const retrievalDeps: Omit<RetrievalPipelineDeps, 'step'> = {
+    flags,
+    embeddings,
+    vectorSearch: (params) => retrievalRepository.vectorSearch(params),
+    keywordSearch: (params) => retrievalRepository.keywordSearch(params),
+    understandQuery: (input) => understandQuery(input, { llm }),
+    hypotheticalPassage: (input) =>
+      hypotheticalPassage(input, { llm }).then((result) => result.passage),
+    ...(reranker ? { rerank: (input) => rerankChunks(input, { reranker }) } : {}),
+  };
   const chatService = createChatService({
     repository: createChatRepository(db),
     memories: memoriesRepository,
-    retrieval: {
-      flags,
-      embeddings,
-      vectorSearch: (params) => retrievalRepository.vectorSearch(params),
-      keywordSearch: (params) => retrievalRepository.keywordSearch(params),
-      understandQuery: (input) => understandQuery(input, { llm }),
-      hypotheticalPassage: (input) =>
-        hypotheticalPassage(input, { llm }).then((result) => result.passage),
-      ...(reranker ? { rerank: (input) => rerankChunks(input, { reranker }) } : {}),
-    },
+    retrieval: retrievalDeps,
     llm,
     tracer,
     locks,
@@ -136,6 +141,22 @@ export function createApp({
         llm,
         tracer,
         jobs,
+        logger,
+      }),
+      rateLimiter,
+    ),
+  );
+  api.use(
+    createLessonsRouter(
+      createLessonsService({
+        repository: createLessonsRepository(db),
+        paths: learningPathsRepository,
+        memories: memoriesRepository,
+        retrieval: retrievalDeps,
+        llm,
+        tracer,
+        locks,
+        countTokens,
         logger,
       }),
       rateLimiter,
