@@ -128,6 +128,68 @@ export function createLessonsRepository(db: Db) {
       return { ...row, conversationId: await tutorConversationId(userId, row.moduleId) };
     },
 
+    /** True when the lesson is the user's and belongs to this notebook (a tutor chat's link). */
+    async inNotebook(userId: string, lessonId: string, notebookId: string): Promise<boolean> {
+      const [row] = await db
+        .select({ id: lessons.id })
+        .from(lessons)
+        .innerJoin(modules, eq(modules.id, lessons.moduleId))
+        .innerJoin(learningPaths, eq(learningPaths.id, modules.pathId))
+        .where(
+          and(
+            eq(lessons.id, lessonId),
+            eq(learningPaths.userId, userId),
+            eq(learningPaths.notebookId, notebookId),
+          ),
+        )
+        .limit(1);
+      return row !== undefined;
+    },
+
+    /**
+     * What the tutor of a lesson version knows: the lesson, the sources it cites (what its chat
+     * searches), its module and the path's modules in order. Undefined when it isn't the user's.
+     */
+    async tutorContext(userId: string, lessonId: string) {
+      const [row] = await db
+        .select({
+          content: lessons.content,
+          citations: lessons.citations,
+          moduleId: modules.id,
+          title: modules.title,
+          summary: modules.summary,
+          why: modules.why,
+          pathId: modules.pathId,
+        })
+        .from(lessons)
+        .innerJoin(modules, eq(modules.id, lessons.moduleId))
+        .innerJoin(learningPaths, eq(learningPaths.id, modules.pathId))
+        .where(and(eq(lessons.id, lessonId), eq(learningPaths.userId, userId)))
+        .limit(1);
+      if (!row) return undefined;
+      const all = await db
+        .select({
+          id: modules.id,
+          title: modules.title,
+          summary: modules.summary,
+          completedAt: modules.completedAt,
+        })
+        .from(modules)
+        .where(and(eq(modules.pathId, row.pathId), eq(modules.isEnabled, true)))
+        .orderBy(asc(modules.position));
+      return {
+        lesson: row.content,
+        sourceIds: [...new Set(row.citations.map((c) => c.sourceId))],
+        module: { id: row.moduleId, title: row.title, summary: row.summary, why: row.why },
+        modules: all.map((m) => ({
+          id: m.id,
+          title: m.title,
+          summary: m.summary,
+          done: m.completedAt !== null,
+        })),
+      };
+    },
+
     /**
      * Saves the next version of the module's lesson (the module row is locked, so two saves
      * can't take the same number). Undefined when the module is gone.

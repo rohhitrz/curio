@@ -14,6 +14,7 @@ type ChatUIMessage = UIMessage<
   {
     status: { message: string };
     citations: CitationSnapshot[];
+    action: { type: 'SUGGEST_COMPLETE'; moduleId: string };
     error: { code: string; message: string };
   }
 >;
@@ -33,6 +34,9 @@ function write(writer: UIMessageStreamWriter<ChatUIMessage>, event: ChatEvent, t
       return;
     case 'citations':
       writer.write({ type: 'data-citations', data: event.citations });
+      return;
+    case 'action':
+      writer.write({ type: 'data-action', data: event.action });
       return;
     case 'error':
       writer.write({ type: 'data-error', data: { code: event.code, message: event.message } });

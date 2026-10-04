@@ -11,6 +11,8 @@ import {
   NOT_IN_SOURCES_ANSWER,
 } from './prompt.js';
 import type { RetrievedChunk } from './retrieve.js';
+import { createMarkerFilter, stripDoneMarker } from '../tutor/marker.js';
+import { TUTOR_INSTRUCTIONS, withTutorContext, type TutorContext } from '../tutor/prompt.js';
 
 export interface GenerateAnswerInput {
   question: string;
@@ -26,6 +28,11 @@ export interface GenerateAnswerInput {
    * "not in your sources". Defaults to true.
    */
   retrieved?: boolean;
+  /**
+   * Set for a lesson's tutor chat (L-10): the tutor's instructions, with the module, path and
+   * lesson in context. No sources found is no refusal: the lesson may still answer it.
+   */
+  tutor?: TutorContext | null;
   abortSignal?: AbortSignal;
 }
 
@@ -46,6 +53,8 @@ export interface Answer {
   citations: CitationSnapshot[];
   /** The "not in your sources" reply, from the model or without calling it. */
   refused: boolean;
+  /** Tutor only: the reply ended with the "ready to move on" marker (stripped from `text`). */
+  suggestComplete: boolean;
   /** Null when no model was called. */
   model: string | null;
   usage: LlmUsage | null;
@@ -75,6 +84,7 @@ const isRefusal = (text: string) => text.trim() === NOT_IN_SOURCES_ANSWER;
  */
 export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerDeps): AnswerStream {
   if (input.retrieved === false) return generateReply(input, deps);
+  if (input.tutor) return generateTutorAnswer({ ...input, tutor: input.tutor }, deps);
 
   const context = buildContext(input.chunks, {
     maxTokens: deps.contextMaxTokens ?? retrieval.contextMaxTokens,
@@ -90,6 +100,7 @@ export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerD
         removedMarkers: [],
         citations: [],
         refused: true,
+        suggestComplete: false,
         model: null,
         usage: null,
       }),
@@ -124,6 +135,7 @@ export function generateAnswer(input: GenerateAnswerInput, deps: GenerateAnswerD
             snippetMaxChars: deps.snippetMaxChars ?? citationLimits.snippetMaxChars,
           }),
       refused,
+      suggestComplete: false,
       model: llmResult.model,
       usage: llmResult.usage,
     };
@@ -153,10 +165,72 @@ function generateReply(input: GenerateAnswerInput, deps: GenerateAnswerDeps): An
       removedMarkers: checked.removed,
       citations: [],
       refused: false,
+      suggestComplete: false,
       model: llmResult.model,
       usage: llmResult.usage,
     };
   });
   result.catch(() => undefined);
   return { sources: [], textStream: stream.textStream, result };
+}
+
+/** Streams `textStream` without the marker; the learner never sees it. */
+async function* withoutMarker(textStream: AsyncIterable<string>): AsyncGenerator<string> {
+  const filter = createMarkerFilter();
+  for await (const delta of textStream) {
+    const out = filter.push(delta);
+    if (out) yield out;
+  }
+  const { rest } = filter.end();
+  if (rest) yield rest;
+}
+
+/**
+ * A lesson's tutor (docs/02-system-design.md §9): the chat answer with the module, path and
+ * lesson in context. The model is called even with no sources (the lesson may cover it), and a
+ * final "ready to move on" marker becomes `suggestComplete` instead of text.
+ */
+function generateTutorAnswer(
+  input: GenerateAnswerInput & { tutor: TutorContext },
+  deps: GenerateAnswerDeps,
+): AnswerStream {
+  const context = buildContext(input.chunks, {
+    maxTokens: deps.contextMaxTokens ?? retrieval.contextMaxTokens,
+    countTokens: deps.countTokens,
+  });
+  const stream = deps.llm.stream({
+    task: 'chatAnswer',
+    instructions: TUTOR_INSTRUCTIONS,
+    messages: withTutorContext(
+      buildChatMessages({
+        question: input.question,
+        contextText: context.text || '(nothing in the resources matched this question)',
+        summary: input.summary ?? null,
+        history: input.history,
+        profile: input.profile ?? null,
+      }),
+      input.tutor,
+    ),
+    ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
+  });
+
+  const validMarkers = new Set(context.sources.map((source) => source.marker));
+  const result = stream.result.then((llmResult): Answer => {
+    const { text, found } = stripDoneMarker(llmResult.text);
+    const checked = removeInvalidMarkers(text, validMarkers);
+    return {
+      text: checked.text,
+      removedMarkers: checked.removed,
+      citations: toCitationSnapshots(checked.text, context.sources, {
+        snippetMaxChars: deps.snippetMaxChars ?? citationLimits.snippetMaxChars,
+      }),
+      refused: false,
+      suggestComplete: found,
+      model: llmResult.model,
+      usage: llmResult.usage,
+    };
+  });
+  result.catch(() => undefined);
+
+  return { sources: context.sources, textStream: withoutMarker(stream.textStream), result };
 }

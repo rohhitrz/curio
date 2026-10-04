@@ -117,6 +117,8 @@ export const chatStreamDataSchemas = {
   status: z.object({ message: z.string() }),
   /** Final citation snapshots, once the answer is complete. */
   citations: citationSnapshotsSchema,
+  /** Tutor only: the learner seems ready → offer "Mark module done" (never done by the server). */
+  action: z.object({ type: z.literal('SUGGEST_COMPLETE'), moduleId: z.uuid() }),
   /** Why the answer failed; the message is saved as `ERROR`. */
   error: z.object({ code: z.string(), message: z.string() }),
 };

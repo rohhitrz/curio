@@ -112,10 +112,12 @@ export function createApp({
       hypotheticalPassage(input, { llm }).then((result) => result.passage),
     ...(reranker ? { rerank: (input) => rerankChunks(input, { reranker }) } : {}),
   };
+  const lessonsRepository = createLessonsRepository(db);
   const chatService = createChatService({
     repository: createChatRepository(db),
     memories: memoriesRepository,
     retrieval: retrievalDeps,
+    lessons: lessonsRepository,
     llm,
     tracer,
     locks,
@@ -149,7 +151,7 @@ export function createApp({
   api.use(
     createLessonsRouter(
       createLessonsService({
-        repository: createLessonsRepository(db),
+        repository: lessonsRepository,
         paths: learningPathsRepository,
         memories: memoriesRepository,
         retrieval: retrievalDeps,

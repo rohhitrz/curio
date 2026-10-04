@@ -37,6 +37,7 @@ export interface RetrievalStepDeps {
     notebookId: string;
     query: string;
     limit: number;
+    sourceIds?: string[];
   }) => Promise<KeywordMatch[]>;
   /** Returns at most `topK` of `chunks`, most relevant first. */
   rerank?: (input: {
@@ -75,6 +76,8 @@ export interface RetrievalPipelineInput {
   history: LlmMessage[];
   /** Chunks returned. Defaults to `retrieval.rerankTopK`. */
   topK?: number;
+  /** Only these sources (a tutor chat: the lesson's cited sources); empty → nothing found. */
+  sourceIds?: string[];
 }
 
 export interface RetrievalPipelineResult {
@@ -209,6 +212,7 @@ export async function runRetrieval(
         notebookId: input.notebookId,
         query,
         limit: retrieval.vectorCandidates,
+        ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}),
       },
       deps,
     );
@@ -224,6 +228,7 @@ export async function runRetrieval(
             notebookId: input.notebookId,
             query,
             limit: retrieval.keywordCandidates,
+            ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}),
           }).then((matches) =>
             matches.map((match, index) => toRetrievedChunk(match, index + 1, match.textRank)),
           ),

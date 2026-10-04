@@ -35,6 +35,7 @@ export interface RetrievalDeps {
     notebookId: string;
     embedding: number[];
     limit: number;
+    sourceIds?: string[];
   }): Promise<ChunkMatch[]>;
 }
 
@@ -44,6 +45,8 @@ export interface RetrieveInput {
   query: string;
   /** Defaults to `retrieval.vectorCandidates`. */
   limit?: number;
+  /** Only these sources; empty → nothing found. Unset → the whole notebook. */
+  sourceIds?: string[];
 }
 
 /** Where a chunk sits in its source, for citations and for eval relevance matching. */
@@ -97,6 +100,7 @@ export async function retrieve(
     notebookId: input.notebookId,
     embedding,
     limit,
+    ...(input.sourceIds ? { sourceIds: input.sourceIds } : {}),
   });
   return matches.map((match, index) => toRetrievedChunk(match, index + 1, 1 - match.distance));
 }

@@ -308,6 +308,7 @@ describe('generateAnswer', () => {
       removedMarkers: [],
       citations: [],
       refused: true,
+      suggestComplete: false,
       model: null,
       usage: null,
     });

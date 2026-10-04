@@ -28,6 +28,7 @@ import type {
   ConversationRow,
   MessageRow,
 } from '../repositories/chat.repository.js';
+import type { LessonsRepository } from '../repositories/lessons.repository.js';
 import type { MemoriesRepository } from '../repositories/memories.repository.js';
 import { needsSummary } from './conversation-summary.service.js';
 import { needsExtraction } from './memory-extraction.service.js';
@@ -40,6 +41,8 @@ export type ChatEvent =
   | { type: 'status'; message: string }
   | { type: 'text'; delta: string }
   | { type: 'citations'; citations: CitationSnapshot[] }
+  /** Tutor only: the learner seems ready; the UI offers "Mark module done" (L-10). */
+  | { type: 'action'; action: { type: 'SUGGEST_COMPLETE'; moduleId: string } }
   | { type: 'finish'; traceId: string | null }
   | { type: 'error'; code: ErrorCode; message: string };
 
@@ -58,6 +61,8 @@ export interface ChatServiceDeps {
   memories: Pick<MemoriesRepository, 'forNotebook'>;
   /** Flags and steps; `step` is set here to trace each one. */
   retrieval: Omit<RetrievalPipelineDeps, 'step'>;
+  /** A lesson's tutor chat (L-10): its link check and what the tutor knows. */
+  lessons: Pick<LessonsRepository, 'inNotebook' | 'tutorContext'>;
   llm: LlmProvider;
   tracer: Tracer;
   locks: LockProvider;
@@ -241,6 +246,21 @@ export function createChatService(deps: ChatServiceDeps) {
     }
   }
 
+  /**
+   * A tutor chat's context: the lesson, its module and path, and the sources it cites. Null for
+   * a normal chat, or if the lesson is gone or can't be loaded (then it answers as a normal
+   * chat over the notebook, logged).
+   */
+  async function loadTutor(userId: string, conversation: ConversationRow) {
+    if (!conversation.lessonId) return null;
+    try {
+      return (await deps.lessons.tutorContext(userId, conversation.lessonId)) ?? null;
+    } catch (err) {
+      logger.warn({ err, conversationId: conversation.id }, 'tutor context not loaded');
+      return null;
+    }
+  }
+
   /** Replays a saved answer without calling the model (a resend after the answer was saved). */
   function replay(answer: MessageRow, lock: Lock): ChatRun {
     return {
@@ -286,13 +306,14 @@ export function createChatService(deps: ChatServiceDeps) {
               traceId = trace.traceId;
               sink({ type: 'status', message: status.searching });
 
-              const [history, profile] = await Promise.all([
+              const [history, profile, tutor] = await Promise.all([
                 repository.recentMessages(
                   conversation.id,
                   question.seq,
                   conversationLimits.recentMessages,
                 ),
                 loadProfile(userId, conversation),
+                loadTutor(userId, conversation),
               ]);
               const { chunks, retrieved } = await tracer.span(
                 'retrieve',
@@ -304,6 +325,8 @@ export function createChatService(deps: ChatServiceDeps) {
                       notebookId: conversation.notebookId,
                       question: question.content,
                       history: toHistory(history),
+                      // A tutor searches only what its lesson cites.
+                      ...(tutor ? { sourceIds: tutor.sourceIds } : {}),
                     },
                     {
                       ...deps.retrieval,
@@ -339,6 +362,7 @@ export function createChatService(deps: ChatServiceDeps) {
                   summary: conversation.summary,
                   profile,
                   retrieved,
+                  tutor,
                 },
                 { llm: deps.llm, countTokens: deps.countTokens },
               );
@@ -369,8 +393,17 @@ export function createChatService(deps: ChatServiceDeps) {
                 citations: result.citations.length,
                 removedMarkers: result.removedMarkers,
                 profile: profile !== null,
+                tutor: tutor
+                  ? { moduleId: tutor.module.id, suggestComplete: result.suggestComplete }
+                  : null,
               });
               sink({ type: 'citations', citations: result.citations });
+              if (tutor && result.suggestComplete) {
+                sink({
+                  type: 'action',
+                  action: { type: 'SUGGEST_COMPLETE', moduleId: tutor.module.id },
+                });
+              }
               sink({ type: 'finish', traceId });
               await requestBackgroundJobs(userId, conversation, saved.seq);
             },
@@ -432,10 +465,20 @@ export function createChatService(deps: ChatServiceDeps) {
       if (!(await repository.notebookExists(userId, notebookId))) {
         throw new NotFoundError('Notebook not found.');
       }
-      // Lesson-scoped chat arrives with lessons (Phase 9); until then no lesson can match.
-      if (lessonId !== undefined) throw new NotFoundError('Lesson not found.');
+      // A tutor chat: the lesson must be the user's, in this notebook.
+      if (
+        lessonId !== undefined &&
+        !(await deps.lessons.inNotebook(userId, lessonId, notebookId))
+      ) {
+        throw new NotFoundError('Lesson not found.');
+      }
       return toConversation(
-        await repository.createConversation(userId, notebookId, DEFAULT_CONVERSATION_TITLE),
+        await repository.createConversation(
+          userId,
+          notebookId,
+          DEFAULT_CONVERSATION_TITLE,
+          lessonId,
+        ),
       );
     },
 

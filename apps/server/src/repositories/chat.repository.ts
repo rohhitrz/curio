@@ -97,10 +97,11 @@ export function createChatRepository(db: Db) {
         .limit(limit + 1);
     },
 
-    async createConversation(userId: string, notebookId: string, title: string) {
+    /** `lessonId` set → a lesson's tutor chat (checked by the service first). */
+    async createConversation(userId: string, notebookId: string, title: string, lessonId?: string) {
       const [row] = await db
         .insert(conversations)
-        .values({ userId, notebookId, title })
+        .values({ userId, notebookId, title, lessonId: lessonId ?? null })
         .returning(conversationColumns);
       if (!row) throw new Error('conversation not created');
       return row;

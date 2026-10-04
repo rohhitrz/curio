@@ -1,4 +1,4 @@
-import { and, cosineDistance, desc, eq, sql } from 'drizzle-orm';
+import { and, cosineDistance, desc, eq, inArray, sql } from 'drizzle-orm';
 import { chatTimeouts, retrieval } from '../config/index.js';
 import type { Db } from '../db/client.js';
 import { sourceChunks, sources } from '../db/schema/index.js';
@@ -13,6 +13,14 @@ export interface VectorSearchParams {
   notebookId: string;
   embedding: number[];
   limit: number;
+  /** Only these sources (a tutor chat: the lesson's cited sources); empty → nothing. */
+  sourceIds?: string[];
+}
+
+/** The optional source filter: unset → every source, empty → none. */
+function inSources(sourceIds: string[] | undefined) {
+  if (sourceIds === undefined) return undefined;
+  return sourceIds.length > 0 ? inArray(sourceChunks.sourceId, sourceIds) : sql`false`;
 }
 
 /** Chunk columns both searches return. */
@@ -50,7 +58,7 @@ export type VectorSearchRow = Awaited<ReturnType<typeof nearestChunks>>[number];
  */
 export async function nearestChunks(
   tx: Tx,
-  { userId, notebookId, embedding, limit }: VectorSearchParams,
+  { userId, notebookId, embedding, limit, sourceIds }: VectorSearchParams,
   iterativeScan: HnswIterativeScan = retrieval.hnswIterativeScan,
 ) {
   await tx.execute(sql`select set_config('hnsw.iterative_scan', ${iterativeScan}, true)`);
@@ -69,6 +77,7 @@ export async function nearestChunks(
         eq(sourceChunks.notebookId, notebookId),
         eq(sources.userId, userId),
         eq(sources.status, 'READY'),
+        inSources(sourceIds),
       ),
     )
     .orderBy(distance)
@@ -80,6 +89,8 @@ export interface KeywordSearchParams {
   notebookId: string;
   query: string;
   limit: number;
+  /** Same as vector search's. */
+  sourceIds?: string[];
 }
 
 /**
@@ -92,7 +103,7 @@ export interface KeywordSearchParams {
  */
 export function keywordChunks(
   db: Db | Tx,
-  { userId, notebookId, query, limit }: KeywordSearchParams,
+  { userId, notebookId, query, limit, sourceIds }: KeywordSearchParams,
 ) {
   const tsQuery = sql`replace(plainto_tsquery('english', ${query})::text, '&', '|')::tsquery`;
   const rank = sql<number>`ts_rank(${sourceChunks.searchVector}, ${tsQuery})`.mapWith(Number);
@@ -105,6 +116,7 @@ export function keywordChunks(
         eq(sourceChunks.notebookId, notebookId),
         eq(sources.userId, userId),
         eq(sources.status, 'READY'),
+        inSources(sourceIds),
         sql`${sourceChunks.searchVector} @@ ${tsQuery}`,
       ),
     )

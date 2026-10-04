@@ -1,4 +1,4 @@
-import { errorResponseSchema, lessonSchema, moduleSchema } from '@curio/shared';
+import { conversationSchema, errorResponseSchema, lessonSchema, moduleSchema } from '@curio/shared';
 import { and, eq } from 'drizzle-orm';
 import type { AddressInfo } from 'node:net';
 import request from 'supertest';
@@ -8,6 +8,7 @@ import {
   learningPaths,
   lessons,
   memories,
+  messages,
   modules,
   notebooks,
   sourceChunks,
@@ -19,6 +20,8 @@ import { LlmError } from '../../src/errors/llm-error.js';
 import type { LlmProvider, LlmResult } from '../../src/lib/llm/index.js';
 import type { RerankProvider } from '../../src/lib/rerank/index.js';
 import { GENERAL_KNOWLEDGE_NOTE, LESSON_INSTRUCTIONS } from '../../src/pipelines/lessons/prompt.js';
+import { DONE_MARKER } from '../../src/pipelines/tutor/marker.js';
+import { TUTOR_INSTRUCTIONS } from '../../src/pipelines/tutor/prompt.js';
 import { createFakeEmbeddings, fakeVector } from '../fakes/embeddings.js';
 import { createFakeLlm, type FakeLlm } from '../fakes/llm.js';
 import { createFakeLocks, type FakeLocks } from '../fakes/locks.js';
@@ -34,15 +37,19 @@ const errorCode = (body: unknown) => errorResponseSchema.parse(body).error.code;
 
 const DROPOUT = 'Dropout randomly drops units during training to reduce overfitting.';
 
-/** Relevant only for the dropout concept: the gate refuses the other one (general knowledge). */
+/** Documents the reranker was asked about, per call (what a search found). */
+let reranked: string[][] = [];
+/** Relevant only for dropout: the gate refuses anything else (general knowledge). */
 const reranker: RerankProvider = {
   model: 'fake-rerank',
-  rerank: ({ query }) =>
-    Promise.resolve({
-      results: [{ index: 0, score: query.startsWith('Dropout') ? 0.95 : 0.05 }],
+  rerank: ({ query, documents }) => {
+    reranked.push(documents);
+    return Promise.resolve({
+      results: [{ index: 0, score: query.toLowerCase().includes('dropout') ? 0.95 : 0.05 }],
       model: 'fake-rerank',
       searchUnits: 1,
-    }),
+    });
+  },
 };
 
 const LESSON_TEXT = [
@@ -64,9 +71,17 @@ let locks: FakeLocks;
 let limiter: FakeRateLimiter;
 let tracer: FakeTracer;
 let app: ReturnType<typeof createTestApp>;
-let ids: { userId: string; pathId: string; notebookId: string; m1: string; m2: string };
+let ids: {
+  userId: string;
+  pathId: string;
+  notebookId: string;
+  m1: string;
+  m2: string;
+  sourceId: string;
+};
 
 function buildApp(provider?: LlmProvider) {
+  reranked = [];
   llm = createFakeLlm();
   locks = createFakeLocks();
   limiter = createFakeRateLimiter();
@@ -176,7 +191,14 @@ async function seed() {
     tokenCount: 12,
     pageNumber: 4,
   });
-  ids = { userId: user.id, pathId: path.id, notebookId: notebook.id, m1: m1.id, m2: m2.id };
+  ids = {
+    userId: user.id,
+    pathId: path.id,
+    notebookId: notebook.id,
+    m1: m1.id,
+    m2: m2.id,
+    sourceId: source.id,
+  };
 }
 
 beforeEach(async () => {
@@ -432,5 +454,145 @@ describe('PUT /modules/:moduleId/completion', () => {
     expect((await complete(ids.m1, true, BOB)).status).toBe(404);
     expect((await complete(crypto.randomUUID(), true)).status).toBe(404);
     expect(await understood()).toEqual([]);
+  });
+});
+
+describe("tutor (a lesson's chat)", () => {
+  const OTHER = 'Weight decay is not dropout: it shrinks weights.';
+
+  /** A saved lesson citing the book, plus a second notebook source the lesson doesn't cite. */
+  async function seedLesson() {
+    const [lesson] = await db
+      .insert(lessons)
+      .values({
+        moduleId: ids.m1,
+        version: 1,
+        content: 'Dropout drops units while training [1].',
+        citations: [
+          {
+            marker: 1,
+            sourceId: ids.sourceId,
+            sourceTitle: 'DL Book',
+            sourceType: 'PDF',
+            snippet: DROPOUT,
+            pageNumber: 4,
+            startSeconds: null,
+            headingPath: null,
+            charStart: null,
+            charEnd: null,
+          },
+        ],
+        status: 'COMPLETE',
+        model: 'fake-llm',
+      })
+      .returning();
+    const [other] = await db
+      .insert(sources)
+      .values({
+        notebookId: ids.notebookId,
+        userId: ids.userId,
+        type: 'PDF',
+        title: 'Other notes',
+        status: 'READY',
+        contentHash: 'hash-other',
+        chunkCount: 1,
+      })
+      .returning();
+    if (!lesson || !other) throw new Error('seed failed');
+    await db.insert(sourceChunks).values({
+      sourceId: other.id,
+      notebookId: ids.notebookId,
+      chunkIndex: 0,
+      content: OTHER,
+      contextHeader: 'Other notes',
+      embedding: fakeVector(OTHER),
+      tokenCount: 10,
+    });
+    return lesson.id;
+  }
+
+  const startTutor = (lessonId: string, notebookId = ids.notebookId, auth = ALICE) =>
+    request(app)
+      .post(`/api/v1/notebooks/${notebookId}/conversations`)
+      .set('authorization', auth)
+      .send({ lessonId });
+  const ask = (conversationId: string, content: string) =>
+    request(app)
+      .post(`/api/v1/conversations/${conversationId}/messages`)
+      .set('authorization', ALICE)
+      .send({ id: crypto.randomUUID(), content });
+
+  it('a lesson from another notebook or user → 404; its own notebook → 201, found from the lesson', async () => {
+    const lessonId = await seedLesson();
+    const [elsewhere] = await db
+      .insert(notebooks)
+      .values({ userId: ids.userId, title: 'Other', kind: 'SOURCE' })
+      .returning();
+
+    expect((await startTutor(lessonId, elsewhere?.id ?? '')).status).toBe(404);
+    expect((await startTutor(crypto.randomUUID())).status).toBe(404);
+    const res = await startTutor(lessonId);
+    expect(res.status).toBe(201);
+    const conversation = conversationSchema.parse(res.body);
+    expect(conversation.lessonId).toBe(lessonId);
+
+    const lesson = lessonSchema.parse((await get(`/modules/${ids.m1}/lesson`)).body);
+    expect(lesson.conversationId).toBe(conversation.id);
+  });
+
+  it("searches only the lesson's cited sources and knows the lesson, module and path", async () => {
+    const lessonId = await seedLesson();
+    const conversation = conversationSchema.parse((await startTutor(lessonId)).body);
+    llm.reply('It stops units relying on each other [1].');
+
+    const chunks = parseStream((await ask(conversation.id, 'Why does dropout help?')).text);
+
+    expect(textOf(chunks)).toBe('It stops units relying on each other [1].');
+    const seen = reranked.flat().join('\n');
+    expect(seen).toContain(DROPOUT);
+    expect(seen).not.toContain(OTHER);
+    const sent = llm.requests[0];
+    expect(sent?.instructions).toBe(TUTOR_INSTRUCTIONS);
+    const message = sent?.messages.at(-1)?.content ?? '';
+    expect(message).toContain('Module: Regularization');
+    expect(message).toContain('1. Regularization: Keeping models general ← this module');
+    // The turned-off module isn't part of the path the tutor sees.
+    expect(message).not.toContain('Optimizers');
+    expect(message).toContain('Dropout drops units while training.\n');
+    expect(message).toContain('Question: Why does dropout help?');
+    expect(chunks.some((c) => c.type === 'data-action')).toBe(false);
+  });
+
+  it('nothing in the sources still asks the model (the lesson may answer it)', async () => {
+    const lessonId = await seedLesson();
+    const conversation = conversationSchema.parse((await startTutor(lessonId)).body);
+    llm.reply("Your resources don't cover that.");
+
+    await ask(conversation.id, 'What about batch norm?');
+
+    expect(llm.requests).toHaveLength(1);
+    expect(llm.requests[0]?.messages.at(-1)?.content).toContain(
+      '(nothing in the resources matched this question)',
+    );
+  });
+
+  it('a final "ready" marker → action event, never shown or saved; nothing marked done', async () => {
+    const lessonId = await seedLesson();
+    const conversation = conversationSchema.parse((await startTutor(lessonId)).body);
+    llm.reply(`You've got it: dropout fights overfitting [1].\n${DONE_MARKER}`);
+
+    const chunks = parseStream(
+      (await ask(conversation.id, 'Got it, dropout makes sense now!')).text,
+    );
+
+    expect(textOf(chunks)).not.toContain(DONE_MARKER);
+    expect(chunks.find((c) => c.type === 'data-action')?.data).toEqual({
+      type: 'SUGGEST_COMPLETE',
+      moduleId: ids.m1,
+    });
+    const [answer] = await db.select().from(messages).where(eq(messages.role, 'ASSISTANT'));
+    expect(answer?.content).toBe("You've got it: dropout fights overfitting [1].");
+    const [module] = await db.select().from(modules).where(eq(modules.id, ids.m1));
+    expect(module?.completedAt).toBeNull();
   });
 });

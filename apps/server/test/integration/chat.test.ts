@@ -360,7 +360,13 @@ describe('send a message', () => {
         name: 'chat',
         sessionId: conversationId,
         input: 'What is dropout?',
-        output: { text: 'Answer [1].', citations: 1, removedMarkers: [], profile: false },
+        output: {
+          text: 'Answer [1].',
+          citations: 1,
+          removedMarkers: [],
+          profile: false,
+          tutor: null,
+        },
       }),
     ]);
     const [retrieveSpan] = tracer.spans;
