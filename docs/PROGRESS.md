@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 10 (Hardening), in progress
-- **Current step:** 10.2 quota audit done
+- **Current step:** 10.3 ownership suite done
 - **Blocked on:** nothing
-- **Next step:** 10.3 ownership test suite (every endpoint as another user → 404)
+- **Next step:** 10.4 prompt-injection check
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -31,7 +31,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 10
 - [x] 10.1 Rate limits: all 5 limited endpoints (6 routes: chat send + retry share `chatMessages`) were already behind `rateLimit`; audit fixes: the Upstash limiter checks rules shortest window first and stops at the first denial (they ran in parallel, so every per-minute 429 still counted against the daily 200: retrying after a 429 used up the day) · the 429 message names the real wait (`formatWait`: "42 seconds" / "5 minutes" / "about 24 hours"; it said "wait a moment" for daily limits too) · CORS already exposes `retry-after` · fake limiter gets `enforce()` (counts against the real rules like Upstash) · tests: `rate-limits.test.ts` (22: each route lets the last allowed request through and 429s the next with `Retry-After` + message, per user, the rule set = the endpoint list, chat's 21st per minute → 60s and the daily count untouched, send + retry share a count, path retry / prefill / upload URL / lesson read never checked, 401 before any check), `rate-limit.test.ts` unit (11: rule order, stop on denial, reset → seconds ≥ 1, `formatWait`)
 - [x] 10.2 Quota audit: every quota already enforced and tested: PDF size (upload URL, `FILE_TOO_LARGE`; the R2 URL signs `content-length`), video length (before the transcript; unknown length → last caption's end, `VIDEO_TOO_LONG`), pasted text (100k after normalising, `QUOTA_EXCEEDED`; 1 MB JSON body fits it), sources per notebook (create under a notebook row lock, upload URL pre-check), notebooks per user (advisory lock; paths too), memories (extraction, lesson completion, path start; no API creates one); path sources go into a fresh notebook (≤ a handful). One gap fixed: adding a PDF source now checks the **stored** file's size too (`assertPdfSize`), so a file larger than declared can't reach ingestion · test: stored file over 25 MB → 400 `FILE_TOO_LARGE`, nothing saved, no job
-- [ ] 10.3 Ownership test suite: every endpoint as another user → 404
+- [x] 10.3 Ownership suite (`ownership.test.ts`, 38): Alice owns one of everything (notebook + PDF source + chat with an answer, READY path with a module, concept and lesson, a memory); **each of the 33 routes that take an ID**, called by Bob with a valid body → 404 `NOT_FOUND` (also where the state would give 409: path branch / retry, lesson generate), every table unchanged, no job sent, no model call, no file deleted; the same call as Alice is not a 404 (so a wrong seed can't pass) · IDs inside a body: Bob's tutor chat on Alice's lesson → 404, Bob's PDF source from Alice's upload key → 400 `UPLOAD_NOT_FOUND` · routes without an ID: Bob lists no notebooks / memories, his "delete all memories" keeps Alice's, prefill doesn't offer him her level · **coverage guard**: the routes registered on the app = the 33 cases + the 7 routes without an ID, so a new route fails the test until it's added. No ownership bug found
 - [ ] 10.4 Prompt-injection check
 - [ ] 10.5 Degradation tests
 - [ ] 10.6 Security review: CORS, headers, signed Inngest, private R2, no secrets in frontend
