@@ -38,6 +38,8 @@ export const llmTasks = {
   conceptMerge: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'low' },
   /** Prerequisite order, modules, gaps and advanced branches. */
   learningPath: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
+  /** Is the topic too broad for one path? If so, narrower topics (L-11). */
+  pathScope: { tier: 'luna', maxOutputTokens: 1_000, reasoningEffort: 'low' },
   /** The path's hook: what / why / example / origin. */
   pathHook: { tier: 'luna', maxOutputTokens: 1_000, reasoningEffort: 'low' },
   lesson: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },

@@ -13,6 +13,8 @@ export function createLearningPathsRouter(
 
   // Read-only and not rate-limited (docs/04-api-design.md §6).
   router.get('/learning-paths/prefill', controller.prefill);
+  // One model call each: 30 / day (L-11).
+  router.get('/learning-paths/scope', rateLimit(limiter, 'pathScopeChecks'), controller.scope);
   // 5 / day; retries don't count (docs/04-api-design.md §10).
   router.post('/learning-paths', rateLimit(limiter, 'learningPaths'), controller.start);
   router.get('/learning-paths/:pathId', controller.get);

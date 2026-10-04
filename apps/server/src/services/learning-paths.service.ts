@@ -1,9 +1,13 @@
 import {
   NOTEBOOK_TITLE_MAX,
+  TOPIC_NAME_MAX,
   type LearningPath,
+  type Level,
   type Module,
   type Outline,
   type PrefillResponse,
+  type ResourceState,
+  type ScopeResponse,
   type StartPathInput,
   type StartPathResponse,
 } from '@curio/shared';
@@ -12,6 +16,10 @@ import { learningPaths as learningPathsConfig, quotas } from '../config/index.js
 import { AppError, NotFoundError, ValidationError } from '../errors/app-error.js';
 import type { EmbeddingsProvider } from '../lib/embeddings/index.js';
 import type { JobsProvider } from '../lib/jobs/index.js';
+import type { LlmProvider } from '../lib/llm/index.js';
+import type { Tracer } from '../lib/tracing/index.js';
+import { moduleMinutes } from '../pipelines/learning/minutes.js';
+import { checkScope, NOT_BROAD, toScopeResult } from '../pipelines/learning/scope.js';
 import type {
   LearningPathsRepository,
   PathRow,
@@ -24,7 +32,17 @@ import { normalizeTopicName } from './topics.service.js';
 const pathNotFound = () => new NotFoundError('Learning path not found.');
 const notStarted = "We couldn't start building this path. Please retry.";
 
-function toPath(row: PathRow): LearningPath {
+type ResourceRow = Awaited<ReturnType<LearningPathsRepository['listResources']>>[number];
+
+/** Where a resource stands, for the progress screen. A deleted source counts as read. */
+export function resourceState(r: Pick<ResourceRow, 'sourceStatus' | 'mappedAt'>): ResourceState {
+  if (r.mappedAt) return 'MAPPED';
+  if (r.sourceStatus === 'FAILED') return 'FAILED';
+  if (r.sourceStatus === 'PENDING' || r.sourceStatus === 'PROCESSING') return 'READING';
+  return 'READ';
+}
+
+function toPath(row: PathRow, resources: ResourceRow[]): LearningPath {
   return {
     id: row.id,
     notebookId: row.notebookId,
@@ -35,6 +53,7 @@ function toPath(row: PathRow): LearningPath {
     branchOptions: row.branchOptions ?? null,
     selectedBranch: row.selectedBranch,
     hook: row.hook ?? null,
+    resources: resources.map((r) => ({ id: r.id, title: r.title, state: resourceState(r) })),
     error:
       row.status === 'FAILED' && row.errorCode
         ? { code: row.errorCode, message: row.errorMessage ?? '' }
@@ -49,18 +68,22 @@ function toModule(row: {
   position: number;
   title: string;
   summary: string;
+  why: string | null;
+  difficulty: Level | null;
   isEnabled: boolean;
   completedAt: Date | null;
+  hasLesson: boolean;
 }): Module {
   return {
     id: row.id,
     position: row.position,
     title: row.title,
     summary: row.summary,
+    why: row.why,
+    difficulty: row.difficulty,
     isEnabled: row.isEnabled,
     completedAt: row.completedAt?.toISOString() ?? null,
-    // Lessons arrive in Phase 9.
-    hasLesson: false,
+    hasLesson: row.hasLesson,
   };
 }
 
@@ -70,10 +93,12 @@ export function createLearningPathsService(deps: {
   memories: MemoriesRepository;
   paths: LearningPathsRepository;
   embeddings: EmbeddingsProvider;
+  llm: LlmProvider;
+  tracer: Tracer;
   jobs: JobsProvider;
   logger: Logger;
 }) {
-  const { topics, topicsService, memories, paths, embeddings, jobs, logger } = deps;
+  const { topics, topicsService, memories, paths, embeddings, llm, tracer, jobs, logger } = deps;
 
   /** Starts (or restarts) the job. Not queued → the path fails, so the learner can retry. */
   async function requestBuild(userId: string, pathId: string): Promise<boolean> {
@@ -91,6 +116,10 @@ export function createLearningPathsService(deps: {
     const row = await paths.findById(userId, pathId);
     if (!row) throw pathNotFound();
     return row;
+  }
+
+  async function withResources(userId: string, row: PathRow): Promise<LearningPath> {
+    return toPath(row, await paths.listResources({ userId, pathId: row.id }));
   }
 
   return {
@@ -130,7 +159,7 @@ export function createLearningPathsService(deps: {
     },
 
     async get(userId: string, pathId: string): Promise<LearningPath> {
-      return toPath(await findOwn(userId, pathId));
+      return withResources(userId, await findOwn(userId, pathId));
     },
 
     /**
@@ -152,7 +181,7 @@ export function createLearningPathsService(deps: {
       } catch (err) {
         logger.warn({ err, pathId }, 'path/branch-selected not sent: the job finds the pick later');
       }
-      return toPath(saved);
+      return withResources(userId, saved);
     },
 
     /** A failed path, built again: what was read is reused; not counted against the daily limit. */
@@ -164,7 +193,7 @@ export function createLearningPathsService(deps: {
       const reset = await paths.resetForRetry(userId, pathId);
       if (!reset) throw new AppError('INVALID_STATE', 'Only a failed path can be retried.');
       await requestBuild(userId, pathId);
-      return toPath(await findOwn(userId, pathId));
+      return withResources(userId, await findOwn(userId, pathId));
     },
 
     async outline(userId: string, pathId: string): Promise<Outline> {
@@ -174,18 +203,21 @@ export function createLearningPathsService(deps: {
       }
       const saved = await paths.outline(userId, pathId);
       const included = saved.concepts.filter((c) => c.status === 'INCLUDED' && c.moduleId);
-      const modules = saved.modules.map((m) => ({
-        ...toModule(m),
-        concepts: included
+      const modules = saved.modules.map((m) => {
+        const own = included
           .filter((c) => c.moduleId === m.id)
-          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-          .map((c) => ({
+          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        return {
+          ...toModule(m),
+          minutes: moduleMinutes(own.length, path.level, learningPathsConfig.minutesPerConcept),
+          concepts: own.map((c) => ({
             id: c.id,
             name: c.name,
             coveredBy: c.coveredBy,
             officialCovers: c.officialCovers,
           })),
-      }));
+        };
+      });
       const enabled = modules.filter((m) => m.isEnabled);
       return {
         hook: path.hook ?? null,
@@ -213,6 +245,26 @@ export function createLearningPathsService(deps: {
       const row = await paths.setModuleEnabled(userId, moduleId, isEnabled);
       if (!row) throw new NotFoundError('Module not found.');
       return toModule(row);
+    },
+
+    /**
+     * Is the topic focused enough for one path? Too broad → narrower topics to pick from (L-11).
+     * Only a suggestion: the model failing → not broad, so starting is never blocked.
+     */
+    async scope(userId: string, topic: string, level: Level): Promise<ScopeResponse> {
+      try {
+        const output = await tracer.trace({ name: 'learning-path-scope', userId }, () =>
+          checkScope({ topic, level }, { llm }),
+        );
+        return toScopeResult(output, {
+          minOptions: learningPathsConfig.scopeMinOptions,
+          maxOptions: learningPathsConfig.scopeMaxOptions,
+          topicMax: TOPIC_NAME_MAX,
+        });
+      } catch (err) {
+        logger.warn({ err }, 'scope check failed; topic treated as focused');
+        return NOT_BROAD;
+      }
     },
 
     /**

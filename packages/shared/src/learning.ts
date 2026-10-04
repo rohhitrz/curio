@@ -62,6 +62,18 @@ export const prefillResponseSchema = z.object({
 });
 export type PrefillResponse = z.infer<typeof prefillResponseSchema>;
 
+/** `GET /learning-paths/scope?topic=&level=`. */
+export const scopeQuerySchema = z.strictObject({ topic: topicNameSchema, level: levelSchema });
+export type ScopeQuery = z.infer<typeof scopeQuerySchema>;
+
+/** A topic too broad for one focused path → narrower topics to start from (L-11). */
+export const scopeResponseSchema = z.object({
+  broad: z.boolean(),
+  question: z.string().nullable(),
+  options: z.array(z.object({ label: z.string(), topic: z.string() })),
+});
+export type ScopeResponse = z.infer<typeof scopeResponseSchema>;
+
 /** `POST /learning-paths`. The level is the one the learner confirmed (pre-filled or picked). */
 export const startPathSchema = z.strictObject({
   topic: topicNameSchema,
@@ -78,6 +90,10 @@ export const startPathResponseSchema = z.object({
 });
 export type StartPathResponse = z.infer<typeof startPathResponseSchema>;
 
+/** `READING` (source pending / processing) · `READ` · `FAILED` · `MAPPED` (concepts extracted). */
+export const resourceStateSchema = z.enum(['READING', 'READ', 'FAILED', 'MAPPED']);
+export type ResourceState = z.infer<typeof resourceStateSchema>;
+
 /** `GET /learning-paths/:pathId`: the progress poll. */
 export const learningPathSchema = z.object({
   id: z.uuid(),
@@ -89,6 +105,8 @@ export const learningPathSchema = z.object({
   branchOptions: branchOptionsSchema.nullable(),
   selectedBranch: z.string().nullable(),
   hook: pathHookSchema.nullable(),
+  /** What the job is reading and mapping, for the progress screen. */
+  resources: z.array(z.object({ id: z.uuid(), title: z.string(), state: resourceStateSchema })),
   /** Set when `FAILED`: what went wrong, for the learner. */
   error: z.object({ code: z.string(), message: z.string() }).nullable(),
   createdAt: z.iso.datetime(),
@@ -115,9 +133,15 @@ export const outlineModuleSchema = z.object({
   position: z.number().int().positive(),
   title: z.string(),
   summary: z.string(),
+  /** Why it matters and how it builds on the last; null on paths built before Phase 9. */
+  why: z.string().nullable(),
+  /** Relative within the path; null on paths built before Phase 9. */
+  difficulty: levelSchema.nullable(),
+  /** Estimated study time: its concepts × minutes per concept for the path's level (L-11). */
+  minutes: z.number().int().nonnegative(),
   isEnabled: z.boolean(),
   completedAt: z.iso.datetime().nullable(),
-  /** Lessons arrive in Phase 9. */
+  /** The module has a saved lesson. */
   hasLesson: z.boolean(),
   concepts: z.array(outlineConceptSchema),
 });
@@ -150,6 +174,6 @@ export type Outline = z.infer<typeof outlineSchema>;
 export const updateModuleSchema = z.strictObject({ isEnabled: z.boolean() });
 export type UpdateModuleInput = z.infer<typeof updateModuleSchema>;
 
-/** `PATCH /modules/:moduleId` → the module without its concepts. */
-export const moduleSchema = outlineModuleSchema.omit({ concepts: true });
+/** `PATCH /modules/:moduleId` → the module without its concepts (and so without minutes). */
+export const moduleSchema = outlineModuleSchema.omit({ concepts: true, minutes: true });
 export type Module = z.infer<typeof moduleSchema>;

@@ -1,4 +1,4 @@
-import { pathHookSchema } from '@curio/shared';
+import { levelSchema, pathHookSchema } from '@curio/shared';
 import type { Inngest } from 'inngest';
 import type { Logger } from 'pino';
 import { z } from 'zod';
@@ -107,6 +107,9 @@ const merged = z.union([
 const outlineModule = z.object({
   title: z.string(),
   summary: z.string(),
+  // Absent in step results saved before Phase 9 (a run in flight across the deploy).
+  why: z.string().nullable().default(null),
+  difficulty: levelSchema.nullable().default(null),
   conceptKeys: z.array(z.number().int()),
 });
 const outline = z.object({

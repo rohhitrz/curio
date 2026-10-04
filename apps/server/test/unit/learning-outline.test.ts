@@ -152,9 +152,21 @@ describe('applyOrder', () => {
   it('places concepts in module order; unknown and repeated numbers ignored', () => {
     const output: PathOrderOutput = {
       modules: [
-        { title: ' Basics ', summary: 's', items: [item(2), item(1), item(9), item(2)] },
-        { title: 'Empty', summary: 's', items: [item(42)] },
-        { title: 'More', summary: 's', items: [item(3), item(4)] },
+        {
+          title: ' Basics ',
+          summary: 's',
+          why: 'w',
+          difficulty: 'BEGINNER',
+          items: [item(2), item(1), item(9), item(2)],
+        },
+        { title: 'Empty', summary: 's', why: 'w', difficulty: 'BEGINNER', items: [item(42)] },
+        {
+          title: 'More',
+          summary: 's',
+          why: 'w',
+          difficulty: 'BEGINNER',
+          items: [item(3), item(4)],
+        },
       ],
       branches: [],
     };
@@ -162,8 +174,8 @@ describe('applyOrder', () => {
     const outline = applyOrder(concepts, output, limits);
 
     expect(outline.modules).toEqual([
-      { title: 'Basics', summary: 's', conceptKeys: [1, 0] },
-      { title: 'More', summary: 's', conceptKeys: [2, 3] },
+      { title: 'Basics', summary: 's', why: 'w', difficulty: 'BEGINNER', conceptKeys: [1, 0] },
+      { title: 'More', summary: 's', why: 'w', difficulty: 'BEGINNER', conceptKeys: [2, 3] },
     ]);
   });
 
@@ -175,6 +187,8 @@ describe('applyOrder', () => {
           {
             title: 'Basics',
             summary: 's',
+            why: ' ',
+            difficulty: 'INTERMEDIATE',
             items: [item(null, 'Linear algebra'), item(1), item(null, 'Calculus')],
           },
         ],
@@ -191,8 +205,14 @@ describe('applyOrder', () => {
       score: 0,
     });
     expect(outline.modules).toEqual([
-      { title: 'Basics', summary: 's', conceptKeys: [4, 0] },
-      expect.objectContaining({ title: 'More concepts', conceptKeys: [1, 2, 3] }),
+      // A blank why is no why; the catch-all module has neither.
+      { title: 'Basics', summary: 's', why: null, difficulty: 'INTERMEDIATE', conceptKeys: [4, 0] },
+      expect.objectContaining({
+        title: 'More concepts',
+        why: null,
+        difficulty: null,
+        conceptKeys: [1, 2, 3],
+      }),
     ]);
   });
 
@@ -201,9 +221,9 @@ describe('applyOrder', () => {
       concepts,
       {
         modules: [
-          { title: 'A', summary: 's', items: [item(1), item(2)] },
-          { title: 'B', summary: 's', items: [item(3)] },
-          { title: 'C', summary: 's', items: [item(4)] },
+          { title: 'A', summary: 's', why: 'w', difficulty: 'BEGINNER', items: [item(1), item(2)] },
+          { title: 'B', summary: 's', why: 'w', difficulty: 'BEGINNER', items: [item(3)] },
+          { title: 'C', summary: 's', why: 'w', difficulty: 'BEGINNER', items: [item(4)] },
         ],
         branches: [
           { name: 'Theory', description: 'd', modules: [1, 7] },
@@ -225,7 +245,10 @@ describe('applyOrder', () => {
     expect(() =>
       applyOrder(
         concepts,
-        { modules: [{ title: 'X', summary: 's', items: [] }], branches: [] },
+        {
+          modules: [{ title: 'X', summary: 's', why: 'w', difficulty: 'BEGINNER', items: [] }],
+          branches: [],
+        },
         limits,
       ),
     ).toThrow(InvalidOutlineError);
@@ -244,9 +267,9 @@ describe('cutPath', () => {
       concept(5, 0, { gap: true }),
     ],
     modules: [
-      { title: 'M1', summary: 's', conceptKeys: [5, 0, 1] },
-      { title: 'M2', summary: 's', conceptKeys: [2, 3] },
-      { title: 'M3', summary: 's', conceptKeys: [4] },
+      { title: 'M1', summary: 's', why: null, difficulty: null, conceptKeys: [5, 0, 1] },
+      { title: 'M2', summary: 's', why: null, difficulty: null, conceptKeys: [2, 3] },
+      { title: 'M3', summary: 's', why: null, difficulty: null, conceptKeys: [4] },
     ],
     branches: [
       { name: 'Deep', description: 'd', moduleIndexes: [1, 2] },
@@ -258,7 +281,9 @@ describe('cutPath', () => {
   it('beginner keeps high consensus only (with its module’s gap concept)', () => {
     const cut = cutPath(outline, 'BEGINNER', null, 4, noMin);
 
-    expect(cut.modules).toEqual([{ title: 'M1', summary: 's', conceptKeys: [5, 0, 1] }]);
+    expect(cut.modules).toEqual([
+      { title: 'M1', summary: 's', why: null, difficulty: null, conceptKeys: [5, 0, 1] },
+    ]);
     expect(cut.skipped).toEqual([
       { key: 2, reason: 'Covered by 2 of 4 resources, beyond the basics' },
       { key: 3, reason: 'Covered by 1 of 4 resources, beyond the basics' },
@@ -287,8 +312,8 @@ describe('cutPath', () => {
     const tied: Outline = {
       concepts: [concept(0, 0.4), concept(1, 0.4), concept(2, 0.4)],
       modules: [
-        { title: 'M1', summary: 's', conceptKeys: [2] },
-        { title: 'M2', summary: 's', conceptKeys: [1, 0] },
+        { title: 'M1', summary: 's', why: null, difficulty: null, conceptKeys: [2] },
+        { title: 'M2', summary: 's', why: null, difficulty: null, conceptKeys: [1, 0] },
       ],
       branches: [],
     };
@@ -324,8 +349,8 @@ describe('cutPath', () => {
     const lowFirst: Outline = {
       ...outline,
       modules: [
-        { title: 'M1', summary: 's', conceptKeys: [5, 4] },
-        { title: 'M2', summary: 's', conceptKeys: [0, 1, 2, 3] },
+        { title: 'M1', summary: 's', why: null, difficulty: null, conceptKeys: [5, 4] },
+        { title: 'M2', summary: 's', why: null, difficulty: null, conceptKeys: [0, 1, 2, 3] },
       ],
     };
 
@@ -368,19 +393,19 @@ describe('toOutlineRows', () => {
   it('kept concepts placed by module and position; skipped ones with their reason', () => {
     const outline: Outline = {
       concepts: [concept(0, 1, { resourceIds: ['a'] }), concept(1, 0.1, { resourceIds: ['b'] })],
-      modules: [{ title: 'M', summary: 's', conceptKeys: [0, 1] }],
+      modules: [{ title: 'M', summary: 's', why: null, difficulty: null, conceptKeys: [0, 1] }],
       branches: [],
     };
     const rows = toOutlineRows(
       outline,
       {
-        modules: [{ title: 'M', summary: 's', conceptKeys: [0] }],
+        modules: [{ title: 'M', summary: 's', why: null, difficulty: null, conceptKeys: [0] }],
         skipped: [{ key: 1, reason: 'why' }],
       },
       null,
     );
 
-    expect(rows.modules).toEqual([{ title: 'M', summary: 's' }]);
+    expect(rows.modules).toEqual([{ title: 'M', summary: 's', why: null, difficulty: null }]);
     expect(rows.concepts).toEqual([
       expect.objectContaining({
         name: 'C0',

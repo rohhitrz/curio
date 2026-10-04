@@ -1,4 +1,4 @@
-import type { Goal, Level } from '@curio/shared';
+import { levelSchema, type Goal, type Level } from '@curio/shared';
 import { z } from 'zod';
 import type { LlmProvider } from '../../lib/llm/index.js';
 import type { PathConcept } from './merge.js';
@@ -9,7 +9,11 @@ export const PATH_ORDER_INSTRUCTIONS = `You design the structure of a study path
 You get the topic, the learner's level and goal, and numbered concepts with how many resources cover each. Do three things:
 
 1. Order: put the concepts in prerequisite order (what must be understood first comes first).
-2. Modules: group consecutive concepts into 3–10 modules. Each module has a short title (2–6 words) and a one-sentence summary. Every concept number goes in exactly one module, in order.
+2. Modules: group consecutive concepts into modules, as many as the topic's breadth needs (3–10): a narrow topic needs few, a broad one more. Never pad with filler modules and never cram unrelated ideas into one; split a large idea into focused modules instead. Every concept number goes in exactly one module, in order. Each module has:
+   - title: short (2–6 words)
+   - summary: one sentence on what it covers
+   - why: one or two sentences on why it matters for the learner's goal and how it builds on the modules before it; concrete, not generic
+   - difficulty: "BEGINNER", "INTERMEDIATE" or "ADVANCED", how demanding this module is within this path (early modules are usually easier)
 3. Gaps: if an essential prerequisite is missing from the list, you may add it (at most 3 in total) inside the module where it belongs, with "concept": null and its own name and description. Do not add anything else.
 
 Each module item is {"concept": number or null, "name", "description"}; for a listed concept repeat its name.
@@ -23,6 +27,8 @@ export const pathOrderSchema = z.object({
     z.object({
       title: z.string(),
       summary: z.string(),
+      why: z.string(),
+      difficulty: levelSchema,
       items: z.array(
         z.object({
           concept: z.number().int().nullable(),
@@ -41,6 +47,9 @@ export type PathOrderOutput = z.infer<typeof pathOrderSchema>;
 export interface OutlineModule {
   title: string;
   summary: string;
+  /** Null for the catch-all module code adds, and in outlines from before Phase 9. */
+  why: string | null;
+  difficulty: Level | null;
   /** Concept keys in learning order. */
   conceptKeys: number[];
 }
@@ -129,7 +138,13 @@ export function applyOrder(
     }
     if (keys.length === 0) return;
     moduleIndex.set(i + 1, modules.length);
-    modules.push({ title: module.title.trim(), summary: module.summary.trim(), conceptKeys: keys });
+    modules.push({
+      title: module.title.trim(),
+      summary: module.summary.trim(),
+      why: module.why.trim() || null,
+      difficulty: module.difficulty,
+      conceptKeys: keys,
+    });
   });
 
   if (modules.length === 0) throw new InvalidOutlineError('the outline has no usable module');
@@ -138,6 +153,8 @@ export function applyOrder(
     modules.push({
       title: 'More concepts',
       summary: 'Concepts the resources cover that the modules above leave out.',
+      why: null,
+      difficulty: null,
       conceptKeys: left,
     });
   }

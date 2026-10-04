@@ -18,6 +18,8 @@ export const rateLimits = {
   ],
   lessonGenerations: [{ limit: 50, windowSeconds: 24 * 60 * 60 }],
   learningPaths: [{ limit: 5, windowSeconds: 24 * 60 * 60 }],
+  /** `GET /learning-paths/scope`: one model call each (L-11). */
+  pathScopeChecks: [{ limit: 30, windowSeconds: 24 * 60 * 60 }],
   sourceAdds: [{ limit: 50, windowSeconds: 24 * 60 * 60 }],
 } as const;
 
@@ -312,4 +314,12 @@ export const learningPaths = {
   branchWait: { every: '1h', times: 72 },
   /** The official resource's opening, given to the hook so it isn't written from memory alone. */
   hookSourceChars: 6_000,
+  /**
+   * A module's estimated study time = its concepts × these minutes, rounded up to 5 (L-11). Set
+   * by hand: a concept is an intuition, an example and a takeaway in the lesson, plus questions.
+   */
+  minutesPerConcept: { BEGINNER: 6, INTERMEDIATE: 8, ADVANCED: 10 },
+  /** Scope check options: a broad topic gets between these many narrower topics (L-11). */
+  scopeMinOptions: 4,
+  scopeMaxOptions: 6,
 } as const;

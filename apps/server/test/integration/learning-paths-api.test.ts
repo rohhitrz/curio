@@ -4,6 +4,7 @@ import {
   moduleSchema,
   notebookDetailSchema,
   outlineSchema,
+  scopeResponseSchema,
   startPathResponseSchema,
 } from '@curio/shared';
 import { eq, sql } from 'drizzle-orm';
@@ -14,15 +15,18 @@ import {
   conceptCoverage,
   concepts,
   learningPaths,
+  lessons,
   memories,
   modules,
   notebooks,
   pathResources,
+  sources,
   topics,
   users,
 } from '../../src/db/schema/index.js';
 import { createFakeEmbeddings, type FakeEmbeddings } from '../fakes/embeddings.js';
 import { createFakeJobs, type FakeJobs } from '../fakes/jobs.js';
+import { createFakeLlm } from '../fakes/llm.js';
 import { createFakeRateLimiter, type FakeRateLimiter } from '../fakes/rate-limit.js';
 import { bearer, createTestApp } from '../helpers/app.js';
 import { getTestDb, truncateAllTables } from '../helpers/db.js';
@@ -212,10 +216,60 @@ describe('GET /learning-paths/:pathId', () => {
       status: 'GATHERING',
       branchOptions: null,
       hook: null,
+      resources: [],
       error: null,
     });
     expect((await get(`/learning-paths/${started.pathId}`, BOB)).status).toBe(404);
     expect((await get('/learning-paths/not-a-uuid')).status).toBe(404);
+  });
+
+  it('names each resource with where it stands: reading, read, failed, mapped', async () => {
+    const started = await startPath();
+    const alice = await userIdOf('user_alice');
+    const source = (title: string, status: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED') =>
+      db
+        .insert(sources)
+        .values({
+          notebookId: started.notebookId,
+          userId: alice,
+          type: 'WEBSITE',
+          origin: 'LEARNING_PATH',
+          title,
+          url: `https://${title}.example`,
+          contentHash: `hash-${title}`,
+          status,
+        })
+        .returning()
+        .then(([row]) => row?.id ?? null);
+    const resource = async (
+      title: string,
+      status: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED',
+      mapped = false,
+    ) =>
+      db.insert(pathResources).values({
+        pathId: started.pathId,
+        sourceId: await source(title, status),
+        role: 'POPULAR',
+        resourceType: 'ARTICLE',
+        title,
+        url: `https://${title}.example`,
+        mappedAt: mapped ? new Date() : null,
+      });
+    await resource('pending', 'PENDING');
+    await resource('processing', 'PROCESSING');
+    await resource('ready', 'READY');
+    await resource('failed', 'FAILED');
+    await resource('mapped', 'READY', true);
+
+    const path = learningPathSchema.parse((await get(`/learning-paths/${started.pathId}`)).body);
+
+    expect(Object.fromEntries(path.resources.map((r) => [r.title, r.state]))).toEqual({
+      pending: 'READING',
+      processing: 'READING',
+      ready: 'READ',
+      failed: 'FAILED',
+      mapped: 'MAPPED',
+    });
   });
 
   it('a FAILED path shows its error', async () => {
@@ -337,7 +391,15 @@ async function seedReadyPath(pathId: string) {
   const [m1, m2] = await db
     .insert(modules)
     .values([
-      { pathId, position: 1, title: 'Basics', summary: 'The basics' },
+      {
+        pathId,
+        position: 1,
+        title: 'Basics',
+        summary: 'The basics',
+        why: 'Everything builds on it',
+        difficulty: 'BEGINNER',
+      },
+      // A module saved before Phase 9: no why, no difficulty.
       { pathId, position: 2, title: 'Training', summary: 'How it learns' },
     ])
     .returning();
@@ -423,11 +485,16 @@ describe('GET /learning-paths/:pathId/outline', () => {
     ]);
     expect(outline.modules[0]?.concepts[0]).toMatchObject({ coveredBy: 2, officialCovers: true });
     expect(outline.modules[0]?.concepts[1]).toMatchObject({ coveredBy: 1, officialCovers: false });
+    // Intermediate: 8 minutes a concept, rounded up to 5.
     expect(outline.modules[0]).toMatchObject({
+      why: 'Everything builds on it',
+      difficulty: 'BEGINNER',
+      minutes: 20,
       isEnabled: true,
       completedAt: null,
       hasLesson: false,
     });
+    expect(outline.modules[1]).toMatchObject({ why: null, difficulty: null, minutes: 10 });
     expect(outline.skipped).toEqual([
       { name: 'Kernels', reason: 'Covered by 1 of 2 resources, advanced' },
     ]);
@@ -437,6 +504,86 @@ describe('GET /learning-paths/:pathId/outline', () => {
     ]);
     expect(outline.progress).toEqual({ completed: 0, enabled: 2 });
     expect((await get(`/learning-paths/${started.pathId}/outline`, BOB)).status).toBe(404);
+  });
+
+  it('hasLesson once the module has a saved lesson', async () => {
+    const started = await startPath();
+    const { m1 } = await seedReadyPath(started.pathId);
+    await db.insert(lessons).values({
+      moduleId: m1?.id ?? '',
+      version: 1,
+      content: 'Lesson',
+      status: 'COMPLETE',
+      model: 'fake-llm',
+    });
+
+    const outline = outlineSchema.parse(
+      (await get(`/learning-paths/${started.pathId}/outline`)).body,
+    );
+
+    expect(outline.modules.map((m) => m.hasLesson)).toEqual([true, false]);
+  });
+});
+
+describe('GET /learning-paths/scope', () => {
+  const scope = (topic: string, level = 'BEGINNER') =>
+    get(`/learning-paths/scope?topic=${encodeURIComponent(topic)}&level=${level}`);
+  const BROAD = {
+    broad: true,
+    question: ' Which part of programming? ',
+    options: [
+      { label: 'Python basics', topic: 'Programming fundamentals in Python' },
+      { label: 'Web pages', topic: 'Building web pages with HTML and CSS' },
+      { label: 'Duplicate', topic: 'programming fundamentals in python' },
+      { label: ' ', topic: 'Blank label' },
+      { label: 'Data', topic: 'Data analysis with SQL' },
+      { label: 'Games', topic: 'Making 2D games' },
+    ],
+  };
+
+  it('a broad topic → narrower options (blank and repeated ones dropped)', async () => {
+    const llm = createFakeLlm(JSON.stringify(BROAD));
+    app = createTestApp({ jobs, rateLimiter: limiter, embeddings, llm });
+
+    const res = await scope('Programming');
+
+    expect(res.status).toBe(200);
+    expect(scopeResponseSchema.parse(res.body)).toEqual({
+      broad: true,
+      question: 'Which part of programming?',
+      options: [
+        { label: 'Python basics', topic: 'Programming fundamentals in Python' },
+        { label: 'Web pages', topic: 'Building web pages with HTML and CSS' },
+        { label: 'Data', topic: 'Data analysis with SQL' },
+        { label: 'Games', topic: 'Making 2D games' },
+      ],
+    });
+    expect(llm.requests[0]?.task).toBe('pathScope');
+    expect(llm.requests[0]?.messages[0]?.content).toContain('Topic: Programming');
+    expect(limiter.checks).toEqual([expect.objectContaining({ name: 'pathScopeChecks' })]);
+  });
+
+  it('a focused topic, too few options, or the model down → not broad, never an error', async () => {
+    const llm = createFakeLlm(
+      JSON.stringify({ broad: false, question: '', options: [] }),
+      JSON.stringify({ ...BROAD, options: BROAD.options.slice(0, 3) }),
+      new Error('down'),
+    );
+    app = createTestApp({ jobs, rateLimiter: limiter, embeddings, llm });
+    const notBroad = { broad: false, question: null, options: [] };
+
+    for (const topic of ['Git', 'Programming', 'Science']) {
+      const res = await scope(topic);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(notBroad);
+    }
+  });
+
+  it('a missing topic or bad level → 400; over the daily limit → 429', async () => {
+    expect((await get('/learning-paths/scope?level=BEGINNER')).status).toBe(400);
+    expect((await scope('Git', 'EXPERT')).status).toBe(400);
+    limiter.denyAll(60);
+    expect((await scope('Git')).status).toBe(429);
   });
 });
 

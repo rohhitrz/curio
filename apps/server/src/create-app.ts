@@ -133,6 +133,8 @@ export function createApp({
         memories: memoriesRepository,
         paths: learningPathsRepository,
         embeddings,
+        llm,
+        tracer,
         jobs,
         logger,
       }),

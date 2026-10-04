@@ -1,5 +1,6 @@
 import {
   prefillQuerySchema,
+  scopeQuerySchema,
   selectBranchSchema,
   startPathSchema,
   updateModuleSchema,
@@ -13,6 +14,11 @@ export function createLearningPathsController(service: LearningPathsService) {
   const prefill: RequestHandler = async (req, res) => {
     const { topic } = prefillQuerySchema.parse(req.query);
     res.json(await service.prefill(getUserId(req), topic));
+  };
+
+  const scope: RequestHandler = async (req, res) => {
+    const { topic, level } = scopeQuerySchema.parse(req.query);
+    res.json(await service.scope(getUserId(req), topic, level));
   };
 
   const start: RequestHandler = async (req, res) => {
@@ -44,5 +50,5 @@ export function createLearningPathsController(service: LearningPathsService) {
     res.json(await service.updateModule(getUserId(req), moduleId, isEnabled));
   };
 
-  return { prefill, start, get, selectBranch, retry, outline, updateModule };
+  return { prefill, scope, start, get, selectBranch, retry, outline, updateModule };
 }

@@ -116,7 +116,12 @@ export function toOutlineRows(
     });
   }
   return {
-    modules: cut.modules.map((m) => ({ title: m.title, summary: m.summary })),
+    modules: cut.modules.map((m) => ({
+      title: m.title,
+      summary: m.summary,
+      why: m.why,
+      difficulty: m.difficulty,
+    })),
     concepts: rows,
     hook,
   };
@@ -178,6 +183,7 @@ export function createLearningPathOutlineService(deps: LearningPathOutlineDeps) 
           ),
         );
         if (concepts.length === 0) return { status: 'unmapped', resourceId: resource.resourceId };
+        await repository.markMapped(ref, resource.resourceId);
         return { status: 'mapped', resource: { ...resource, concepts } };
       } catch (err) {
         if (!isLastAttempt && isRetryable(err)) throw err;

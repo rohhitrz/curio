@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   BranchOption,
   ConceptStatus,
+  Level,
   PathHook,
   PathStatus,
   ResourceRole,
@@ -13,6 +14,7 @@ import {
   conceptCoverage,
   concepts,
   learningPaths,
+  lessons,
   modules,
   notebooks,
   pathResources,
@@ -42,7 +44,7 @@ export interface NewPathResource {
 
 /** The finished outline, written in one go (`saveOutline`). */
 export interface OutlineToSave {
-  modules: { title: string; summary: string }[];
+  modules: { title: string; summary: string; why: string | null; difficulty: Level | null }[];
   concepts: {
     name: string;
     description: string;
@@ -96,8 +98,11 @@ const moduleColumns = {
   position: modules.position,
   title: modules.title,
   summary: modules.summary,
+  why: modules.why,
+  difficulty: modules.difficulty,
   isEnabled: modules.isEnabled,
   completedAt: modules.completedAt,
+  hasLesson: sql<boolean>`exists (select 1 from ${lessons} where ${lessons.moduleId} = ${modules.id})`,
 };
 
 const owned = (ref: PathRef) =>
@@ -115,6 +120,7 @@ export function createLearningPathsRepository(db: Db) {
         url: pathResources.url,
         sourceId: pathResources.sourceId,
         sourceStatus: sources.status,
+        mappedAt: pathResources.mappedAt,
       })
       .from(pathResources)
       .innerJoin(learningPaths, eq(learningPaths.id, pathResources.pathId))
@@ -311,6 +317,22 @@ export function createLearningPathsRepository(db: Db) {
       return row;
     },
 
+    /** Its concepts were extracted (the progress screen names what's mapped). Safe to repeat. */
+    async markMapped(ref: PathRef, resourceId: string): Promise<void> {
+      await db
+        .update(pathResources)
+        .set({ mappedAt: sql`coalesce(${pathResources.mappedAt}, now())` })
+        .from(learningPaths)
+        .where(
+          and(
+            eq(pathResources.id, resourceId),
+            eq(learningPaths.id, pathResources.pathId),
+            eq(learningPaths.id, ref.pathId),
+            eq(learningPaths.userId, ref.userId),
+          ),
+        );
+    },
+
     /** Advanced path: the branches to pick from; `MAPPING` → `AWAITING_BRANCH`. */
     async offerBranches(ref: PathRef, options: BranchOption[]): Promise<boolean> {
       const rows = await db
@@ -354,6 +376,8 @@ export function createLearningPathsRepository(db: Db) {
                       position: i + 1,
                       title: m.title,
                       summary: m.summary,
+                      why: m.why,
+                      difficulty: m.difficulty,
                     })),
                   )
                   .returning({ id: modules.id, position: modules.position })

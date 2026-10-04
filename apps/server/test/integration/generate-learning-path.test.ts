@@ -169,6 +169,8 @@ function createRoutedLlm(selection: string | Error = judgements()) {
           modules.push({
             title: `Module ${String(modules.length + 1)}`,
             summary: 'Summary',
+            why: `Why module ${String(modules.length + 1)}`,
+            difficulty: modules.length === 0 ? 'BEGINNER' : 'INTERMEDIATE',
             items: numbers
               .slice(i, i + 2)
               .map((n) => ({ concept: n, name: 'x', description: 'd' })),
@@ -585,6 +587,15 @@ describe('generateLearningPath, part 2 (map → outline → READY)', () => {
       [2, 'Module 2'],
       [3, 'Module 3'],
     ]);
+    // The order step's why and difficulty are saved with each module.
+    expect(outline.modules.map((m) => [m.why, m.difficulty])).toEqual([
+      ['Why module 1', 'BEGINNER'],
+      ['Why module 2', 'INTERMEDIATE'],
+      ['Why module 3', 'INTERMEDIATE'],
+    ]);
+    // Every mapped resource is marked, for the progress screen.
+    const marked = await db.select({ mappedAt: pathResources.mappedAt }).from(pathResources);
+    expect(marked.every((r) => r.mappedAt !== null)).toBe(true);
     const included = outline.concepts.filter((c) => c.status === 'INCLUDED');
     expect(included.map((c) => c.name).sort()).toEqual([...CORE, ...OFFICIAL_ONLY].sort());
     expect(included.every((c) => c.moduleId !== null && c.position !== null)).toBe(true);
@@ -658,6 +669,15 @@ describe('generateLearningPath, part 2 (map → outline → READY)', () => {
     expect((await savedOutline()).concepts.find((c) => c.name === 'Neurons')?.consensusScore).toBe(
       1,
     );
+    const marked = await db
+      .select({ title: pathResources.title, mappedAt: pathResources.mappedAt })
+      .from(pathResources);
+    expect(
+      marked
+        .filter((r) => r.mappedAt === null)
+        .map((r) => r.title)
+        .sort(),
+    ).toEqual(['A', 'B']);
   });
 
   it('4 resources not mapped → FAILED with the count', async () => {
