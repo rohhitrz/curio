@@ -1,5 +1,6 @@
 // Drizzle table definitions. Tables are added phase by phase (docs/03-database-design.md).
 export * from './conversations.js';
+export * from './generation-status.js';
 export * from './learning-paths.js';
 export * from './level.js';
 export * from './memories.js';

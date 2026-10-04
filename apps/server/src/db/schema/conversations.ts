@@ -1,4 +1,5 @@
 import { index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { lessons } from './learning-paths.js';
 import { notebooks } from './notebooks.js';
 import { users } from './users.js';
 
@@ -12,11 +13,8 @@ export const conversations = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /**
-     * Set → chat is limited to the sources that lesson version cites. The FK to `lessons`
-     * (ON DELETE SET NULL) is added in Phase 9 with the `lessons` table.
-     */
-    lessonId: uuid('lesson_id'),
+    /** Set → the module's tutor: chat is limited to the sources that lesson version cites. */
+    lessonId: uuid('lesson_id').references(() => lessons.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
     summary: text('summary'),
     summarizedThroughSeq: integer('summarized_through_seq').notNull().default(0),
@@ -30,6 +28,7 @@ export const conversations = pgTable(
   },
   (t) => [
     index('conversations_notebook_id_last_message_at_idx').on(t.notebookId, t.lastMessageAt.desc()),
+    index('conversations_lesson_id_idx').on(t.lessonId),
   ],
 );
 

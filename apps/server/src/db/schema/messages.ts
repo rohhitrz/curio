@@ -10,10 +10,9 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { conversations } from './conversations.js';
+import { generationStatus } from './generation-status.js';
 
 export const messageRole = pgEnum('message_role', ['USER', 'ASSISTANT']);
-/** Shared with lessons (Phase 9). */
-export const generationStatus = pgEnum('generation_status', ['COMPLETE', 'ERROR']);
 export const feedback = pgEnum('feedback', ['UP', 'DOWN']);
 
 export const messages = pgTable(

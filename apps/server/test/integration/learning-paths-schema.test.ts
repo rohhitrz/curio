@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   conceptCoverage,
   concepts,
+  conversations,
   learningPaths,
+  lessons,
   memories,
   modules,
   notebooks,
@@ -31,6 +33,7 @@ async function pgCode(query: Promise<unknown>): Promise<string | undefined> {
 }
 
 const UNIQUE_VIOLATION = '23505';
+const FOREIGN_KEY_VIOLATION = '23503';
 
 beforeEach(async () => {
   await truncateAllTables();
@@ -52,6 +55,15 @@ async function seedResource(pathId: string, sourceId: string | null = null) {
     })
     .returning();
   if (!row) throw new Error('resource not created');
+  return row;
+}
+
+async function seedLesson(moduleId: string, version = 1) {
+  const [row] = await db
+    .insert(lessons)
+    .values({ moduleId, version, content: 'Lesson [1]', status: 'COMPLETE', model: 'test-model' })
+    .returning();
+  if (!row) throw new Error('lesson not created');
   return row;
 }
 
@@ -234,6 +246,59 @@ describe('learning tables', () => {
           origin: 'LESSON_COMPLETED',
         }),
       ),
-    ).toBe('23503');
+    ).toBe(FOREIGN_KEY_VIOLATION);
+  });
+
+  it('new columns start empty: module why / difficulty, resource mapped_at', async () => {
+    const { path } = await seedLearningPath(userId);
+    const module = await seedModule(path.id, 1);
+    const resource = await seedResource(path.id);
+
+    expect(module).toMatchObject({ why: null, difficulty: null });
+    expect(resource.mappedAt).toBeNull();
+  });
+
+  it('lesson versions are unique per module; citations default to []', async () => {
+    const { path } = await seedLearningPath(userId);
+    const module = await seedModule(path.id, 1);
+    const lesson = await seedLesson(module.id, 1);
+    await seedLesson(module.id, 2);
+
+    expect(lesson.citations).toEqual([]);
+    expect(await pgCode(seedLesson(module.id, 1))).toBe(UNIQUE_VIOLATION);
+  });
+
+  it('deleting the notebook removes its lessons; deleting a lesson unlinks its tutor chat', async () => {
+    const { notebook, path } = await seedLearningPath(userId);
+    const module = await seedModule(path.id, 1);
+    const lesson = await seedLesson(module.id);
+    const [conversation] = await db
+      .insert(conversations)
+      .values({ notebookId: notebook.id, userId, lessonId: lesson.id, title: 'Tutor' })
+      .returning();
+    if (!conversation) throw new Error('conversation not created');
+
+    await db.delete(lessons).where(eq(lessons.id, lesson.id));
+    const [left] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conversation.id));
+    expect(left?.lessonId).toBeNull();
+
+    await seedLesson(module.id, 2);
+    await db.delete(notebooks).where(eq(notebooks.id, notebook.id));
+    expect(await db.select().from(lessons)).toHaveLength(0);
+  });
+
+  it('a conversation cannot point at a lesson that does not exist', async () => {
+    const { notebook } = await seedLearningPath(userId);
+
+    expect(
+      await pgCode(
+        db
+          .insert(conversations)
+          .values({ notebookId: notebook.id, userId, lessonId: crypto.randomUUID(), title: 'x' }),
+      ),
+    ).toBe(FOREIGN_KEY_VIOLATION);
   });
 });

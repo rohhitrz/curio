@@ -78,6 +78,13 @@
       "when": 1791039068449,
       "tag": "0010_learning_paths",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791122626724,
+      "tag": "0011_lessons",
+      "breakpoints": true
     }
   ]
 }

@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 9 (Lessons), in progress
-- **Current step:** Phase 9 doc changes approved by the owner and committed (2026-10-04)
-- **Blocked on:** nothing
-- **Next step:** 9.1 migration `0011_lessons`
+- **Current step:** 9.1 done (migration `0011_lessons` on dev + test)
+- **Blocked on:** nothing (before the next push: the owner runs `0011_lessons` on prod, see Pending on owner)
+- **Next step:** 9.2 path upgrades
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 9
 - [x] 9.0 Doc changes from the owner's teacher feedback (approved 2026-10-04): PRD 5.6–5.7 + flow B, system design §8–9 (teaching lessons, tutor), DB (`modules.why` / `difficulty`, `path_resources.mapped_at`, tutor lookup), API (scope check, resource states in the poll, module why / difficulty / minutes, lesson `conversationId`, `action` stream event), build plan Phase 9 (9.1–9.7), test plan, decisions L-10 + L-11 · owner's picks: uncovered concepts taught under "General knowledge, not in the resources"; the tutor only suggests mark done
-- [ ] 9.1 Migration `0011_lessons`: `lessons` + FK/index `conversations.lesson_id`, `modules.why` + `difficulty`, `path_resources.mapped_at`
+- [x] 9.1 Migration `0011_lessons` on dev + test: `lessons` (unique `(module_id, version)`, citations default `[]`) + FK `conversations.lesson_id → lessons` ON DELETE SET NULL + index `conversations (lesson_id)`, `modules.why` + `modules.difficulty` (`level`), `path_resources.mapped_at` · `generation_status` enum moved to `db/schema/generation-status.ts` (lessons would otherwise import the chat tables) · schema tests (new columns empty, versions unique, cascade from notebook, tutor chat unlinked on lesson delete, FK rejects a missing lesson)
 - [ ] 9.2 Path upgrades: order `why` + difficulty + breadth-sized modules · minutes in code · `mapped_at` + resource states · scope check
 - [ ] 9.3 Lesson pipeline (retrieval per concept → teaching prompt → citation check → stream → save; versions, lock)
 - [ ] 9.4 Lesson API + `PUT /completion` with `UNDERSTOOD` memories
@@ -238,6 +238,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Run `0011_lessons` on prod before the next push** (`cd apps/server && pnpm db:migrate:prod`): the server reads `modules.why` / `difficulty` and `path_resources.mapped_at`, so code pushed before the migration would fail on paths. Adds a table, three nullable columns, one FK and one index; no data changes.
 - **Try a learning path live** (8.1–8.6 are deployed): Learn → a topic you know → level + goal → Build my path. Watch the stages (a few minutes), then check the outline: hook, modules, "why is this here?", the skipped list, unchecking a module, Start learning → the notebook with the resources as sources. Also try an advanced path (branch picker) and a topic without official docs (e.g. a history topic). The first real runs make real Tavily + OpenAI calls (one search set + ~10 Luna calls per path). Tell me what looks off; 8.7 measures coverage and consistency.
 - **Phase 7 live check** (Phase 7 approved; still worth doing):
   1. Open a notebook with a READY source and chat 4+ exchanges, saying something about yourself in one of them (e.g. "I'm a nurse, keep answers short").
