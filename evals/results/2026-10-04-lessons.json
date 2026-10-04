@@ -1,0 +1,1055 @@
+{
+  "kind": "lessons",
+  "date": "2026-10-04T17:08:25.179Z",
+  "commit": "031f986",
+  "dirty": true,
+  "config": {
+    "modulesPerTopic": 3,
+    "flags": {
+      "queryRewrite": true,
+      "hybridSearch": true,
+      "rerank": true,
+      "subQueries": false,
+      "relevanceGate": true,
+      "hyde": false
+    },
+    "lessons": {
+      "chunksPerConcept": 4,
+      "retrievalConcurrency": 4,
+      "contextMaxTokens": 14000
+    },
+    "models": {
+      "lesson": {
+        "tier": "luna",
+        "maxOutputTokens": 8000,
+        "reasoningEffort": "medium"
+      },
+      "judge": {
+        "tier": "luna",
+        "maxOutputTokens": 16000,
+        "reasoningEffort": "medium"
+      }
+    }
+  },
+  "summary": {
+    "lessons": 6,
+    "faithfulness": 0.936,
+    "claims": 171,
+    "unsupported": 11,
+    "generalKnowledgeConcepts": 0,
+    "concepts": 28,
+    "failedSteps": []
+  },
+  "cost": {
+    "llm": {
+      "gpt-6-luna": {
+        "inputTokens": 72884,
+        "cachedInputTokens": 7397,
+        "outputTokens": 27782,
+        "calls": 12,
+        "usd": 0.02051
+      }
+    },
+    "rerank": {
+      "calls": 28,
+      "searchUnits": 28,
+      "usd": 0.056
+    }
+  },
+  "durationSeconds": 449,
+  "topics": [
+    {
+      "topic": "python",
+      "level": "INTERMEDIATE",
+      "pathStatus": "BUILDING",
+      "lessons": [
+        {
+          "module": "Python Foundations",
+          "concepts": [
+            "Python Characteristics",
+            "Python Interpreter",
+            "Source Code Encoding",
+            "Indentation",
+            "Comments"
+          ],
+          "generalKnowledge": [],
+          "generalKnowledgeSections": 0,
+          "passages": 15,
+          "citations": 12,
+          "removedMarkers": [
+            80,
+            90,
+            100
+          ],
+          "chars": 6442,
+          "faithfulness": 0.962,
+          "claims": [
+            {
+              "claim": "Python is a high-level language used for automation, data science, AI, and web development.",
+              "supported": true,
+              "reason": "Source [1] describes Python as high-level and lists these uses."
+            },
+            {
+              "claim": "Python is designed for readability, which can make code easier to write, understand, and maintain.",
+              "supported": true,
+              "reason": "Sources [1] and [6] describe Python as readable and say readable code is easier to write, understand, and maintain."
+            },
+            {
+              "claim": "Python is available on Windows, macOS, and Unix systems.",
+              "supported": true,
+              "reason": "Source [11] names all three operating systems."
+            },
+            {
+              "claim": "Python's standard library and broader library ecosystem provide reusable functionality.",
+              "supported": true,
+              "reason": "Sources [1], [6], and [11] describe Python's library support and reusable standard modules."
+            },
+            {
+              "claim": "Python is a real programming language that supports larger programs and reusable modules.",
+              "supported": true,
+              "reason": "Source [11] says Python offers more structure and support for large programs and allows modules to be reused."
+            },
+            {
+              "claim": "Understanding how the interpreter reads files helps learners troubleshoot confidently.",
+              "supported": false,
+              "reason": "The sources describe interpreter behavior but do not claim that understanding it improves troubleshooting."
+            },
+            {
+              "claim": "Python's readability and library support make it useful for many kinds of projects.",
+              "supported": true,
+              "reason": "Sources [1] and [11] describe Python's broad applications and library support."
+            },
+            {
+              "claim": "The interpreter reads and executes Python commands or scripts.",
+              "supported": true,
+              "reason": "Source [2] says the interpreter reads and executes commands interactively or executes a script from a file."
+            },
+            {
+              "claim": "When connected to a terminal, Python can run interactively with `>>>` as the usual primary prompt and `...` as the continuation prompt.",
+              "supported": true,
+              "reason": "Source [7] gives these prompts and describes interactive mode when commands are read from a tty."
+            },
+            {
+              "claim": "Python can execute a command with `-c` or run a module with `-m`.",
+              "supported": true,
+              "reason": "Source [2] describes both command-line options."
+            },
+            {
+              "claim": "Using the interpreter interactively can make it easy to experiment and test functions during development.",
+              "supported": true,
+              "reason": "Source [6] explicitly describes these uses of the interactive interpreter."
+            },
+            {
+              "claim": "Interactive examples distinguish typed input from interpreter output using prompts.",
+              "supported": true,
+              "reason": "Source [10] explains how prompts distinguish input and output in examples."
+            },
+            {
+              "claim": "Python source files are treated as UTF-8 by default, allowing characters from many languages in strings, identifiers, and comments.",
+              "supported": true,
+              "reason": "Source [3] states the default encoding and lists those contexts."
+            },
+            {
+              "claim": "A source file can declare another supported encoding in a special comment on its first line, or its second line after a shebang.",
+              "supported": true,
+              "reason": "Source [3] gives these placement rules."
+            },
+            {
+              "claim": "The Python standard library uses ASCII identifiers, and the tutorial recommends this convention for portable code.",
+              "supported": true,
+              "reason": "Source [3] states both points."
+            },
+            {
+              "claim": "Declaring UTF-8 is optional when a source file already uses the default encoding.",
+              "supported": true,
+              "reason": "Source [3] establishes UTF-8 as the default and describes declarations for other encodings."
+            },
+            {
+              "claim": "A declared source-file encoding must match the encoding used by the file.",
+              "supported": true,
+              "reason": "Source [3] describes the comment as declaring the encoding of the source file."
+            },
+            {
+              "claim": "When `open()` reads or writes a text file, the encoding is platform-dependent if it is not specified; UTF-8 is recommended unless another encoding is needed.",
+              "supported": true,
+              "reason": "Source [8] states both the default behavior and recommendation."
+            },
+            {
+              "claim": "In Python, indentation groups statements, much like brackets group code in other languages.",
+              "supported": true,
+              "reason": "Source [6] says statement grouping uses indentation instead of beginning and ending brackets."
+            },
+            {
+              "claim": "Indented statements after a compound statement form its body, and lines in a basic block need consistent indentation.",
+              "supported": true,
+              "reason": "Source [9] states both rules."
+            },
+            {
+              "claim": "The Python style guide recommends four-space indentation and no tabs.",
+              "supported": true,
+              "reason": "Source [15] gives this recommendation."
+            },
+            {
+              "claim": "Unexpected indentation can cause an error.",
+              "supported": true,
+              "reason": "Source [4] describes an unexpected indentation problem in Python code."
+            },
+            {
+              "claim": "Changing indentation can change which block a statement belongs to or cause an error.",
+              "supported": true,
+              "reason": "Sources [9] and [4] support the grouping rule and the possibility of an indentation error."
+            },
+            {
+              "claim": "A comment is a note in code for readers, and Python does not interpret it as code.",
+              "supported": true,
+              "reason": "Source [10] says comments clarify code and are not interpreted by Python."
+            },
+            {
+              "claim": "A comment starts with `#` and continues to the end of the physical line; it can appear alone or after code.",
+              "supported": true,
+              "reason": "Source [10] states these comment rules."
+            },
+            {
+              "claim": "A `#` inside a string literal is a character rather than a comment marker.",
+              "supported": true,
+              "reason": "Source [10] explicitly states this."
+            }
+          ],
+          "lesson": "This first module introduces Python’s purpose and core traits, then follows the path from source text to running code. That foundation matters because Python’s readability and library support make it useful for many kinds of projects, while understanding how the interpreter reads your files helps you experiment and troubleshoot confidently.[1][6][11] Since there’s no previous module, we’ll build that starting point from the ground up.\n\n## Python Characteristics\n\nThink of Python as a set of clear instructions you can use to get a computer to do useful work without spelling out every low-level step. Its design makes it approachable to read, and its libraries let you build on existing tools rather than starting from scratch.\n\nPython is a **high-level** language used for tasks including automation, data science, AI, and web development.[1] It is designed for readability, which can make code easier to write, understand, and maintain.[1][6][13] Python is available on Windows, macOS, and Unix systems, and its standard library and wider library ecosystem provide reusable functionality.[1][6][11]\n\nFor example, a short function can capture the goal of a task directly:\n\n```python\ndef average_score(scores):\n    return sum(scores) / len(scores)\n\nprint(average_score())\n```\n\nThe function’s name and single return statement make its purpose easy to spot. In practice, you can use Python’s libraries when a project needs more capabilities than a small function provides.\n\nA common mistake is to treat “high-level” as meaning “only for small scripts.” Python is a real programming language with support for larger programs and reusable modules.[11]\n\n## Python Interpreter\n\nThe **interpreter** is the program that reads and executes Python code. You can think of it as a workshop with three entrances: type a command for a quick calculation, open an interactive session to experiment, or run a saved file as a script.\n\nWhen Python starts with a terminal connected to it, it can run interactively; the prompt is usually `>>>`, and `...` marks continuation lines in a multi-line construct.[7] Python can also run a script from a file, execute a command with `-c`, or run a module with `-m`.[2] Using the interpreter interactively can make it easy to experiment and test functions during development.[6]\n\nFor a quick calculation, run this command in a terminal:\n\n```bash\npython -c \"print(19 * 7)\"\n```\n\nTo run saved code, put `print(19 * 7)` in a file named `multiply.py`, then run `python multiply.py`. To explore interactively, start Python by entering `python` or `python3` in a terminal, type `19 * 7` at the `>>>` prompt, and press Enter.\n\nA common mistake is to confuse the interactive prompt with Python code to save in a file. The `>>>` and `...` symbols are prompts shown in interactive examples; you type the code that follows them, not the prompts themselves.[10]\n\n## Source Code Encoding\n\n**Source code encoding** is how characters in a source file are represented as data. You can picture it as a shared decoding key: Python and your editor need to interpret the file’s characters consistently.\n\nPython treats source files as UTF-8 by default, so string literals, identifiers, and comments can include characters from many languages.[3] A file can declare another supported encoding using a special comment on its first line; if a shebang line comes first, put the encoding declaration on the second line.[3] For portable code, the standard library uses ASCII identifiers, and the tutorial recommends that convention.[3]\n\nHere’s a UTF-8 source file containing a non-ASCII character:\n\n```python\n# coding: utf-8\ngreeting = \"Olá\"\nprint(greeting)\n```\n\nBecause UTF-8 is the default, the declaration is optional here. If the file instead uses a different supported encoding, its declaration must match that encoding.[3]\n\nA common mistake is to think that source-file encoding and the encoding used to read or write a separate text file are automatically the same setting. For `open()`, the text-file encoding is platform-dependent when not specified; the tutorial recommends `encoding=\"utf-8\"` unless you need another encoding.[8]\n\n## Indentation\n\nIn Python, indentation is more than visual formatting: it marks which statements belong together. It works like grouping brackets in other languages, but the groups are visible in the left edge of the code instead.[9][13]\n\nThe indented statements after a compound statement, such as a loop, form its body; lines in the same basic block need consistent indentation.[9] The Python style guide recommends four spaces and no tabs.[15] Unexpected indentation can also cause errors.[4]\n\n```python\ntemperature = 18\n\nif temperature < 20:\n    print(\"Bring a jacket.\")\n    print(\"The temperature is below 20.\")\n```\n\nBoth `print()` calls are indented under the `if`, so both belong to its body. If the condition is false, neither line runs.\n\nA common mistake is to treat indentation as decoration that can be changed without changing the program. In Python, changing indentation can change which block a statement belongs to—or cause an error.[9][13][4]\n\n## Comments\n\nA **comment** is a note in your code for people reading it; Python does not interpret it as an instruction. Think of it like a margin note that travels alongside the code without becoming part of what the program executes.\n\nA comment starts with `#` and continues to the end of that physical line. It can appear on its own line or after code, but a `#` inside a string literal is just a character in the string.[10]\n\n```python\n# The label shown to the user\nlabel = \"Status\"  # Keep this short.\nprint(label)\nprint(\"# is part of this string\")\n```\n\nThe first two comments are notes; the last line prints a string that contains `#`.\n\nA common mistake is to assume every `#` starts a comment. Inside a quoted string, it is just text.[10]\n\n## Key takeaways\n\n- Python is high-level, readable, available on multiple operating systems, and supported by a broad collection of libraries.[1][6][11][13]\n- Run Python interactively for experiments, use `-c` for a quick command, or run a saved script or module.[2][6][7]\n- Python source files default to UTF-8; a supported alternative encoding can be declared in a special comment.[3]\n- Indentation determines code grouping in Python; consistent four-space indentation is the recommended style.[9][13][15]\n- `#` begins a comment outside a string literal, and comments do not affect execution.[10]"
+        },
+        {
+          "module": "Values and Decisions",
+          "concepts": [
+            "Variables and Assignment",
+            "Numeric Types",
+            "Numeric Arithmetic",
+            "Strings",
+            "Printing Output",
+            "Command-Line Arguments",
+            "Conditional Statements"
+          ],
+          "generalKnowledge": [],
+          "generalKnowledgeSections": 0,
+          "passages": 22,
+          "citations": 12,
+          "removedMarkers": [
+            0
+          ],
+          "chars": 6243,
+          "faithfulness": 0.905,
+          "claims": [
+            {
+              "claim": "Assignment gives a variable a value without displaying a result by itself.",
+              "supported": true,
+              "reason": "Source [2] states that `=` assigns a value and that no result is displayed before the next prompt."
+            },
+            {
+              "claim": "Using a variable before assigning it raises a `NameError`.",
+              "supported": true,
+              "reason": "Source [2] demonstrates that accessing an undefined variable raises `NameError`."
+            },
+            {
+              "claim": "Variable names can use letters, digits, and underscores.",
+              "supported": true,
+              "reason": "Sources [1] and [18] describe these characters as usable in variable names."
+            },
+            {
+              "claim": "Variable names cannot start with a digit.",
+              "supported": true,
+              "reason": "Source [18] explicitly says variable names cannot start with numbers."
+            },
+            {
+              "claim": "Variable names cannot contain characters such as `-` or `!`.",
+              "supported": true,
+              "reason": "Sources [1] and [18] show that hyphens and other characters such as `!` are invalid in names."
+            },
+            {
+              "claim": "Python keywords such as `if` cannot be used as variable names.",
+              "supported": true,
+              "reason": "Source [18] says reserved keywords such as `if` cannot be used as names."
+            },
+            {
+              "claim": "`=` assigns a value, while `==` compares values.",
+              "supported": true,
+              "reason": "Sources [2], [7], and [11] support the distinction between assignment and comparison."
+            },
+            {
+              "claim": "Integers such as `4` have type `int`.",
+              "supported": true,
+              "reason": "Source [3] identifies integer values as having type `int`."
+            },
+            {
+              "claim": "Values with a fractional part such as `3.75` have type `float`.",
+              "supported": true,
+              "reason": "Source [3] identifies fractional numeric values as having type `float`."
+            },
+            {
+              "claim": "When arithmetic combines an integer and a float, Python converts the integer operand to a float.",
+              "supported": true,
+              "reason": "Source [2] explicitly states this mixed-type conversion."
+            },
+            {
+              "claim": "Python uses `+`, `-`, `*`, and `/` for arithmetic.",
+              "supported": true,
+              "reason": "Source [3] states that these operators perform arithmetic."
+            },
+            {
+              "claim": "Parentheses group parts of an expression.",
+              "supported": true,
+              "reason": "Source [3] explicitly says parentheses can be used for grouping."
+            },
+            {
+              "claim": "Division with `/` returns a float.",
+              "supported": true,
+              "reason": "Source [3] explicitly states that division always returns a float."
+            },
+            {
+              "claim": "`//` performs floor division.",
+              "supported": true,
+              "reason": "Source [3] identifies `//` as the floor-division operator."
+            },
+            {
+              "claim": "`%` gives the remainder.",
+              "supported": true,
+              "reason": "Source [3] explicitly states that `%` returns the remainder."
+            },
+            {
+              "claim": "`**` calculates a power.",
+              "supported": true,
+              "reason": "Source [3] demonstrates that `**` calculates powers."
+            },
+            {
+              "claim": "A string is text.",
+              "supported": false,
+              "reason": "The sources give string examples but do not define a string as text."
+            },
+            {
+              "claim": "String literals can be written with single quotes.",
+              "supported": true,
+              "reason": "Sources [4] and [19] show string literals enclosed in single quotes."
+            },
+            {
+              "claim": "String literals can be written with double quotes.",
+              "supported": false,
+              "reason": "The provided sources do not state that double quotes can delimit string literals."
+            },
+            {
+              "claim": "Triple-quoted strings can span multiple lines.",
+              "supported": true,
+              "reason": "Source [19] explicitly states that string literals can span multiple lines using triple quotes."
+            },
+            {
+              "claim": "Strings support indexing to get one character.",
+              "supported": true,
+              "reason": "Source [4] states that indexing obtains individual characters."
+            },
+            {
+              "claim": "Strings support slicing to get a substring.",
+              "supported": true,
+              "reason": "Source [4] states that slicing obtains a substring."
+            },
+            {
+              "claim": "String indexing starts at `0`.",
+              "supported": true,
+              "reason": "Source [4] explicitly says the first character has index 0."
+            },
+            {
+              "claim": "A slice includes its start position and excludes its end position.",
+              "supported": true,
+              "reason": "Source [4] describes slice positions as included at the start and excluded at the end."
+            },
+            {
+              "claim": "Strings can be joined with `+`.",
+              "supported": true,
+              "reason": "Source [19] states that strings can be concatenated with `+`."
+            },
+            {
+              "claim": "An f-string can insert expressions into formatted text.",
+              "supported": true,
+              "reason": "Source [9] states that expressions can be written inside formatted string literals."
+            },
+            {
+              "claim": "Strings are immutable.",
+              "supported": true,
+              "reason": "Source [8] explicitly says Python strings cannot be changed and are immutable."
+            },
+            {
+              "claim": "The `print()` function writes its argument values to output.",
+              "supported": true,
+              "reason": "Source [5] states that `print()` writes the value of its argument or arguments."
+            },
+            {
+              "claim": "`print()` can take multiple arguments.",
+              "supported": true,
+              "reason": "Source [5] explicitly contrasts `print()` with expression display by noting its handling of multiple arguments."
+            },
+            {
+              "claim": "`print()` prints strings without their quote marks.",
+              "supported": true,
+              "reason": "Source [5] explicitly states that strings are printed without quotes."
+            },
+            {
+              "claim": "`print()` inserts a space between arguments.",
+              "supported": true,
+              "reason": "Source [5] explicitly states that a space is inserted between items."
+            },
+            {
+              "claim": "The `end` argument can specify what follows the output instead of the usual newline.",
+              "supported": true,
+              "reason": "Source [5] says `end` can avoid the newline or end output with a different string."
+            },
+            {
+              "claim": "Command-line arguments let someone provide values when starting a script instead of editing its code.",
+              "supported": false,
+              "reason": "Source [6] describes how arguments are made available but does not make this comparison with editing code."
+            },
+            {
+              "claim": "Python makes the script name and subsequent command-line arguments available as strings in `sys.argv`.",
+              "supported": true,
+              "reason": "Source [6] explicitly states that the script name and subsequent arguments become a list of strings assigned to `sys.argv`."
+            },
+            {
+              "claim": "The list can be accessed by importing `sys`.",
+              "supported": true,
+              "reason": "Source [6] says to import `sys` to access the list."
+            },
+            {
+              "claim": "A command-line argument should be converted explicitly before numeric arithmetic.",
+              "supported": false,
+              "reason": "Source [6] says arguments are strings but does not state that conversion is needed for numeric arithmetic."
+            },
+            {
+              "claim": "A conditional statement lets a program choose which code to run based on a condition.",
+              "supported": true,
+              "reason": "Source [7] demonstrates different branches selected according to the value of a condition."
+            },
+            {
+              "claim": "An `if` statement can be followed by zero or more `elif` branches.",
+              "supported": true,
+              "reason": "Source [7] explicitly states that there can be zero or more `elif` parts."
+            },
+            {
+              "claim": "An `else` branch is optional.",
+              "supported": true,
+              "reason": "Source [7] explicitly says the `else` part is optional."
+            },
+            {
+              "claim": "Conditions can use comparisons.",
+              "supported": true,
+              "reason": "Source [11] describes comparison operators in conditions, and source [7] demonstrates a comparison in an `if` statement."
+            },
+            {
+              "claim": "Boolean operators such as `and`, `or`, and `not` can combine or negate conditions.",
+              "supported": true,
+              "reason": "Source [11] says comparisons can be combined with `and` and `or`, and negated with `not`."
+            },
+            {
+              "claim": "Python checks conditional branches in order.",
+              "supported": true,
+              "reason": "Source [7] presents an `if`/`elif` sequence where the first matching branch determines the action."
+            }
+          ],
+          "lesson": "This module turns the code-running basics from **Python Foundations** into programs that work with values, show results, and choose what to do. The ideas matter because they let you move from running a fixed expression to writing a small program that responds to its data.\n\n## Variables and Assignment\n\nThink of a **variable** as a label you use to refer to a value. Assignment gives the label a value; it doesn’t display a result by itself. If you try to use a name before assigning it, Python raises a `NameError`.[2][3]\n\nVariable names can use letters, digits, and underscores, but they can’t start with a digit or contain characters such as `-` or `!`; Python keywords such as `if` also can’t be used as names.[1][18]\n\n```python\nwidth = 20\nheight = 5 * 9       # assignment calculates the value first\narea = width * height\nprint(area)          # 900\n```\n\nThe program assigns values to `width` and `height`, then uses those names to calculate and display `area`.\n\nA common mistake is to read `=` as “is equal to.” In Python, it assigns a value; comparing values uses a different operator, `==`.[7][11]\n\n## Numeric Types\n\nNumbers have different **types**, which affect how calculations behave. Integers such as `4` have type `int`; values with a fractional part such as `3.75` have type `float`.[3] When arithmetic combines an integer and a float, Python converts the integer operand to a float.[2]\n\n```python\npieces = 4\nprice_each = 3.75\ntotal = pieces * price_each\nprint(total)         # 15.0\nprint(type(total))   # <class 'float'>\n```\n\nThe integer `4` is converted for the mixed-type calculation, so the result is a float.\n\nA common mistake is to assume a calculation involving an integer must produce an integer. The other operand’s type can affect the result.\n\n## Numeric Arithmetic\n\nArithmetic operators let a program calculate values. Python uses `+`, `-`, `*`, and `/` for addition, subtraction, multiplication, and division; parentheses group parts of an expression.[3] Division with `/` returns a float, while `//` gives floor division and `%` gives the remainder.[3] The `**` operator calculates a power.[3]\n\n```python\ntotal = 17\ngroup_size = 3\n\nprint(total / group_size)   # 5.666666666666667\nprint(total // group_size)  # 5\nprint(total % group_size)   # 2\nprint(2 ** 3)               # 8\n```\n\nFor `17` divided by `3`, the floor quotient is `5` and the remainder is `2`; together, `5 * 3 + 2` gives `17`.\n\nA common mistake is to use `/` when you need a whole-number quotient. Use `//` for floor division, and `%` when you need the remainder.\n\n## Strings\n\nA **string** is text. You can write string literals with single or double quotes, and use triple quotes for text spanning multiple lines.[19] Strings support indexing to get one character and slicing to get a substring; indexing starts at `0`, and a slice includes its start position but excludes its end position.[4] You can join strings with `+`, and use an f-string to insert expressions into formatted text.[19][9] Strings are immutable, so changing one character means creating a new string rather than assigning into the old one.[8]\n\n```python\nword = \"Python\"\nprint(word)          # P\nprint(word[1:4])        # yth\nprint(word + \" rocks\")  # Python rocks\n\nversion = 3\nprint(f\"{word} {version}\")  # Python 3\n```\n\n`word[1:4]` selects positions `1`, `2`, and `3`. The f-string inserts the value of `version` into the text.\n\nA common mistake is to expect the end of a slice to be included: `word[1:4]` stops just before index `4`.\n\n## Printing Output\n\nThe **`print()`** function writes its argument values to output.[5] Unlike an expression displayed in the interactive shell, `print()` can take multiple arguments: it prints strings without their quote marks and places a space between arguments.[5] Its `end` argument lets you choose what follows the output instead of using the usual newline.[5]\n\n```python\nname = \"Mira\"\nscore = 8\n\nprint(\"Player:\", name, \"Score:\", score)\nprint(\"Loading\", end=\"...\")\nprint(\"done\")\n```\n\nThe first call prints its four items with spaces between them. The second call ends with `...`, so `done` continues on the same line.\n\nA common mistake is to expect `print()` to show string quote marks. It prints the text, not the quotes used to write the string literal.[5]\n\n## Command-Line Arguments\n\n**Command-line arguments** let someone provide values when starting a script, rather than editing its code. Python makes the script name and subsequent arguments available as a list of strings in `sys.argv`; access the list by importing `sys`.[6]\n\n```python\n# Save as greet.py, then run: python greet.py Mira\nimport sys\n\nname = sys.argv[1]\nprint(f\"Hello, {name}!\")\n```\n\nWhen run as `python greet.py Mira`, `sys.argv` is the script name and `sys.argv[1]` is `\"Mira\"`. The program uses that string in its greeting.\n\nA common mistake is to treat an argument as a number just because it looks numeric. Command-line arguments are strings, so convert one explicitly before doing numeric arithmetic.[6]\n\n## Conditional Statements\n\nA **conditional statement** lets a program choose which code to run based on a condition. An `if` can be followed by zero or more `elif` branches, and an `else` branch is optional.[7] Conditions can use comparisons, and Boolean operators such as `and`, `or`, and `not` can combine or negate them.[11]\n\n```python\ntemperature = 28\n\nif temperature < 10:\n    print(\"Cold\")\nelif temperature < 25:\n    print(\"Mild\")\nelse:\n    print(\"Warm\")\n```\n\nPython checks the conditions in order. Here, `28 < 10` is false and `28 < 25` is false, so the program runs the `else` branch and prints `Warm`.\n\nA common mistake is to use `=` in a condition when you mean to compare two values. Use `==` for comparison; `=` assigns a value.[7][11]\n\n## Key takeaways\n\n- Assignment gives a name a value; using an unassigned name raises a `NameError`.\n- Mixed integer-and-float arithmetic converts the integer operand to a float.\n- Choose arithmetic operators for the result you need: `/`, `//`, `%`, or `**`.\n- Strings support indexing, slicing, concatenation, and formatting, but they are immutable.\n- Use `print()` for program output and `sys.argv` to receive command-line strings.\n- Use `if`, `elif`, and `else` to make decisions based on conditions."
+        },
+        {
+          "module": "Iteration and Patterns",
+          "concepts": [
+            "Range and Iterables",
+            "Loops",
+            "Pass Statement",
+            "Pattern Matching"
+          ],
+          "generalKnowledge": [],
+          "generalKnowledgeSections": 0,
+          "passages": 14,
+          "citations": 10,
+          "removedMarkers": [],
+          "chars": 5211,
+          "faithfulness": 0.909,
+          "claims": [
+            {
+              "claim": "A loop applies the same operation repeatedly.",
+              "supported": false,
+              "reason": "The sources do not define a loop this way."
+            },
+            {
+              "claim": "A Python for loop visits sequence items in their order rather than being limited to counting numbers.",
+              "supported": true,
+              "reason": "Source [6] says for loops iterate over sequence items in order, unlike loops limited to arithmetic progressions."
+            },
+            {
+              "claim": "A loop’s else clause runs if the loop finishes without a break.",
+              "supported": true,
+              "reason": "Source [2] states that the else clause runs when the loop finishes without executing break."
+            },
+            {
+              "claim": "A loop’s else clause does not run if break terminates the loop.",
+              "supported": true,
+              "reason": "Source [2] states that break prevents the loop’s else clause from executing."
+            },
+            {
+              "claim": "A while loop’s else clause runs after its condition becomes false.",
+              "supported": true,
+              "reason": "Source [2] states this explicitly."
+            },
+            {
+              "claim": "A return or exception skips a loop’s else clause.",
+              "supported": true,
+              "reason": "Source [2] says these early exits skip execution of the else clause."
+            },
+            {
+              "claim": "The loop else clause belongs to the for loop, not to an if statement inside it.",
+              "supported": true,
+              "reason": "Source [2] explicitly notes this distinction."
+            },
+            {
+              "claim": "Modifying a collection while iterating over it can be tricky.",
+              "supported": true,
+              "reason": "Source [6] says this can be tricky to get right."
+            },
+            {
+              "claim": "Looping over a copy or creating a new collection are approaches to this problem.",
+              "supported": true,
+              "reason": "Source [6] gives both approaches."
+            },
+            {
+              "claim": "The pass statement does nothing and can be used when syntax requires a statement but no action is needed.",
+              "supported": true,
+              "reason": "Source [3] states both points."
+            },
+            {
+              "claim": "Pass can serve as a temporary function body or as the body of an otherwise empty class.",
+              "supported": true,
+              "reason": "Source [3] gives both uses."
+            },
+            {
+              "claim": "Pass does not skip to the next loop iteration.",
+              "supported": true,
+              "reason": "Source [3] says pass does nothing, so it does not perform a loop-control action."
+            },
+            {
+              "claim": "Describing each branch by a shape or value can make a long chain of decisions easier to read.",
+              "supported": false,
+              "reason": "The sources do not state this readability benefit."
+            },
+            {
+              "claim": "A match statement compares a subject value against patterns in successive case blocks.",
+              "supported": true,
+              "reason": "Source [4] states this explicitly."
+            },
+            {
+              "claim": "A match statement executes only the first matching case.",
+              "supported": true,
+              "reason": "Source [4] states that only the first matching pattern is executed."
+            },
+            {
+              "claim": "If no case matches, no match branch executes.",
+              "supported": true,
+              "reason": "Source [4] states this explicitly."
+            },
+            {
+              "claim": "Patterns can match literals and capture parts of a value into variables.",
+              "supported": true,
+              "reason": "Source [4] describes literal patterns and variable capture."
+            },
+            {
+              "claim": "Mapping patterns can capture values for named keys.",
+              "supported": true,
+              "reason": "Source [8] says mapping patterns capture values for specified keys."
+            },
+            {
+              "claim": "Mapping patterns ignore extra keys.",
+              "supported": true,
+              "reason": "Source [8] states that extra keys are ignored."
+            },
+            {
+              "claim": "A standalone name in a pattern captures the subject value rather than testing it against an existing variable of that name.",
+              "supported": true,
+              "reason": "Sources [11] and [14] say standalone names are assigned to by a match statement."
+            },
+            {
+              "claim": "A named constant pattern must use a dotted name.",
+              "supported": true,
+              "reason": "Source [11] states that named constants must be dotted names."
+            },
+            {
+              "claim": "The underscore pattern is a wildcard that always matches.",
+              "supported": true,
+              "reason": "Source [4] says that _ acts as a wildcard and never fails to match."
+            }
+          ],
+          "lesson": "This module moves from choosing an action with `if` to repeating work across values, then choosing an action by matching a value’s shape. That makes it useful for processing collections and handling structured inputs; it builds on the names, values, and decisions from the previous module.\n\n## Range and Iterables\n\nThink of **`range()`** as a recipe for a run of numbers: it can supply each number when needed instead of laying out the whole sequence in advance. That’s handy when a loop needs a counter, or when a function can consume values one at a time.\n\nAn **iterable** is something that can provide successive items until it is exhausted; a `for` loop can use one, and functions such as `sum()` can accept one.[1] `range()` produces an arithmetic progression. Its stop value is excluded, and you can specify a start and step—including a negative step.[5] It returns an iterable object rather than building the complete list of values, which saves space.[1][5]\n\n```python\n# Start at 3, stop before 12, and advance by 4.\nsteps = range(3, 12, 4)\n\nprint(list(steps))  # [3, 7, 11]\nprint(sum(range(4)))  # 6: adds 0 + 1 + 2 + 3\n```\n\nThe values are `3`, `7`, and `11`: the next step would be `15`, which is past the stop value `12`.\n\nA common mistake is expecting the stop value to appear: `range(3, 12, 4)` does **not** include `12`.\n\n## Loops\n\nA loop is a way to apply the same operation repeatedly. A Python `for` loop takes each item from a sequence in order; it isn’t limited to counting through numbers.[6] When searching, a loop’s `else` clause can express “no match found”: it runs if the loop finishes without a `break`, but not if `break` ends the loop.[2] For a `while` loop, its `else` runs after the condition becomes false; an early `return` or exception also skips the `else`.[2]\n\n```python\nfor number in (8, 11):\n    for divisor in range(2, number):\n        if number % divisor == 0:\n            print(f\"{number} is divisible by {divisor}\")\n            break\n    else:\n        print(f\"{number} has no divisor in this search\")\n```\n\nFor `8`, the inner loop finds `2`, prints the divisor, and breaks—so its `else` does not run. For `11`, no divisor is found, the loop finishes normally, and its `else` runs.\n\nA common mistake is indenting the `else` as though it belongs to the `if`. Here, it belongs to the `for` loop.[2] Also be careful about changing a collection while looping over it: that can be tricky to get right. One approach is to loop over a copy; another is to build a new collection.[6]\n\n## Pass Statement\n\nSometimes Python’s syntax requires a statement, but you aren’t ready to make that block do anything. **`pass`** is an explicit do-nothing statement for that situation.[3]\n\nFor instance, it can stand in temporarily for a function body you plan to implement, or give an otherwise empty class a valid body.[3]\n\n```python\nclass Report:\n    pass  # Add report behavior later.\n\ndef format_report(data):\n    pass  # Implement formatting later.\n\nprint(\"The program still runs.\")\n```\n\nA common mistake is treating `pass` as a way to skip to the next loop iteration. It does nothing; it doesn’t perform a different action on the loop or its values.[3]\n\n## Pattern Matching\n\nA long chain of decisions can become easier to read when each branch describes a shape or value to handle. Python’s **`match`** statement compares a subject value against patterns in successive `case` blocks; it runs only the first matching case, and runs no branch if nothing matches.[4]\n\nPatterns can check literals and capture parts of a value into variables.[4] In a mapping pattern, named keys can capture their values, and extra keys are ignored.[8] A standalone name such as `kind` captures a value rather than checking whether the subject equals a variable already called `kind`; use a dotted name for a named constant pattern.[11][14] `_` is a wildcard that always matches.[4]\n\n```python\ndef handle(event):\n    match event:\n        case {\"kind\": \"click\", \"x\": x, \"y\": y}:\n            return f\"Clicked at ({x}, {y})\"\n        case {\"kind\": \"quit\"}:\n            return \"Shutting down\"\n        case _:\n            return \"Unknown event\"\n\nprint(handle({\"kind\": \"click\", \"x\": 12, \"y\": 5}))\nprint(handle({\"kind\": \"quit\", \"source\": \"menu\"}))\n```\n\nThe first event matches the `\"click\"` pattern, and `x` and `y` capture `12` and `5`. The second matches `\"quit\"` even though it has an extra `\"source\"` key. If neither pattern matched, the wildcard case would handle the event.\n\nA common mistake is writing `case kind:` to test whether a value equals an existing variable named `kind`. A bare name is a capture pattern, so it binds the subject value; use a literal or a dotted constant name to check for a particular value.[11][14]\n\n## Key takeaways\n\n- `range()` supplies an arithmetic progression without building a list of all its values.[1][5]\n- A `for` loop visits items in order; loop `else` runs when the loop ends without `break`.[2][6]\n- Use `pass` when a block needs a statement but no action yet.[3]\n- `match` chooses the first matching case, can capture parts of values, and supports `_` as a wildcard.[4]\n- A bare name in a pattern captures a value; it does not test against an existing variable.[11][14]"
+        }
+      ]
+    },
+    {
+      "topic": "git",
+      "level": "INTERMEDIATE",
+      "pathStatus": "MAPPING",
+      "lessons": [
+        {
+          "module": "Git Foundations",
+          "concepts": [
+            "Version Control",
+            "Version Control Models",
+            "Git Design and Storage",
+            "Git Data Integrity"
+          ],
+          "generalKnowledge": [],
+          "generalKnowledgeSections": 0,
+          "passages": 15,
+          "citations": 12,
+          "removedMarkers": [],
+          "chars": 6299,
+          "faithfulness": 0.944,
+          "claims": [
+            {
+              "claim": "Version control records changes over time so earlier versions can be recalled.",
+              "supported": true,
+              "reason": "Source [1] defines version control this way."
+            },
+            {
+              "claim": "Version control can compare changes over time.",
+              "supported": true,
+              "reason": "Source [1] says a VCS allows users to compare changes over time."
+            },
+            {
+              "claim": "Version control can restore a file or project to an earlier state.",
+              "supported": true,
+              "reason": "Source [1] says a VCS can revert selected files or the entire project."
+            },
+            {
+              "claim": "Version control can show who changed something and when.",
+              "supported": true,
+              "reason": "Sources [1] and [5] describe reviewing who made changes and when."
+            },
+            {
+              "claim": "Version control can help recover from some kinds of loss.",
+              "supported": true,
+              "reason": "Source [1] says a VCS can make lost files or mistakes easier to recover from."
+            },
+            {
+              "claim": "Version control can track documents and artwork as well as source code.",
+              "supported": true,
+              "reason": "Sources [1], [9], and [12] describe tracking non-code files."
+            },
+            {
+              "claim": "A reviewable change history helps people understand what changed and who made a change.",
+              "supported": true,
+              "reason": "Source [5] says project history shows which changes were made and who made them."
+            },
+            {
+              "claim": "A local version control system uses a database on the computer to track file changes.",
+              "supported": true,
+              "reason": "Source [13] says local VCSs use a simple database to keep file changes."
+            },
+            {
+              "claim": "A centralized version control system has one server holding versioned files that clients check out.",
+              "supported": true,
+              "reason": "Source [2] describes this centralized arrangement."
+            },
+            {
+              "claim": "Centralized systems can make coordination and administration easier.",
+              "supported": true,
+              "reason": "Source [2] identifies project visibility and administrative control as advantages."
+            },
+            {
+              "claim": "A centralized server is a single point of failure.",
+              "supported": true,
+              "reason": "Source [2] explicitly identifies the central server as a single point of failure."
+            },
+            {
+              "claim": "In a distributed version control system, each developer has a full copy of the repository and its history.",
+              "supported": true,
+              "reason": "Sources [5] and [6] state that developers or clients have a full copy, including history."
+            },
+            {
+              "claim": "A distributed repository copy can help restore a failed server.",
+              "supported": true,
+              "reason": "Source [6] says a client repository can be copied to restore a server."
+            },
+            {
+              "claim": "Distributed version control does not require a constant connection to a central repository.",
+              "supported": true,
+              "reason": "Source [5] states that DVCSs do not need a constant central connection."
+            },
+            {
+              "claim": "Git is a distributed version control system.",
+              "supported": true,
+              "reason": "Source [5] identifies Git as a DVCS."
+            },
+            {
+              "claim": "Teams using distributed version control can still use shared remote repositories.",
+              "supported": true,
+              "reason": "Source [6] says these systems can work with several remote repositories."
+            },
+            {
+              "claim": "Git stores project snapshots at commits rather than representing the project only as a list of file edits.",
+              "supported": true,
+              "reason": "Source [3] contrasts Git’s snapshots with other systems’ file-based changes."
+            },
+            {
+              "claim": "Git can refer to an unchanged file it already stored instead of storing it again.",
+              "supported": true,
+              "reason": "Source [3] describes this behavior for unchanged files."
+            },
+            {
+              "claim": "Git was designed with speed as a goal.",
+              "supported": true,
+              "reason": "Source [7] lists speed among the design goals."
+            },
+            {
+              "claim": "Git was designed with simple design as a goal.",
+              "supported": true,
+              "reason": "Source [7] lists simple design among the goals."
+            },
+            {
+              "claim": "Git was designed to support non-linear development.",
+              "supported": true,
+              "reason": "Source [7] lists strong support for non-linear development as a goal."
+            },
+            {
+              "claim": "Git was designed to be fully distributed.",
+              "supported": true,
+              "reason": "Source [7] lists being fully distributed among the goals."
+            },
+            {
+              "claim": "Git was designed to handle large projects efficiently.",
+              "supported": true,
+              "reason": "Source [7] lists efficient handling of large projects as a goal."
+            },
+            {
+              "claim": "Nearly all Git actions add data to its database.",
+              "supported": true,
+              "reason": "Source [10] states that nearly all Git actions only add data."
+            },
+            {
+              "claim": "Committed snapshots are difficult to lose, especially when the repository is regularly pushed elsewhere.",
+              "supported": true,
+              "reason": "Source [10] makes both points."
+            },
+            {
+              "claim": "Changes that have not been committed can still be lost or messed up.",
+              "supported": true,
+              "reason": "Source [10] explicitly warns about uncommitted changes."
+            },
+            {
+              "claim": "Git files can be in modified, staged, or committed states.",
+              "supported": true,
+              "reason": "Source [14] names these three states."
+            },
+            {
+              "claim": "Staging selects what will go into the next commit.",
+              "supported": true,
+              "reason": "Source [14] says staged files are marked for the next commit snapshot."
+            },
+            {
+              "claim": "A commit stores the staged snapshot in the local Git database.",
+              "supported": true,
+              "reason": "Source [14] describes committing the staging-area contents to the Git directory."
+            },
+            {
+              "claim": "Staging lets a user choose which changes to include when several files have been edited.",
+              "supported": true,
+              "reason": "Source [14] says users can selectively stage only the changes intended for the next commit."
+            },
+            {
+              "claim": "Git calculates a checksum before storing data and uses it to refer to that data.",
+              "supported": true,
+              "reason": "Source [4] states that Git checksums data before storage and refers to it by that checksum."
+            },
+            {
+              "claim": "The described checksum mechanism is SHA-1, a 40-character hexadecimal string based on file contents or directory structure.",
+              "supported": true,
+              "reason": "Source [4] gives these details about SHA-1."
+            },
+            {
+              "claim": "Git stores database objects by content hash rather than by file name.",
+              "supported": true,
+              "reason": "Source [4] states that Git stores data by the hash of its contents, not by file name."
+            },
+            {
+              "claim": "Git can detect when stored repository data has changed or become corrupted.",
+              "supported": true,
+              "reason": "Source [4] says Git detects content changes and can detect file corruption."
+            },
+            {
+              "claim": "Git’s checksum mechanism prevents someone from editing a working file.",
+              "supported": false,
+              "reason": "Source [4] says Git can detect content changes but does not say it prevents edits."
+            },
+            {
+              "claim": "A checksum is itself a backup or guarantees recovery from data loss.",
+              "supported": false,
+              "reason": "The sources describe checksums as detecting changes, not as providing a backup or guaranteeing recovery."
+            }
+          ],
+          "lesson": "This first module establishes what version control does, how collaboration models differ, and why Git’s storage design matters in day-to-day work. For a job, these ideas help you reason about history, collaboration, and recovery—not just memorize commands—and there’s no previous module to build on.\n\n## Version Control\n\nThink of **version control** as a project’s change history: instead of keeping a pile of files named “final-final-v3,” you can inspect how work evolved and return to an earlier state when needed. It matters because real work involves experiments, mistakes, and collaboration, and a useful history makes those easier to manage.\n\nA version control system records changes to files over time so you can recall earlier versions. It can help you compare changes, restore a file or project to an earlier state, identify who changed something and when, and recover from some kinds of loss. [1][5] You can track more than source code: version control can also be used for documents, artwork, and other files. [1][9][12]\n\n**Worked example:** You’re adjusting a website’s navigation and want to keep the option to undo your experiment. Make a change, save it as a commit, then compare it with the earlier project state. If the new navigation is worse, you can restore the earlier version rather than trying to reconstruct it from memory.\n\n```sh\ngit add .\ngit commit -m \"Adjust navigation\"\n```\n\nA common mistake is to treat version control as just backup. It also records a history that people can review to understand what changed and who made the change. [1][5]\n\n## Version Control Models\n\nThe models differ in where history lives and how people share it. Picture the difference between keeping a personal notebook, sharing one office filing cabinet, and giving every collaborator a complete copy of the archive.\n\nIn a **local** version control system, a database on your computer tracks file changes. [13] In a **centralized** system, one server holds the versioned files and clients check them out from there; this can make coordination and administration easier, but the server becomes a single point of failure. [2] In a **distributed** version control system, each developer has a full copy of the repository and its history; that copy can also help restore a server, and people can work without a constant connection to a central repository. [6][5] Git is a distributed version control system. [5]\n\n**Worked example:** Imagine a three-person team. With a centralized system, each person works with files from the shared server; if it goes down, collaboration can stop. With a distributed system such as Git, each person has the project history locally, so they can keep working independently and share changes later. [2][5][6]\n\nA common mistake is to assume “distributed” means there is no shared remote repository. A team can still use shared remotes; the key distinction is that each developer has a full repository copy and history. [5][6]\n\n## Git Design and Storage\n\nGit’s design makes more sense if you picture it as keeping snapshots of a project, rather than merely writing down a list of edits. That model supports working on versions and experiments without treating one shared server as the only place the project exists.\n\nMany version control systems represent a project as files plus the changes made to each file over time. Git instead stores a snapshot of the project when you commit; when a file hasn’t changed, Git can refer to the identical file it already stored rather than storing it again. [3] Git was designed with goals that included speed, simple design, distributed work, support for non-linear development, and efficiency with large projects. [7] Nearly all Git actions add data to its database. Committed snapshots are difficult to lose, especially if you regularly push the repository elsewhere, though changes you haven’t committed can still be lost or messed up. [10]\n\nIn practical use, Git separates work into **modified**, **staged**, and **committed** states. Staging selects what will go into the next commit; committing saves that staged snapshot in the local Git database. [14]\n\n**Worked example:** You edit two files but want your next commit to contain only one. Stage that file, then commit. The other file remains modified, outside that commit’s snapshot.\n\n```sh\ngit add app.py\ngit commit -m \"Handle empty input\"\n```\n\nA common mistake is to think staging is just a formality. It lets you choose which changes belong together in a commit, even when you’ve edited several files. [14]\n\n## Git Data Integrity\n\nGit’s integrity checks are like labels calculated from the contents of stored data: if the contents change, the label no longer matches. This helps Git notice changes or corruption rather than silently treating altered data as the original.\n\nGit calculates a checksum before storing data and uses that checksum to refer to it. The described checksum mechanism is SHA-1: a 40-character hexadecimal string based on a file’s contents or a directory structure. Git stores data in its database by content hash rather than by file name. [4] This means Git can detect when repository data’s contents have changed; it does not mean Git prevents someone from editing a working file. [4]\n\n**Worked example:** Suppose a file contains `mode=on`. Git stores it under a checksum calculated from its contents. If the file changes to `mode=off`, the contents differ, so the checksum differs too. The exact hashes depend on the actual contents; the point is that the content change is detectable.\n\nA common mistake is to treat a checksum as a backup or as protection against all changes. It helps detect changed or corrupted stored data; keeping recoverable copies and committing work are separate concerns. [4][10]\n\n## Key takeaways\n\n- Version control gives you a reviewable history and a way to return to earlier project states. [1][5]\n- Local, centralized, and distributed systems differ in where history is stored and how collaborators share it. [2][5][6][13]\n- Git stores commit snapshots, and staging lets you select what goes into the next one. [3][14]\n- Git’s additive approach makes committed work hard to lose, but uncommitted changes can still be lost. [10]\n- Git uses content checksums to detect changes or corruption in repository data. [4]"
+        },
+        {
+          "module": "Repositories and Setup",
+          "concepts": [
+            "Repositories",
+            "Repository Initialization",
+            "Git Configuration",
+            "Git Editor Configuration",
+            "Git Command Help"
+          ],
+          "generalKnowledge": [],
+          "generalKnowledgeSections": 0,
+          "passages": 18,
+          "citations": 9,
+          "removedMarkers": [],
+          "chars": 5971,
+          "faithfulness": 0.964,
+          "claims": [
+            {
+              "claim": "A repository brings a project's files and history together.",
+              "supported": true,
+              "reason": "Source [1] defines a repository as the project files and folders along with their revision history."
+            },
+            {
+              "claim": "Setting up a repository well makes everyday work more predictable, especially for a team.",
+              "supported": false,
+              "reason": "The sources do not state this effect of repository setup."
+            },
+            {
+              "claim": "A repository's history lets users look back at earlier versions and work on separate lines of development.",
+              "supported": true,
+              "reason": "Source [1] describes history as commits and says commits can be organized into branches, or lines of development."
+            },
+            {
+              "claim": "A repository contains project files and folders, with revision history stored as commits.",
+              "supported": true,
+              "reason": "Source [1] states that repositories contain project files and folders and that file history appears as commits."
+            },
+            {
+              "claim": "Commits can be organized into branches.",
+              "supported": true,
+              "reason": "Source [1] states that commits can be organized into multiple lines of development called branches."
+            },
+            {
+              "claim": "A copy of a Git repository gives access to the codebase and its history.",
+              "supported": true,
+              "reason": "Source [1] says anyone with a copy of a repository can access the entire codebase and its history."
+            },
+            {
+              "claim": "Repositories can be used on a personal computer or shared through services such as GitLab.",
+              "supported": true,
+              "reason": "Source [14] says repositories can be manipulated on a personal computer or shared on websites like GitLab."
+            },
+            {
+              "claim": "A local copy of a project is also a repository and contains the project's history.",
+              "supported": true,
+              "reason": "Source [1] says anyone with a repository copy can access the codebase and its history."
+            },
+            {
+              "claim": "Running `git init` in a project directory creates a `.git` subdirectory containing repository files.",
+              "supported": true,
+              "reason": "Source [6] says `git init` creates a `.git` subdirectory containing the necessary repository files."
+            },
+            {
+              "claim": "Running `git init` alone does not track the project files or create an initial commit.",
+              "supported": true,
+              "reason": "Source [6] says nothing is tracked after initialization and that adding files and committing are needed to start version-controlling them."
+            },
+            {
+              "claim": "After initialization, files can be tracked by adding them and making an initial commit.",
+              "supported": true,
+              "reason": "Source [6] describes adding files and then committing to begin tracking existing files."
+            },
+            {
+              "claim": "Git configuration sets preferences that control Git's behavior.",
+              "supported": true,
+              "reason": "Source [3] says configuration variables control all aspects of how Git looks and operates."
+            },
+            {
+              "claim": "Git configuration has system, global, and local scopes.",
+              "supported": true,
+              "reason": "Source [3] describes system, user-specific, and repository-specific configuration locations."
+            },
+            {
+              "claim": "The `--system`, `--global`, and `--local` options select those configuration scopes, with local as the default in a repository.",
+              "supported": true,
+              "reason": "Source [3] identifies those options and says local is the default."
+            },
+            {
+              "claim": "Local settings take precedence over global and system settings.",
+              "supported": true,
+              "reason": "Source [3] says each level overrides the previous level and that repository settings trump system settings."
+            },
+            {
+              "claim": "`git config --list` lists available configuration settings.",
+              "supported": true,
+              "reason": "Source [16] says this command lists all settings Git can find."
+            },
+            {
+              "claim": "`git config <key>` checks the value of a specific setting.",
+              "supported": true,
+              "reason": "Source [16] explicitly describes using this command to check a specific key's value."
+            },
+            {
+              "claim": "`git config --show-origin <key>` can show which file supplied a setting's final value.",
+              "supported": true,
+              "reason": "Source [16] says Git can report the configuration file that had the final say and gives a `--show-origin` example."
+            },
+            {
+              "claim": "`git config --global init.defaultBranch main` sets `main` as the default initial branch name.",
+              "supported": true,
+              "reason": "Source [7] gives this command to set `main` as the default branch name."
+            },
+            {
+              "claim": "Git may open a text editor when it needs a message, and otherwise uses the system default editor if none is configured.",
+              "supported": true,
+              "reason": "Source [4] states both that Git uses an editor for messages and that it uses the system default when none is configured."
+            },
+            {
+              "claim": "The `core.editor` configuration specifies the editor Git should use.",
+              "supported": true,
+              "reason": "Source [4] demonstrates setting `core.editor` to choose an editor."
+            },
+            {
+              "claim": "Git uses the configured `core.editor`, or the system default if no editor is configured.",
+              "supported": true,
+              "reason": "Source [4] states that Git uses the system default editor when no editor is configured."
+            },
+            {
+              "claim": "An incorrectly configured editor can interrupt an operation that requires text editing.",
+              "supported": true,
+              "reason": "Source [4] warns that editor setup problems can cause a Git-initiated edit to terminate an operation prematurely."
+            },
+            {
+              "claim": "Git provides commands for a full manual and a concise reminder of command options.",
+              "supported": true,
+              "reason": "Source [5] describes the manual-page commands and the shorter `-h` output."
+            },
+            {
+              "claim": "Git's manual-page help commands work offline.",
+              "supported": true,
+              "reason": "Source [5] says the commands can be accessed anywhere, even offline."
+            },
+            {
+              "claim": "`git help <command>`, `git <command> --help`, and `man git-<command>` open the command's manual page.",
+              "supported": true,
+              "reason": "Source [5] lists these as equivalent ways to get the comprehensive manual page."
+            },
+            {
+              "claim": "The `-h` option provides concise option guidance rather than the full manual.",
+              "supported": true,
+              "reason": "Source [5] contrasts concise help output from `-h` with comprehensive manual pages."
+            },
+            {
+              "claim": "`git add` offers an interactive option.",
+              "supported": true,
+              "reason": "Source [5] lists `-i, --interactive` among the `git add -h` options."
+            }
+          ],
+          "lesson": "A repository gives you a project’s files and history in one place; setting it up well makes everyday work more predictable, especially on a team. Building on the previous module’s ideas about how Git tracks change, this module moves into the practical setup: creating a repository, choosing settings, and finding help when a command’s options are unclear.\n\n## Repositories\n\nThink of a **repository** as a project folder paired with a record of how its files have changed. That record lets you look back at earlier versions and work on separate lines of development.\n\nPrecisely, a repository contains the project’s files and folders along with their revision history, stored as commits; commits can be organized into branches. A Git repository is self-contained: someone with a copy can access the codebase and its history. You can work with a repository on your computer or share it through a service such as GitHub or GitLab. [1][14]\n\nFor example, your team might each have a local copy of a project and use a shared repository as a collaboration point:\n\n```bash\n# Get your own copy of a shared project\ngit clone https://example.com/team/app.git\n\n# Inspect the commit history and branches in that copy\ngit log --oneline --all\ngit branch --all\n```\n\nA common mistake is to think that a repository means only the shared website copy. Your local copy is also a repository and contains the project’s history. [1][14]\n\n## Repository Initialization\n\nIf a project folder doesn’t yet have Git history, **initializing** it is like setting up a notebook to begin recording the project’s progress. Initialization creates the Git metadata; it does not, by itself, record the files as a commit.\n\nRun `git init` from inside the project directory. Git creates a `.git` subdirectory containing the repository metadata. At this point, the project files are not yet tracked; to record them, add the files and make an initial commit. [2][6]\n\nFor example, starting a repository in an existing project looks like this:\n\n```bash\ncd ~/work/inventory-app\ngit init\n\n# Start tracking selected files and record an initial snapshot\ngit add README.md src/\ngit commit -m \"Initial project version\"\n```\n\nA common mistake is to assume that `git init` immediately tracks every file or creates a commit. It creates the repository metadata; adding files and committing are separate steps. [6]\n\n## Git Configuration\n\n**Git configuration** is how you set preferences that affect Git’s behavior. Think of the configuration scopes as layers: a system-wide setting applies broadly, a user setting applies to your repositories, and a repository setting applies only to the current project.\n\nGit stores settings at system, global (user), and local (repository) scopes. You can select those scopes with `--system`, `--global`, and `--local`; local is the default when you are in a repository. More specific settings override broader ones, so a local value takes precedence over a global or system value. [3] You can inspect settings with `git config --list`, check one setting with `git config <key>`, and ask where a value came from with `git config --show-origin <key>`. [16] You can also set the default name for the initial branch; for example, `git config --global init.defaultBranch main` configures new repositories to use `main`. [7]\n\nHere, your usual default branch is `main`, but one repository is configured to use `release`:\n\n```bash\n# Set a preference across your repositories\ngit config --global init.defaultBranch main\n\n# In the current repository, override that preference\ngit config --local init.defaultBranch release\n\n# Check the effective value and where it came from\ngit config init.defaultBranch\ngit config --show-origin init.defaultBranch\n```\n\nA common mistake is to change a global setting when you meant to change just one project. Use `--local` for a repository-specific value, and use `--global` for a preference you want across your repositories. [3]\n\n## Git Editor Configuration\n\nGit may need to open a text editor so you can write a commit message. Setting your preferred editor helps make that step work smoothly; if you haven’t configured one, Git uses the system’s default editor. [4]\n\nSet the `core.editor` configuration to name the editor Git should launch. For example, this sets Emacs as the default editor for your user account. [4]\n\n```bash\ngit config --global core.editor emacs\n\n# Later, ask Git to open the editor for a commit message\ngit commit\n```\n\nA common mistake is to assume Git always opens the editor you use for coding. Git uses the configured `core.editor`, or the system default if you haven’t set one; a mismatched or incorrectly configured editor can interrupt an operation that needs you to edit text. [4]\n\n## Git Command Help\n\nGit’s built-in help is useful when you need either the full manual for a command or a fast reminder of its options. It works even when you’re offline, so it can help you investigate a command while you work. [5]\n\nUse `git help <command>`, `git <command> --help`, or `man git-<command>` for the command’s manual page. For a shorter list of options, use `-h` instead. [5]\n\nFor example, if you’re unsure whether `git add` has an option for interactive staging, check the concise help first; open the manual if you need fuller explanations:\n\n```bash\ngit add -h\ngit help add\n```\n\nA common mistake is to treat `-h` and `--help` as interchangeable in detail: `-h` gives concise option guidance, while the help commands open the comprehensive manual page. [5]\n\n## Key takeaways\n\n- A repository pairs project files with their history, and local copies can contain that history too. [1][14]\n- `git init` creates repository metadata; adding and committing files are separate steps. [6]\n- Choose configuration scope deliberately: local settings override global and system settings. [3]\n- Set `core.editor` if Git’s default editor is not the one you want. [4]\n- Use `-h` for a quick option refresher and the help commands for the full manual. [5]"
+        },
+        {
+          "module": "Working Tree and Commits",
+          "concepts": [
+            "Staging and File States",
+            "Commit Identity",
+            "Commits"
+          ],
+          "generalKnowledge": [],
+          "generalKnowledgeSections": 0,
+          "passages": 10,
+          "citations": 6,
+          "removedMarkers": [],
+          "chars": 4519,
+          "faithfulness": 0.941,
+          "claims": [
+            {
+              "claim": "A commit records selected project changes rather than simply saving everything on disk.",
+              "supported": true,
+              "reason": "Sources [1], [2], and [5] say a commit stores the staged changes as a snapshot."
+            },
+            {
+              "claim": "A file is modified when it has changed but has not been committed.",
+              "supported": true,
+              "reason": "Source [1] defines the modified state this way."
+            },
+            {
+              "claim": "A file is staged when its current version is selected for the next commit.",
+              "supported": true,
+              "reason": "Source [1] defines the staged state this way."
+            },
+            {
+              "claim": "A file is committed when its data is stored in the local repository.",
+              "supported": true,
+              "reason": "Source [1] says committed data is safely stored in the local database."
+            },
+            {
+              "claim": "The working tree is a checkout of project files placed on disk.",
+              "supported": true,
+              "reason": "Source [1] describes it as a checkout whose files are placed on disk."
+            },
+            {
+              "claim": "The staging area, also called the index, holds information about what will go into the next commit.",
+              "supported": true,
+              "reason": "Source [1] states both the staging area's purpose and its technical name."
+            },
+            {
+              "claim": "The Git directory stores the project's metadata and object database.",
+              "supported": true,
+              "reason": "Source [1] states this directly."
+            },
+            {
+              "claim": "Changes can be staged selectively rather than staging everything edited.",
+              "supported": true,
+              "reason": "Source [1] says to selectively stage only the changes intended for the next commit."
+            },
+            {
+              "claim": "git status displays newly added or modified files and directories in the repository.",
+              "supported": true,
+              "reason": "Source [6] states this directly."
+            },
+            {
+              "claim": "git add stages files.",
+              "supported": true,
+              "reason": "Source [6] demonstrates and describes using git add to stage files."
+            },
+            {
+              "claim": "git rm --cached removes a file from the index while keeping it in the working directory.",
+              "supported": true,
+              "reason": "Source [6] states this directly."
+            },
+            {
+              "claim": "After git rm --cached, the file is listed as untracked.",
+              "supported": true,
+              "reason": "Source [6] shows this result in its git status example."
+            },
+            {
+              "claim": "Git uses a configured name and email as the commit author identity, and records that information in commits.",
+              "supported": true,
+              "reason": "Source [4] says every commit uses the configured name and email and that they are baked into commits."
+            },
+            {
+              "claim": "A global identity can be overridden for a particular repository by configuring identity without --global there.",
+              "supported": true,
+              "reason": "Source [4] describes this repository-specific configuration."
+            },
+            {
+              "claim": "Git requires a name and email to create commits, and git commit can fail with an identity error if they are missing.",
+              "supported": true,
+              "reason": "Source [2] states that these details are needed and shows the resulting error."
+            },
+            {
+              "claim": "A commit commonly includes a descriptive message explaining the change.",
+              "supported": false,
+              "reason": "The sources show commit-message usage but do not establish that messages are common or descriptive."
+            },
+            {
+              "claim": "A commit records a snapshot of the staged project changes in the repository.",
+              "supported": true,
+              "reason": "Sources [1], [2], and [5] describe commits as storing or appending a snapshot of staged changes."
+            }
+          ],
+          "lesson": "This module turns the repository setup from the previous module into a practical workflow: you’ll decide which changes belong together, identify who made them, and save them as commits. That preparation matters at work because a commit is a deliberate record of selected project changes—not simply a save of everything currently on disk.\n\n## Staging and File States\n\nThink of staging as preparing a small package before sending it: your working tree is where you make changes, the staging area is where you select what goes into the package, and the repository is where a commit is recorded. Git describes files as **modified** when they have changed but are not committed, **staged** when a version is selected for the next commit, and **committed** when the data is stored in the local repository.[1]\n\nThe **working tree** is the checked-out project files on disk; the **staging area**, also called the index, holds information about what will go into the next commit; and the Git directory stores the project’s metadata and object database.[1] You can stage selected changes rather than everything you have edited.[1] `git status` shows newly added or modified files, and `git add` stages files.[6] To remove a file from the index while keeping it in the working directory, use `git rm --cached`; Git then lists it as untracked.[6]\n\n**Worked example:** You’ve added two files, but only one is ready for the next commit. Stage that one, check what Git has selected, then unstage it while keeping it on disk:\n\n```bash\ngit status\ngit add report.txt\ngit status\ngit rm --cached report.txt\ngit status\n```\n\nAfter `git add`, `report.txt` is staged for the next commit; after `git rm --cached`, it remains in the working directory but is no longer staged.[6]\n\nA common mistake is to treat `git add` as “save this file permanently.” It stages the file’s current version for a future commit; the commit is the step that records the staged snapshot in the repository.[1]\n\n## Commit Identity\n\nA commit carries a name and email address as its author identity. Git uses the configured identity for commits, and that information is baked into the commits you create.[4] Set a default for your account with `--global`, or configure a different identity in a particular repository by running the commands without `--global` while in that project.[4] Git also requires a name and email to create commits; without them, `git commit` can fail with an identity error.[2]\n\n**Worked example:** Use a general work identity by default, then override it for one repository that needs a different identity:\n\n```bash\ngit config --global user.name \"Alex Morgan\"\ngit config --global user.email \"alex@example.com\"\n\n# Run inside the repository needing a different identity\ngit config user.name \"Alex Morgan - Project Team\"\ngit config user.email \"alex+project@example.com\"\n```\n\nThe first two commands set the system-wide defaults; the last two set repository-specific values.[4]\n\nA common mistake is to assume the author name and email are just display preferences. Git records them in commits, so check the identity before making commits you intend to share.[4]\n\n## Commits\n\nA **commit** records a snapshot of the staged project changes in the repository’s history.[1][2][5] Its contents are determined by what is staged, and it commonly includes a descriptive message explaining the change.[5][8] In practice, this means you can make several edits in your working tree, stage the related ones, and commit that selected set as one coherent record.\n\n**Worked example:** Stage two related changes and record them with a message:\n\n```bash\ngit add src/login.py tests/test_login.py\ngit status\ngit commit -m \"Add login validation tests\"\n```\n\nThe commit records the staged snapshot; the message labels the change for later reference.[2][5][8]\n\nA common mistake is to assume a commit includes every change in the working tree. It records the staged changes, so check what is staged before committing.[5]\n\n## Key takeaways\n\n- The working tree is where you edit; the staging area selects changes for the next commit; the repository stores committed data.[1]\n- `git add` stages a file’s current version, and `git status` helps you inspect what is staged.[1][6]\n- `git rm --cached` removes a file from the index while keeping it in the working directory.[6]\n- Git records the configured author name and email in commits; global settings can be overridden for a repository.[4]\n- A commit records the staged snapshot, not automatically every change on disk.[1][5]"
+        }
+      ]
+    }
+  ]
+}

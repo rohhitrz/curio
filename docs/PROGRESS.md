@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 9 (Lessons), in progress
-- **Current step:** 9.6 done (frontend: scope options, progress names, outline additions, classroom)
-- **Blocked on:** nothing
-- **Next step:** 9.7 eval (lesson faithfulness), then the phase-end checkpoint
+- **Current step:** Phase 9 built (9.1–9.7); 🛑 waiting for the owner's approval
+- **Blocked on:** owner approval of Phase 9 (and the live classroom check in Pending on owner)
+- **Next step:** Phase 10 (Hardening) after approval
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -36,7 +36,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 9.4 Lesson API (`lessons` route → controller → service → repository): `GET /modules/:id/lesson` (latest `COMPLETE`, `conversationId` = module's latest tutor chat; no lesson → 404 `LESSON_NOT_GENERATED`, not yours → 404 `NOT_FOUND`) · `POST /modules/:id/lessons` (50/day; 404 / 409 `PATH_NOT_READY` / `MODULE_DISABLED` / `LESSON_GENERATING` before streaming) · `GET /lessons/:id` · `PUT /modules/:id/completion` (one transaction: `completed_at` + an `UNDERSTOOD` memory per included concept, existing ones skipped, within the cap; un-mark deletes `LESSON_COMPLETED` memories with that `origin_ref`, so a user-edited one stays) · SSE helper moved to `controllers/stream.ts` (chat + lessons) · shared `lessonSchema`, `moduleCompletionSchema` · tests: 11 integration (stream + saved version + prompt contents, regenerate, lock, disabled / not ready / not yours, model down → ERROR, 429, disconnect, completion add / repeat / un-mark / 400 / 404), 5 unit (round-robin context, prompt lines, query + flags)
 - [x] 9.5 Tutor: `POST /notebooks/:id/conversations { lessonId }` checks the lesson is the user's and in that notebook (else 404) and saves the link · retrieval takes an optional `sourceIds` (vector + keyword searches; empty → nothing), a tutor chat searches only its lesson version's cited sources · `generateAnswer` with `tutor`: `TUTOR_INSTRUCTIONS` (stay on the module, redirect off-topic in one line, answer from the lesson when the sources miss, no new facts), module + enabled path modules (done / this one) + the lesson (markers stripped) before the sources; no fixed refusal when nothing matched · final `<<MODULE_DONE>>` line → `suggestComplete`: held back from the live stream (`createMarkerFilter`), stripped from the saved message, `action` stream event `{ SUGGEST_COMPLETE, moduleId }` (`data-action`, shared schema); nothing is marked done · tutor context missing → normal notebook chat (logged) · tests: 4 integration (link checks + `conversationId`, scoped search + prompt, no sources still asks, marker → action not saved), 5 unit (filter across parts, look-alikes, mid-text marker, strip, context block)
 - [x] 9.6 Frontend: clarify screen asks the scope check on "Build my path" (broad → question + 4–6 topic chips that start at once; the button becomes "Keep “topic”"; check failing → starts) · progress names the resources being read / mapped with a done count (`resourceProgress`) · outline: difficulty badge, minutes, why, done tick, total time; resources folded into "What your teacher studied"; "Start learning" / "Continue learning" → `/learn/[pathId]/classroom?module=` (first module on and not done) · **classroom** (`classroom-view.tsx`): modules list (phone: picker), lesson panel (`lesson-panel.tsx`: saved lesson or written at once on 404, once per module per visit; streams via `use-lesson-stream.ts`, which waits for the saved lesson on 409 or a dropped connection; regenerate, mark done / not done, next module), tutor panel (`tutor-panel.tsx`: lesson-linked chat created on the first question, continues the module's `conversationId`, "Mark as done" offer from the `action` event), phone tabs Lesson / Tutor · citation opening moved to `use-citation-opener.tsx` (chat panel uses it too) · checked by typecheck, lint, web tests (97) and `next build`; the agent can't sign in (Clerk), so **the owner checks the screens live**
-- [ ] 9.7 Eval: lesson faithfulness
+- [x] 9.7 Eval: `pnpm eval:lessons` (`evals/scripts/run-lesson-eval.ts`): lessons for the first `--modules` (3) modules of each topic's eval path on dev, real pipeline (per-concept retrieval with Cohere paced for a Trial key → Luna → citation check), not saved · `judges/lesson-faithfulness.md` (claims only, skips examples / analogies) after code blocks and general-knowledge sections are removed in code (`evals/src/lessons.ts`, tested) · judge task `evalLessonJudge` (16k output: a 40-claim lesson overflowed `evalJudge`'s 4k) · a lesson is written again on a dropped Neon connection, and the eval closes idle connections after 5s (`createDb`'s new `idleTimeoutMillis`) · result **0.936** pooled (see Eval results) → L-12 Luna
 - [ ] 🛑 Owner approves Phase 9
 
 ## Phase 8 steps (done)
@@ -459,6 +459,16 @@ API and server:
   - Tests: 4 chat integration tests (lock held through 4 min, a stale run not saved over the fresh one, nor after a later question, the earlier-question resend order) and 5 web tests. API doc §5 and the locks table updated.
 
 ## Eval results so far
+**Lesson faithfulness (9.7)** (`evals/results/2026-10-04-lessons.json`, `pnpm eval:lessons`, first 3 modules of the Python and Git eval paths; French Revolution has no eval path yet; Luna writes, Luna judges with `evalLessonJudge`; cost $0.08):
+
+| Topic | Lessons | Claims | Unsupported | Faithfulness |
+|---|---|---|---|---|
+| Python | 3 | 90 | 7 | 0.922 |
+| Git | 3 | 81 | 4 | 0.951 |
+| **Pooled** | **6** | **171** | **11** | **0.936** |
+
+Unsupported: motivation lines ("helps you troubleshoot confidently"), basics the passages didn't spell out ("a string is text"), and the judge reading a lesson's "common mistake" line as a claim. 0 concepts fell to general knowledge (all 28 had passages). Every lesson had worked code, a misconception and Key takeaways. Decision L-12: lessons stay on Luna.
+
 **Retrieval baseline, vector only** (`evals/results/2026-09-30-vector.json`, commit `dc908a9`, `text-embedding-3-small`, chunks 500 tokens / 15% overlap, 7 documents, 238 chunks, 60 answerable questions; top 10 retrieved; cost $0.002):
 
 | | Questions | Hit rate@5 | Hit rate@10 | MRR |
@@ -527,6 +537,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-04 (9.5–9.7, Phase 9 built)
+- Done: 9.5 tutor, 9.6 classroom frontend, 9.7 lesson eval (0.936). Full suite green alone (server 822, web 97, evals 32); a run started while the eval was running timed out 3 timing tests, all green alone
+- Notes: the eval uses the last outline the path eval saved (both paths were left `BUILDING` / `MAPPING` by the stopped 8.7 run); the French Revolution path was never built
 
 ### 2026-10-04 (9.1–9.4)
 - Done: 9.1 migration (owner ran it on prod), 9.2 path upgrades (pushed at a mid-phase checkpoint: full suite green, server 797 / web 91 / evals 29; Vercel READY, `/health` ok), 9.3 lesson pipeline + 9.4 lesson API (one commit: the pipeline is only reachable through the API)

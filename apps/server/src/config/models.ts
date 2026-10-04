@@ -45,6 +45,11 @@ export const llmTasks = {
   lesson: { tier: 'luna', maxOutputTokens: 8_000, reasoningEffort: 'medium' },
   /** Luna, not Sol (owner, 2026-10-01: Luna is enough; decision O-04). */
   evalJudge: { tier: 'luna', maxOutputTokens: 4_000, reasoningEffort: 'medium' },
+  /**
+   * The lesson-faithfulness judge (9.7): same model as `evalJudge`, more room, since a lesson
+   * holds 30–60 claims (4k ran out on a long one).
+   */
+  evalLessonJudge: { tier: 'luna', maxOutputTokens: 16_000, reasoningEffort: 'medium' },
 } as const satisfies Record<string, LlmTaskConfig>;
 
 export type LlmTask = keyof typeof llmTasks;

@@ -15,8 +15,16 @@ export function createDb(
   onIdleError: (error: Error) => void = (error) => {
     console.error('database: idle connection closed', error);
   },
+  /**
+   * Closes connections idle this long (pool default otherwise). Long scripts that wait minutes
+   * on model calls (the lesson eval) set it low, so Neon never drops one they still hold.
+   */
+  idleTimeoutMillis?: number,
 ) {
-  const pool = new Pool({ connectionString: databaseUrl });
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    ...(idleTimeoutMillis === undefined ? {} : { idleTimeoutMillis }),
+  });
   pool.on('error', onIdleError);
   const db = drizzle({ client: pool, schema });
   return { db, pool };

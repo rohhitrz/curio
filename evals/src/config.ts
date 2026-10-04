@@ -57,6 +57,8 @@ export const evalConfig = {
   conceptMatchThreshold: 0.85,
   /** Resources mapped at the same time (one Luna call each). */
   mapConcurrency: 3,
+  /** Lesson eval (9.7): lessons written per topic, from the path's first modules. */
+  lessonModules: 3,
   resultsDir: fileURLToPath(new URL('../results/', import.meta.url)),
 } as const;
 

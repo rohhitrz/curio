@@ -219,6 +219,9 @@
 - **How:** `GET /learning-paths/scope` (one Luna call) → too broad → 4–6 narrower topics as options; failure → not broad. The order step adds `why` + relative difficulty per module and sizes the module count to the topic's breadth (still 3–10). Minutes = included concepts × `minutesPerConcept[level]` after the cut
 - **Why:** a goal like "programming" makes a shallow path; one question up front fixes that. A model's minute estimate is made before the cut drops concepts, so it would be wrong; the code number always matches what is taught (L-02)
 
+
+**L-12 · Lessons stay on Luna (9.7)**
+- **Why:** the 9.7 eval (`evals/results/2026-10-04-lessons.json`, 6 lessons, Python + Git): lesson faithfulness **0.936** (171 claims, 11 unsupported: motivation lines and basics the passages didn't spell out; nothing invented about how the tools behave), every lesson with worked code, a misconception and takeaways, ~$0.003 a lesson. Sol (~20× the price) has little room to improve that (A-08: upgrade only if evals show the need)
 ---
 
 ## 6. Memory decisions
@@ -372,4 +375,4 @@
 | 6 | HyDE: kept or dropped (with numbers) | R-10 |
 | 6 | Chunk size after tuning | I-14 |
 | 6 | Relevance gate threshold | R-11 |
-| 9 | Lessons: Luna enough, or upgrade to Sol? | L-12 (A-10 is the R2 SDK) |
+| 9 | Lessons: Luna enough, or upgrade to Sol? → **Luna** (decided 2026-10-04) | L-12 |

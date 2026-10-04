@@ -74,6 +74,23 @@ records rerank latency (p50 / p95) and the Cohere search units billed.
 Follow-up questions are searched as asked (their `history` only reaches the answer step) until
 query rewrite exists. A full run costs about a dollar; `--retrieval-only` well under a cent.
 
+## Lesson eval (`pnpm eval:lessons`, build plan 9.7)
+
+```bash
+pnpm eval:lessons                      # the first 3 modules of every topic's eval path
+pnpm eval:lessons -- --topics=python   # these topics only
+pnpm eval:lessons -- --modules=2       # lessons per topic
+```
+
+Writes lessons for the paths `pnpm eval:paths` built on dev (owner `eval_path_runner`; run that
+first), through the real lesson pipeline: one retrieval per concept (the app's flags, Cohere
+rerank paced for a Trial key) → the teaching prompt (Luna) → the citation check. Lessons are not
+saved. Each lesson is judged for **lesson faithfulness** (`judges/lesson-faithfulness.md`):
+code blocks and general-knowledge sections are removed in code (`src/lessons.ts`), the judge
+splits the rest into factual claims (skipping examples and analogies) and checks each against the
+passages the lesson cites. The summary pools claims over all lessons. Results go to
+`results/<date>-lessons.json` with every lesson, its claims and the cost.
+
 ## Other commands
 
 All run from the repo root. Only `fetch-docs` and `eval` use the network; only `eval` calls an LLM.
