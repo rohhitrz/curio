@@ -60,10 +60,11 @@ export function useCreateConversation(notebookId: string) {
   const api = useApi();
   const refresh = useRefreshConversations(notebookId);
   return useMutation({
-    mutationFn: () =>
+    /** `lessonId` → a lesson's tutor chat. */
+    mutationFn: (lessonId?: string) =>
       api.post<Conversation>(
         `/notebooks/${notebookId}/conversations`,
-        {},
+        lessonId ? { lessonId } : {},
         {
           schema: conversationSchema,
         },

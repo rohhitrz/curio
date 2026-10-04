@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   BookOpen,
   Check,
+  CircleCheck,
+  Clock,
   ExternalLink,
   Loader2,
   RotateCcw,
@@ -17,7 +19,18 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isApiError } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { GOAL_OPTIONS, LEVEL_OPTIONS, stageIndex, STAGES, whyHere } from './display';
+import {
+  classroomHref,
+  DIFFICULTY_LABELS,
+  firstModuleToLearn,
+  formatMinutes,
+  GOAL_OPTIONS,
+  LEVEL_OPTIONS,
+  resourceProgress,
+  stageIndex,
+  STAGES,
+  whyHere,
+} from './display';
 import { useOutline, usePath, useRetryPath, useSelectBranch, useToggleModule } from './queries';
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -91,6 +104,7 @@ function PathHeader({ path }: { path: LearningPath }) {
 /** The job's stages, the current one spinning. Polled every ~2s (usePath). */
 function Progress({ path }: { path: LearningPath }) {
   const current = stageIndex(path.status);
+  const resources = resourceProgress(path);
   return (
     <div className="rounded-xl border p-6">
       <p className="font-medium">Building your path…</p>
@@ -99,17 +113,25 @@ function Progress({ path }: { path: LearningPath }) {
       </p>
       <ol className="mt-5 space-y-3">
         {STAGES.map((stage, i) => (
-          <li key={stage.status} className="flex items-center gap-3 text-sm">
+          <li key={stage.status} className="flex items-start gap-3 text-sm">
             {i < current ? (
-              <Check className="text-primary size-4 shrink-0" aria-hidden />
+              <Check className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
             ) : i === current ? (
-              <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+              <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" aria-hidden />
             ) : (
-              <span className="border-muted-foreground/40 size-4 shrink-0 rounded-full border" />
+              <span className="border-muted-foreground/40 mt-0.5 size-4 shrink-0 rounded-full border" />
             )}
-            <span className={cn(i > current && 'text-muted-foreground')}>
+            <span className={cn('min-w-0', i > current && 'text-muted-foreground')}>
               {stage.label}
               {i === current && <span className="sr-only"> (in progress)</span>}
+              {i === current && resources && resources.total > 0 && (
+                <span className="text-muted-foreground mt-0.5 block text-xs break-words">
+                  {resources.active.length > 0
+                    ? `${resources.label}: ${resources.active.join(', ')} · `
+                    : ''}
+                  {resources.done} of {resources.total} done
+                </span>
+              )}
             </span>
           </li>
         ))}
@@ -228,6 +250,10 @@ function OutlineSection({ path }: { path: LearningPath }) {
 function OutlineContent({ path, outline }: { path: LearningPath; outline: Outline }) {
   const toggle = useToggleModule(path.id);
   const resourceCount = outline.resources.length;
+  const next = firstModuleToLearn(outline.modules);
+  const totalMinutes = outline.modules
+    .filter((m) => m.isEnabled)
+    .reduce((sum, m) => sum + m.minutes, 0);
 
   return (
     <div className="space-y-8">
@@ -256,14 +282,17 @@ function OutlineContent({ path, outline }: { path: LearningPath; outline: Outlin
           <div>
             <h2 className="text-lg font-semibold">Your path</h2>
             <p className="text-muted-foreground text-sm">
-              {outline.progress.enabled} of {outline.modules.length} modules selected. Uncheck any
-              you want to skip.
+              {outline.progress.enabled} of {outline.modules.length} modules selected
+              {totalMinutes > 0 && <> · about {formatMinutes(totalMinutes)}</>}. Uncheck any you
+              want to skip.
             </p>
           </div>
-          <Button nativeButton={false} render={<Link href={`/notebooks/${path.notebookId}`} />}>
-            <BookOpen />
-            Start learning
-          </Button>
+          {next && (
+            <Button nativeButton={false} render={<Link href={classroomHref(path.id, next)} />}>
+              <BookOpen />
+              {outline.progress.completed > 0 ? 'Continue learning' : 'Start learning'}
+            </Button>
+          )}
         </div>
         {toggle.isError && (
           <p className="text-destructive mt-2 text-sm" role="alert">
@@ -287,10 +316,27 @@ function OutlineContent({ path, outline }: { path: LearningPath; outline: Outlin
                   className="accent-primary mt-1 size-4 shrink-0"
                 />
                 <div className="min-w-0 flex-1">
-                  <label htmlFor={`module-${module.id}`} className="cursor-pointer font-medium">
-                    {module.position}. {module.title}
-                  </label>
-                  <p className="text-muted-foreground mt-0.5 text-sm">{module.summary}</p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <label htmlFor={`module-${module.id}`} className="cursor-pointer font-medium">
+                      {module.position}. {module.title}
+                    </label>
+                    {module.completedAt && (
+                      <CircleCheck className="text-primary size-4" aria-label="Done" />
+                    )}
+                  </div>
+                  <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    {module.difficulty && (
+                      <Badge variant="outline">{DIFFICULTY_LABELS[module.difficulty]}</Badge>
+                    )}
+                    {module.minutes > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="size-3.5" aria-hidden />
+                        {formatMinutes(module.minutes)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground mt-1.5 text-sm">{module.summary}</p>
+                  {module.why && <p className="mt-1 text-sm">{module.why}</p>}
                   <ul className="mt-3 space-y-1">
                     {module.concepts.map((concept) => (
                       <li key={concept.id}>
@@ -334,10 +380,17 @@ function OutlineContent({ path, outline }: { path: LearningPath; outline: Outlin
         </details>
       )}
 
-      <div>
-        <h2 className="text-lg font-semibold">Resources</h2>
-        <p className="text-muted-foreground text-sm">
-          Read once and added to the path’s notebook; lessons and chat cite them.
+      <details className="rounded-xl border p-4">
+        <summary className="cursor-pointer font-medium">
+          What your teacher studied ({outline.resources.length})
+        </summary>
+        <p className="text-muted-foreground mt-2 text-sm">
+          Curio read these in full and teaches from them, so you don’t have to. Lessons cite them;
+          the{' '}
+          <Link href={`/notebooks/${path.notebookId}`} className="underline underline-offset-2">
+            path’s notebook
+          </Link>{' '}
+          has them as sources.
         </p>
         <ul className="mt-3 divide-y rounded-xl border">
           {outline.resources.map((resource) => (
@@ -358,7 +411,7 @@ function OutlineContent({ path, outline }: { path: LearningPath; outline: Outlin
             </li>
           ))}
         </ul>
-      </div>
+      </details>
     </div>
   );
 }

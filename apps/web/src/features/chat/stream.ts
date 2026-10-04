@@ -15,6 +15,8 @@ export interface AnswerState {
   citations: CitationSnapshot[];
   error: { code: string; message: string } | null;
   traceId: string | null;
+  /** Tutor only: the learner seems ready to mark this module done. */
+  suggestComplete: { moduleId: string } | null;
   done: boolean;
 }
 
@@ -25,6 +27,7 @@ export const emptyAnswer: AnswerState = {
   citations: [],
   error: null,
   traceId: null,
+  suggestComplete: null,
   done: false,
 };
 
@@ -42,6 +45,12 @@ export function applyChunk(state: AnswerState, chunk: UIMessageChunk): AnswerSta
     case 'data-citations': {
       const parsed = chatStreamDataSchemas.citations.safeParse(chunk.data);
       return parsed.success ? { ...state, citations: parsed.data } : state;
+    }
+    case 'data-action': {
+      const parsed = chatStreamDataSchemas.action.safeParse(chunk.data);
+      return parsed.success
+        ? { ...state, suggestComplete: { moduleId: parsed.data.moduleId } }
+        : state;
     }
     case 'data-error': {
       const parsed = chatStreamDataSchemas.error.safeParse(chunk.data);

@@ -42,8 +42,19 @@ describe('applyChunk', () => {
       citations: [citation],
       error: null,
       traceId: 'trace-1',
+      suggestComplete: null,
       done: true,
     });
+  });
+
+  it('a tutor\'s "ready" action is kept; a malformed one is ignored', () => {
+    const moduleId = '7d1c5b8e-6c3a-4f0e-9b2d-1a2b3c4d5e6f';
+    expect(
+      fold([{ type: 'data-action', data: { type: 'SUGGEST_COMPLETE', moduleId } }]).suggestComplete,
+    ).toEqual({ moduleId });
+    expect(
+      fold([{ type: 'data-action', data: { type: 'OTHER', moduleId } }]).suggestComplete,
+    ).toBeNull();
   });
 
   it('shows the status until text arrives', () => {

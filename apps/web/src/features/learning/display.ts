@@ -3,6 +3,7 @@ import type {
   LearningPath,
   Level,
   Outline,
+  OutlineModule,
   PathStatus,
   PrefillResponse,
 } from '@curio/shared';
@@ -92,3 +93,56 @@ export function withModuleEnabled(outline: Outline, moduleId: string, isEnabled:
     },
   };
 }
+
+/** A module's relative difficulty within its path. */
+export const DIFFICULTY_LABELS: Record<Level, string> = {
+  BEGINNER: 'Easier',
+  INTERMEDIATE: 'Medium',
+  ADVANCED: 'Harder',
+};
+
+/** "25 min", "1 h 10 min". */
+export function formatMinutes(minutes: number): string {
+  if (minutes < 60) return `${String(minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${String(hours)} h` : `${String(hours)} h ${String(rest)} min`;
+}
+
+/**
+ * What the progress screen says about the resources while they are read or mapped: the ones
+ * being worked on by name, and how many are done. Null in the other stages.
+ */
+export function resourceProgress(
+  path: Pick<LearningPath, 'status' | 'resources'>,
+): { label: string; active: string[]; done: number; total: number } | null {
+  const usable = path.resources.filter((r) => r.state !== 'FAILED');
+  if (path.status === 'READING') {
+    return {
+      label: 'Reading',
+      active: path.resources.filter((r) => r.state === 'READING').map((r) => r.title),
+      done: usable.filter((r) => r.state !== 'READING').length,
+      total: path.resources.length,
+    };
+  }
+  if (path.status === 'MAPPING') {
+    return {
+      label: 'Mapping',
+      active: usable.filter((r) => r.state === 'READ').map((r) => r.title),
+      done: usable.filter((r) => r.state === 'MAPPED').length,
+      total: usable.length,
+    };
+  }
+  return null;
+}
+
+/** Where "Start learning" goes: the first module turned on and not done (else the first on). */
+export function firstModuleToLearn(
+  modules: Pick<OutlineModule, 'id' | 'isEnabled' | 'completedAt'>[],
+): string | null {
+  const enabled = modules.filter((m) => m.isEnabled);
+  return (enabled.find((m) => m.completedAt === null) ?? enabled[0])?.id ?? null;
+}
+
+export const classroomHref = (pathId: string, moduleId?: string | null) =>
+  `/learn/${pathId}/classroom${moduleId ? `?module=${moduleId}` : ''}`;

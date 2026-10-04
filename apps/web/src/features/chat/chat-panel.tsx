@@ -1,6 +1,6 @@
 'use client';
 
-import { MESSAGE_CONTENT_MAX, type CitationSnapshot, type Source } from '@curio/shared';
+import { MESSAGE_CONTENT_MAX } from '@curio/shared';
 import {
   Brain,
   Check,
@@ -26,12 +26,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useNotedMemories } from '@/features/memories/use-noted-memories';
-import { useOpenSourceFile, useSources } from '@/features/sources/queries';
-import { SourceViewerDialog } from '@/features/sources/source-viewer-dialog';
-import type { HighlightRange } from '@/features/sources/viewer';
 import { timeAgo } from '@/lib/format';
 import { Answer, QuestionBubble } from './chat-message';
-import { citationTarget, pdfAtPage } from './citations';
 import { DeleteConversationDialog, RenameConversationDialog } from './conversation-dialogs';
 import { buildChatItems } from './display';
 import {
@@ -43,6 +39,7 @@ import {
   useRenameConversation,
 } from './queries';
 import { useAnswerStream } from './use-answer-stream';
+import { useCitationOpener } from './use-citation-opener';
 
 /** `latest` follows the most recent conversation; `new` is a chat not created yet. */
 type Selection = { kind: 'latest' } | { kind: 'new' } | { kind: 'conversation'; id: string };
@@ -54,17 +51,14 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
   const createConversation = useCreateConversation(notebookId);
   const renameConversation = useRenameConversation(notebookId);
   const deleteConversation = useDeleteConversation(notebookId);
-  const sources = useSources(notebookId);
-  const openFile = useOpenSourceFile();
   const answer = useAnswerStream(notebookId);
   const noted = useNotedMemories();
 
   const [selection, setSelection] = useState<Selection>({ kind: 'latest' });
   const [dialog, setDialog] = useState<DialogState>(null);
-  const [viewer, setViewer] = useState<{ source: Source; highlight: HighlightRange | null } | null>(
-    null,
-  );
   const [notice, setNotice] = useState<string | null>(null);
+  const citations = useCitationOpener(notebookId, setNotice);
+  const sources = citations.sources;
   const [draft, setDraft] = useState('');
 
   const list = conversations.data ?? [];
@@ -113,42 +107,6 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       void send();
-    }
-  }
-
-  async function openCitation(citation: CitationSnapshot) {
-    setNotice(null);
-    const source = sources.data?.find((s) => s.id === citation.sourceId);
-    const target = citationTarget(citation, source);
-    switch (target.kind) {
-      case 'pdf': {
-        // Open the tab during the click, or the browser blocks it as a pop-up once we await.
-        const tab = window.open('', '_blank');
-        try {
-          const { url } = await openFile.mutateAsync(target.sourceId);
-          const atPage = pdfAtPage(url, target.page);
-          if (tab) {
-            tab.opener = null;
-            tab.location.href = atPage;
-          } else {
-            window.location.href = atPage;
-          }
-        } catch (err) {
-          tab?.close();
-          setNotice(err instanceof Error ? err.message : 'Couldn’t open the PDF.');
-        }
-        return;
-      }
-      case 'url':
-        window.open(target.url, '_blank', 'noopener,noreferrer');
-        return;
-      case 'passage':
-        if (source) setViewer({ source, highlight: target.range });
-        return;
-      case 'unavailable':
-        setNotice(
-          `“${citation.sourceTitle}” was deleted or is being processed again. The quoted passage is shown under the answer.`,
-        );
     }
   }
 
@@ -278,7 +236,10 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
                   key={item.key}
                   text={item.text}
                   citations={item.citations}
-                  onCite={(citation) => void openCitation(citation)}
+                  onCite={(citation) => {
+                    setNotice(null);
+                    citations.open(citation);
+                  }}
                   status={item.status}
                   streaming={item.streaming}
                   error={item.error}
@@ -358,13 +319,7 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
         </div>
       </form>
 
-      <SourceViewerDialog
-        source={viewer?.source ?? null}
-        highlight={viewer?.highlight ?? null}
-        onOpenChange={(open) => {
-          if (!open) setViewer(null);
-        }}
-      />
+      {citations.viewer}
       <RenameConversationDialog
         open={dialog?.type === 'rename'}
         onOpenChange={(open) => {

@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Outline } from '@curio/shared';
-import { prefillNote, shouldPoll, stageIndex, STAGES, whyHere, withModuleEnabled } from './display';
+import {
+  classroomHref,
+  firstModuleToLearn,
+  formatMinutes,
+  prefillNote,
+  resourceProgress,
+  shouldPoll,
+  stageIndex,
+  STAGES,
+  whyHere,
+  withModuleEnabled,
+} from './display';
 
 describe('prefillNote', () => {
   it('asks to confirm an exact or related level; nothing without a match', () => {
@@ -78,5 +89,67 @@ describe('withModuleEnabled', () => {
     expect(off.modules.map((m) => m.isEnabled)).toEqual([false, true, false]);
     expect(off.progress).toEqual({ completed: 0, enabled: 1 });
     expect(withModuleEnabled(outline, 'c', true).progress).toEqual({ completed: 1, enabled: 3 });
+  });
+});
+
+describe('resourceProgress', () => {
+  const r = (title: string, state: 'READING' | 'READ' | 'FAILED' | 'MAPPED') => ({
+    id: title,
+    title,
+    state,
+  });
+  const resources = [
+    r('Docs', 'MAPPED'),
+    r('Guide', 'READ'),
+    r('Video', 'FAILED'),
+    r('Blog', 'READ'),
+  ];
+
+  it('while mapping: names the read ones not mapped yet, counts the mapped (failed left out)', () => {
+    expect(resourceProgress({ status: 'MAPPING', resources })).toEqual({
+      label: 'Mapping',
+      active: ['Guide', 'Blog'],
+      done: 1,
+      total: 3,
+    });
+  });
+
+  it('while reading: names the ones being read; nothing in other stages', () => {
+    const reading = [r('Docs', 'READING'), r('Guide', 'READ'), r('Video', 'FAILED')];
+    expect(resourceProgress({ status: 'READING', resources: reading })).toEqual({
+      label: 'Reading',
+      active: ['Docs'],
+      done: 1,
+      total: 3,
+    });
+    expect(resourceProgress({ status: 'BUILDING', resources })).toBeNull();
+  });
+});
+
+describe('firstModuleToLearn', () => {
+  it('the first turned-on module not done; all done → the first turned on; none → null', () => {
+    const m = (id: string, isEnabled: boolean, done: boolean) => ({
+      id,
+      isEnabled,
+      completedAt: done ? '2026-10-04T10:00:00.000Z' : null,
+    });
+    expect(
+      firstModuleToLearn([m('a', true, true), m('b', false, false), m('c', true, false)]),
+    ).toBe('c');
+    expect(firstModuleToLearn([m('a', false, false), m('b', true, true)])).toBe('b');
+    expect(firstModuleToLearn([m('a', false, false)])).toBeNull();
+  });
+});
+
+describe('formatMinutes and classroomHref', () => {
+  it('minutes under an hour, then hours', () => {
+    expect(formatMinutes(25)).toBe('25 min');
+    expect(formatMinutes(60)).toBe('1 h');
+    expect(formatMinutes(95)).toBe('1 h 35 min');
+  });
+
+  it('links a module in the classroom', () => {
+    expect(classroomHref('p1', 'm1')).toBe('/learn/p1/classroom?module=m1');
+    expect(classroomHref('p1')).toBe('/learn/p1/classroom');
   });
 });
