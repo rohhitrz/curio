@@ -1,0 +1,1282 @@
+{
+  "kind": "learning-paths",
+  "date": "2026-10-04T08:29:24.194Z",
+  "commit": "ac3a05a",
+  "dirty": true,
+  "config": {
+    "runs": 1,
+    "reuse": true,
+    "levels": [
+      "BEGINNER",
+      "INTERMEDIATE",
+      "ADVANCED"
+    ],
+    "conceptMatchThreshold": 0.85,
+    "consensus": {
+      "officialWeight": 2,
+      "popularWeight": 1,
+      "modelWeight": 1
+    },
+    "cut": {
+      "beginnerMinScore": 0.5,
+      "intermediateMinScore": 0.25,
+      "beginnerMinConcepts": 20,
+      "intermediateMinConcepts": 16
+    },
+    "models": {
+      "learningPath": "gpt-6-luna",
+      "judge": "luna"
+    }
+  },
+  "summary": [
+    {
+      "topic": "python",
+      "beginner": {
+        "coverage": 0.818,
+        "consistencyExact": null,
+        "consistencySemantic": null
+      },
+      "intermediate": {
+        "coverage": 0.727,
+        "consistencyExact": null,
+        "consistencySemantic": null
+      },
+      "advanced": {
+        "coverage": null,
+        "consistencyExact": null,
+        "consistencySemantic": null
+      }
+    }
+  ],
+  "cost": {
+    "llm": {
+      "gpt-6-luna": {
+        "inputTokens": 159635,
+        "cachedInputTokens": 91222,
+        "outputTokens": 27893,
+        "calls": 23,
+        "usd": 0.0217
+      }
+    },
+    "webSearches": 0,
+    "scrapes": 0
+  },
+  "durationSeconds": 265,
+  "topics": [
+    {
+      "topic": "python",
+      "officialDocs": true,
+      "resources": [
+        {
+          "role": "OFFICIAL",
+          "type": "DOCS",
+          "title": "The Python Tutorial — Python 3.14.8 documentation",
+          "url": "https://docs.python.org/3/tutorial/index.html",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "ARTICLE",
+          "title": "Python Tutorial - GeeksforGeeks",
+          "url": "https://www.geeksforgeeks.org/python/python-programming-language-tutorial",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "VIDEO",
+          "title": "Python Full Course for Beginners",
+          "url": "https://www.youtube.com/watch?v=K5KVEU3aaeQ",
+          "read": true
+        },
+        {
+          "role": "POPULAR",
+          "type": "ARTICLE",
+          "title": "Introduction to Python",
+          "url": "https://www.w3schools.com/python/python_intro.asp",
+          "read": false
+        }
+      ],
+      "levels": [
+        {
+          "level": "BEGINNER",
+          "runs": [
+            {
+              "level": "BEGINNER",
+              "mapped": [
+                {
+                  "title": "Python Tutorial - GeeksforGeeks",
+                  "concepts": 10
+                },
+                {
+                  "title": "Python Full Course for Beginners",
+                  "concepts": 20
+                },
+                {
+                  "title": "The Python Tutorial — Python 3.14.8 documentation",
+                  "concepts": 39
+                }
+              ],
+              "recalled": 22,
+              "unmapped": [],
+              "branchOptions": [],
+              "branch": null,
+              "modules": [
+                "Getting Started",
+                "Python Fundamentals",
+                "Decisions and Loops",
+                "Collections and Data",
+                "Reusable Functions",
+                "Modules and Libraries",
+                "Errors and Files"
+              ],
+              "included": [
+                {
+                  "name": "Python Interpreter",
+                  "description": "The interpreter and its implementations run Python code interactively or from scripts and commands.",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Source Code Encoding",
+                  "description": "Python source files use a character encoding, with UTF-8 as the default and optional declarations.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Syntax Errors",
+                  "description": "Syntax errors occur when Python source code does not conform to the language grammar.",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Comments",
+                  "description": "Comments document source code for readers and are ignored when Python runs it.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Variables and Assignment",
+                  "description": "Variables are names bound to values, and assignment creates or updates those bindings.",
+                  "score": 0.8,
+                  "resources": 2,
+                  "fromModel": true
+                },
+                {
+                  "name": "Basic Data Types",
+                  "description": "Common built-in data types include integers, floating-point numbers, strings, and booleans.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Strings",
+                  "description": "Strings represent text and support literals, escapes, indexing, slicing, concatenation, and formatting.",
+                  "score": 0.8,
+                  "resources": 2,
+                  "fromModel": true
+                },
+                {
+                  "name": "Operators",
+                  "description": "Operators perform arithmetic and other operations that combine or compare values.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Expressions and Statements",
+                  "description": "Expressions produce values, while statements perform actions such as assignments and control flow.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Input and Output",
+                  "description": "Programs display information with functions such as `print()` and can receive input from users.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Conditionals",
+                  "description": "Conditional statements use branches such as `if`, `elif`, and `else` to select code to run.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Loops",
+                  "description": "Loops repeat code over iterables or conditions, with clauses and controls for managing iterations.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Pass Statement",
+                  "description": "The `pass` statement does nothing and can fill a required but intentionally empty code block.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Pattern Matching",
+                  "description": "A `match` statement tests values against patterns and runs the first matching case.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Lists",
+                  "description": "Lists are mutable ordered collections with methods, stack use, and concise construction techniques.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Functions",
+                  "description": "Functions define reusable code that can accept inputs, perform tasks, and return results.",
+                  "score": 1,
+                  "resources": 3,
+                  "fromModel": true
+                },
+                {
+                  "name": "Function Scope",
+                  "description": "Scope and name lookup determine where variables can be accessed during function execution.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Modules and Imports",
+                  "description": "Modules organize Python definitions, and imports make them available in other namespaces and programs.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Exceptions",
+                  "description": "Exceptions represent runtime errors and can be raised, handled, grouped, or cleaned up as a program runs.",
+                  "score": 0.8,
+                  "resources": 2,
+                  "fromModel": true
+                },
+                {
+                  "name": "File Handling",
+                  "description": "File handling reads, writes, and manages files, often using `with` to ensure cleanup.",
+                  "score": 0.8,
+                  "resources": 2,
+                  "fromModel": true
+                }
+              ],
+              "skipped": 21,
+              "skippedConcepts": [
+                {
+                  "name": "Python Characteristics",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Python Applications",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Python Bytecode",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Type Conversion",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Boolean Values",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Data Structures",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Tuples",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Dictionaries",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Sets",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Queues",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Comprehensions",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "IDE Features",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Code Style",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Linting",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Packages and Libraries",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Interpreter Arguments",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Compiled Module Cache",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Debugging",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Object-Oriented Programming",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Object Methods",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Database Connectivity",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                }
+              ],
+              "concepts": 41,
+              "hook": true,
+              "coverage": {
+                "covered": 9,
+                "total": 11,
+                "rate": 0.818,
+                "coveredIndexes": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  8,
+                  9,
+                  10
+                ],
+                "missed": [
+                  "collections",
+                  "classes"
+                ]
+              }
+            }
+          ],
+          "meanCoverage": 0.818,
+          "consistency": {
+            "exactJaccard": null,
+            "semanticJaccard": null
+          }
+        },
+        {
+          "level": "INTERMEDIATE",
+          "runs": [
+            {
+              "level": "INTERMEDIATE",
+              "mapped": [
+                {
+                  "title": "Python Tutorial - GeeksforGeeks",
+                  "concepts": 10
+                },
+                {
+                  "title": "Python Full Course for Beginners",
+                  "concepts": 20
+                },
+                {
+                  "title": "The Python Tutorial — Python 3.14.8 documentation",
+                  "concepts": 38
+                }
+              ],
+              "recalled": 25,
+              "unmapped": [],
+              "branchOptions": [],
+              "branch": null,
+              "modules": [
+                "Python and Its Runtime",
+                "Syntax and Values",
+                "Control Flow",
+                "Collections and Iteration",
+                "Functions and Behavior",
+                "Modules and Dependencies",
+                "Classes and Objects",
+                "Errors and Resources"
+              ],
+              "included": [
+                {
+                  "name": "Python Interpreter",
+                  "description": "The Python interpreter executes code from scripts, modules, command-line input, or an interactive session.",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Interactive Mode",
+                  "description": "Interactive mode lets users enter Python commands at a terminal and receive prompts and continuation lines.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Source Code Encoding",
+                  "description": "Source code encoding determines how Python reads characters in source files.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Syntax Errors",
+                  "description": "Syntax errors occur when Python code does not conform to the grammar needed to parse it.",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Variables and Assignment",
+                  "description": "Variables are names bound to values, and assignment associates a name with a value.",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Primitive Data Types",
+                  "description": "Python’s basic value types include integers, floating-point numbers, Booleans, and strings.",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Comments",
+                  "description": "Comments are explanatory text in source code that Python does not execute.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Strings",
+                  "description": "Strings represent text and support literals, escape sequences, indexing, slicing, concatenation, length checks, and formatting.",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Arithmetic Expressions",
+                  "description": "Arithmetic expressions use operators for calculations, including division, remainders, and powers.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Conditional Statements",
+                  "description": "Conditional statements select which block of code runs based on conditions.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Loops",
+                  "description": "Loops repeat work over iterables and support iteration ranges, loop control, and loop `else` clauses.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Pass Statement",
+                  "description": "The `pass` statement is a no-operation placeholder where Python requires a statement.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Pattern Matching",
+                  "description": "Pattern matching selects a case by testing a value against patterns such as literals, sequences, mappings, or classes.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "List Methods",
+                  "description": "List methods operate on list contents, including adding, removing, searching, sorting, and copying elements.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Lists as Stacks",
+                  "description": "Lists can implement last-in, first-out stacks using operations such as `append()` and `pop()`.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Queues",
+                  "description": "Queues process items in first-in, first-out order and are commonly implemented with `collections.deque`.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Comprehensions",
+                  "description": "Comprehensions concisely create lists, sets, or dictionaries from iterables, optionally filtering items.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Functions",
+                  "description": "Functions are reusable blocks of code defined and called to perform tasks, with inputs and return values.",
+                  "score": 0.8,
+                  "resources": 3,
+                  "fromModel": false
+                },
+                {
+                  "name": "Variable Scope",
+                  "description": "Scope rules determine where names are available and how Python resolves them across local, enclosing, global, and built-in scopes.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Modules and Packages",
+                  "description": "Modules and packages organize reusable code into importable units and namespaces.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Running Modules as Scripts",
+                  "description": "A module can detect whether it was run directly by checking whether its `__name__` is `__main__`.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Module Search Path",
+                  "description": "Python uses built-in modules and configured directories to locate modules requested by imports.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Compiled Module Caching",
+                  "description": "Python caches compiled module files to speed up imports and checks whether cached files are current.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Command-Line Arguments",
+                  "description": "Command-line arguments provide script names and user-supplied values to a running program.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Object Methods",
+                  "description": "Methods are functions associated with objects and invoked through those objects.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Exception Handling",
+                  "description": "Exception handling lets programs respond to runtime errors, including custom and grouped exceptions, and perform cleanup.",
+                  "score": 0.8,
+                  "resources": 2,
+                  "fromModel": true
+                },
+                {
+                  "name": "File Handling",
+                  "description": "File handling reads, writes, and manages files, often using cleanup mechanisms to close them safely.",
+                  "score": 0.8,
+                  "resources": 2,
+                  "fromModel": true
+                }
+              ],
+              "skipped": 34,
+              "skippedConcepts": [
+                {
+                  "name": "Python Characteristics",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Python Applications",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Python Implementations",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Bytecode and Virtual Machines",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Code Editors and IDEs",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Sequential Execution",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Variable Naming",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Printing Output",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Expressions and Booleans",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Data Structures",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Iterators and Iterables",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Generators",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Functions as Objects",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Closures",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Decorators",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Packages and Libraries",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Standard Library",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Virtual Environments",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Package Management",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Object-Oriented Programming",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Classes and Instances",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Inheritance and Composition",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Special Methods",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Dataclasses",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Type Annotations",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Context Managers",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Database Connectivity",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Code Formatting",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Linting",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Debugging",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Testing with pytest",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Logging",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Concurrency",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Performance Profiling",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                }
+              ],
+              "concepts": 61,
+              "hook": true,
+              "coverage": {
+                "covered": 8,
+                "total": 11,
+                "rate": 0.727,
+                "coveredIndexes": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  8,
+                  10
+                ],
+                "missed": [
+                  "collections",
+                  "io",
+                  "classes"
+                ]
+              }
+            }
+          ],
+          "meanCoverage": 0.727,
+          "consistency": {
+            "exactJaccard": null,
+            "semanticJaccard": null
+          }
+        },
+        {
+          "level": "ADVANCED",
+          "runs": [
+            {
+              "level": "ADVANCED",
+              "mapped": [
+                {
+                  "title": "Python Tutorial - GeeksforGeeks",
+                  "concepts": 9
+                },
+                {
+                  "title": "Python Full Course for Beginners",
+                  "concepts": 19
+                },
+                {
+                  "title": "The Python Tutorial — Python 3.14.8 documentation",
+                  "concepts": 37
+                }
+              ],
+              "recalled": 25,
+              "unmapped": [],
+              "branchOptions": [
+                "Object Mechanics",
+                "Concurrency and Systems",
+                "Python Project Craft",
+                "Language Runtime"
+              ],
+              "branch": "Object Mechanics",
+              "modules": [
+                "Collections and Iteration",
+                "Functions and Typing",
+                "Python Object Model"
+              ],
+              "included": [
+                {
+                  "name": "Identity and Mutability",
+                  "description": "Object identity, type, and value are distinct properties, and mutability determines whether an object’s state can change.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Data Structures",
+                  "description": "Data structures organize and store data, including collections used to represent lists, stacks, and queues.",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Lists",
+                  "description": "Lists support methods for managing items and can be used as stacks; list comprehensions provide a concise way to construct them.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Queues",
+                  "description": "Queues are first-in, first-out collections, with `collections.deque` supporting efficient operations at both ends.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Comprehensions",
+                  "description": "Comprehensions concisely construct collections through transformations, filters, and nested iteration.",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Iterators and Generators",
+                  "description": "The iterator protocol supports lazy traversal, and generators provide a concise way to implement iterators.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Names and Scopes",
+                  "description": "Python resolves names through local, enclosing, global, and built-in scopes, with rules for controlling bindings.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Functions",
+                  "description": "Functions are reusable callable objects defined with `def`, executed by calling them, and governed by argument, scope, and return-value rules.",
+                  "score": 1,
+                  "resources": 3,
+                  "fromModel": true
+                },
+                {
+                  "name": "Decorators",
+                  "description": "Decorators transform or wrap functions and classes, often using closures and higher-order functions.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Type Hints",
+                  "description": "Type annotations document expected values and support static analysis without generally enforcing types at runtime.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Generics and Protocols",
+                  "description": "Generics express reusable type relationships, while protocols describe structural interfaces that types can satisfy without inheritance.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Object-Oriented Programming",
+                  "description": "Object-oriented programming uses classes and objects to organize code and define behavior through inheritance and related class features.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Object Methods",
+                  "description": "Object methods are functions associated with objects and called through those objects.",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Data Model",
+                  "description": "Python’s data model defines how objects participate in operations through protocols and special methods.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Attribute Lookup",
+                  "description": "Python follows defined rules involving instances, classes, descriptors, and inheritance to resolve attribute access.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Descriptors",
+                  "description": "Descriptors customize attribute access through methods such as `__get__`, `__set__`, and `__delete__`.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Abstract Base Classes",
+                  "description": "Abstract base classes define interfaces and can provide runtime checks and shared behavior for related types.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Metaclasses",
+                  "description": "Metaclasses control class creation when class definitions require customized behavior.",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                }
+              ],
+              "skipped": 35,
+              "skippedConcepts": [
+                {
+                  "name": "Python Characteristics",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Code Editors and IDEs",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Source Code Encoding",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Python Comments",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "PEP 8 Formatting",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Linting",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Syntax Errors",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Python Execution",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Program Execution Order",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Printing Output",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Primitive Data Types",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Variables",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Expressions",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Boolean Values",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Strings",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Formatted Strings",
+                  "score": 0.6,
+                  "resources": 2,
+                  "fromModel": false
+                },
+                {
+                  "name": "Conditionals",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Range and Iterables",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Loops",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Pass Statement",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Structural Pattern Matching",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Command-Line Arguments",
+                  "score": 0.4,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Modules and Imports",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "Packages and Libraries",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Packaging and Environments",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Exception Handling",
+                  "score": 0.8,
+                  "resources": 2,
+                  "fromModel": true
+                },
+                {
+                  "name": "Context Managers",
+                  "score": 0.6,
+                  "resources": 1,
+                  "fromModel": true
+                },
+                {
+                  "name": "File Handling",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Database Integration",
+                  "score": 0.2,
+                  "resources": 1,
+                  "fromModel": false
+                },
+                {
+                  "name": "Concurrency Models",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Asyncio",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Memory Management",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "C Extensions and FFI",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Testing and Mocking",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                },
+                {
+                  "name": "Profiling and Optimization",
+                  "score": 0.2,
+                  "resources": 0,
+                  "fromModel": true
+                }
+              ],
+              "concepts": 53,
+              "hook": true,
+              "coverage": null
+            }
+          ],
+          "meanCoverage": null,
+          "consistency": {
+            "exactJaccard": null,
+            "semanticJaccard": null
+          }
+        }
+      ]
+    }
+  ]
+}

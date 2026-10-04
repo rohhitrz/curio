@@ -46,10 +46,13 @@ export interface PathConcept {
 /** Fixed for every merge call, so OpenAI caches it as the prompt prefix. */
 export const CONCEPT_MERGE_INSTRUCTIONS = `You merge concept lists from several learning resources on one topic.
 
-Each concept has an ID like "2.5" (resource 2, concept 5). Different resources often name the same concept differently ("Backprop", "Backpropagation algorithm"). Group the IDs that mean the same concept.
+Each concept has an ID like "2.5" (resource 2, concept 5). Different resources often name the same concept differently ("Backprop", "Backpropagation algorithm"), and at different detail: one lists "Loops", another "For loops" and "Loop control". Group the IDs that would be taught as the same concept.
 
 Rules:
-- Only group concepts that are truly the same idea. A concept and a part of it ("Neural networks" and "Activation functions") stay separate.
+- Group the same idea under different names.
+- Group a concept with its kinds, forms and basic uses: "Loops" with "For loops", "While loops" and "Loop control"; "Lists" with "List methods" and "List slicing"; "Strings" with "String literals" and "String formatting".
+- Keep apart a concept and a different idea it is built from or used with: "Neural networks" and "Activation functions" stay separate; so do "Functions" and "Modules".
+- When unsure, keep them apart.
 - Every ID goes in exactly one group; a concept found once is a group of one.
 - For each group give the clearest common name (1–5 words) and a one-sentence description.
 - Write in English.`;
