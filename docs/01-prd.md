@@ -113,6 +113,7 @@ Curio is an AI learning workspace with **two entry points**:
 **Flow**
 1. **Clarify:** user enters a topic; Curio asks for **level** (beginner / intermediate / advanced) and **goal** (exam, job, curiosity)
    - Level is **per topic**. If memory holds a level for the same or a related topic, Curio **pre-fills it and asks the user to confirm**; it never assumes
+   - **Scope check:** a topic too broad for one focused path (e.g. "science", "programming") gets 4–6 narrower focus options to pick from; the user can keep the original. A failed check never blocks
 2. **Gather:** finds **official docs** (source of truth) plus a capped number of **popular resources** (tutorials, articles, videos)
 3. **Map:** extracts the concepts each resource covers and scores them by **consensus** (how many resources cover them, plus the LLM's own knowledge of the topic as one lighter vote; the official docs weigh the most); the LLM sets **prerequisite order** and fills gaps
 4. **Cut by level:**
@@ -121,18 +122,21 @@ Curio is an AI learning workspace with **two entry points**:
    - **Advanced:** user **picks a branch**, which is covered in depth
 5. **Present the path:**
    - A **hook** first: what it is, why it matters, one real-world example, a 2-line origin
-   - **Modules** in prerequisite order
+   - **Modules** in prerequisite order, each with **why it matters**, a relative **difficulty**, and an **estimated time**; the number of modules follows the topic's breadth
    - A **"Skipped for now"** list, so nothing important is silently dropped
 6. **Edit:** the user can check or uncheck modules before starting
 7. **Create:** a **learning notebook** is created, and the chosen resources are ingested as its sources
+   - While building, the progress screen names the resources being read and mapped
+8. **Learn in the classroom:** one screen with the modules on one side and the open module's lesson + tutor on the other. Curio is the teacher: it has studied the resources, so the learner doesn't need to open them; they sit in a collapsed **"What your teacher studied"** list. "Start learning" opens the first module not yet done
 
 ### 5.7 Lessons
-- Generated **on demand** when the user opens a module, not all upfront
-- **Grounded via RAG** in the notebook's sources, with citations; the LLM's own knowledge only connects and explains
-- Fixed structure: **hook → core idea → example → key takeaways → cited resources**
+- Generated **on demand**: opening a module shows its saved lesson, or starts streaming one right away (no "generate" button), not all upfront
+- **Lessons teach, they don't summarize.** Structure: a short intro (why this module matters, how it builds on the last) → **one section per concept**: intuition first, then the precise idea, then a **worked example** (short runnable code for technical topics; a concrete case, scenario or table otherwise), then a common misconception where there is one → **Key takeaways**
+- **Grounded via RAG** in the notebook's sources: every factual claim is cited `[n]`; sources appear only as citations (and a list built from them), never as "go read this". The LLM's own knowledge only connects and explains: **examples, analogies and code are the teacher's own** and must agree with the sources
+- A concept **no source covers** (the model's own list or a gap prerequisite) is still taught, briefly and without citations, under a visible note: *"General knowledge, not in the resources"*
 - Adapted to the user's **level and learning style**
 - Saved once generated; a **regenerate** option is available
-- **"Ask about this"** opens chat scoped to that lesson's sources
+- **Tutor per module** (the "ask about this" chat): searches only the lesson's cited sources, knows the lesson, the module and the rest of the path, and **stays on the module's topic** (off-topic questions get a short redirect). When the learner seems ready, it **suggests** marking the module done; the learner clicks
 - **Mark as done** saves progress and updates topic memory (e.g. *"understands X"*)
 
 ### 5.8 Long-term memory
@@ -155,7 +159,7 @@ Curio is an AI learning workspace with **two entry points**:
 Sign in → create notebook → add PDF + YouTube link → watch status move to `READY` → ask a question → get a streamed, cited answer → click a citation → PDF opens at the page
 
 **Flow B: Learn a topic**
-Sign in → "Learn a topic" → type "Machine Learning" → answer level/goal → review the path (hook, modules, skipped list) → uncheck a module → start → learning notebook is created, resources indexed → open module 1 → lesson generates with citations → "ask about this" → mark done
+Sign in → "Learn a topic" → type "Machine Learning" → answer level/goal (a too-broad topic offers focus options) → learning notebook is created, resources read and mapped (progress names them) → review the path (hook, modules with why / difficulty / time, skipped list) → uncheck a module → "Start learning" → the classroom opens module 1 → the lesson streams with citations → ask the tutor a question → mark done
 
 **Flow C: Recovering from failure**
 Add a website that fails to scrape → source shows `FAILED` with a reason → user retries or deletes it → the rest of the notebook works normally

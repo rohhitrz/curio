@@ -247,8 +247,11 @@ Snapshots survive source reprocessing (new chunk IDs) and source deletion (the s
 | `resource_type` | `resource_type` | NOT NULL |
 | `title` | text | NOT NULL |
 | `url` | text | NOT NULL |
+| `mapped_at` | timestamptz | nullable: set when its concepts are extracted (progress UI) |
 
 **Indexes:** `(path_id)`
+
+- Each map step sets `mapped_at` on its own row, so parallel maps never overwrite each other. Progress state per resource = source status + `mapped_at`
 
 ### `concepts`
 | Column | Type | Constraints |
@@ -281,11 +284,14 @@ Snapshots survive source reprocessing (new chunk IDs) and source deletion (the s
 | `position` | int | NOT NULL |
 | `title` | text | NOT NULL |
 | `summary` | text | NOT NULL |
+| `why` | text | nullable: why it matters, how it builds on the last (null on pre-Phase 9 paths) |
+| `difficulty` | `level` | nullable: relative within the path |
 | `is_enabled` | boolean | NOT NULL, default true |
 | `completed_at` | timestamptz | nullable |
 
 **Constraints:** `UNIQUE (path_id, position)`
 
+- Estimated minutes are not stored: computed from the included concepts × minutes per concept for the level (`config/`), so they always match the cut
 - Progress lives here because a path has one owner. A separate progress table is a future migration for shared/cached paths.
 
 ### `lessons`
@@ -302,6 +308,9 @@ Snapshots survive source reprocessing (new chunk IDs) and source deletion (the s
 | `created_at` | timestamptz | NOT NULL |
 
 **Constraints:** `UNIQUE (module_id, version)`. The latest version is shown; regenerate adds a new version.
+
+- Owned through module → path → user: every lesson query joins up to `learning_paths.user_id`
+- The module's **tutor** = its latest conversation whose `lesson_id` is one of the module's lessons; `conversations (lesson_id)` index added with the FK
 
 ---
 

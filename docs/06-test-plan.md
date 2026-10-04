@@ -57,6 +57,9 @@
 | **Cut rules** | Beginner / intermediate thresholds · advanced keeps only chosen branch · skip reasons generated |
 | **Consensus scoring** | Official source weighted higher · count correct · the model's own list is one lighter vote, never coverage (L-09) |
 | **Section links (L-08)** | Same host + folder only · page order · anchors / query / files / the page itself / duplicates dropped · at most N · relative links resolved |
+| **Module minutes (L-11)** | Included concepts × minutes per concept for the level · a module with all its concepts cut → not shown |
+| **Lesson concept grouping** | Concepts whose gate passes get their chunks; the rest are listed as general knowledge · one sub-query per concept |
+| **Tutor action marker** | Trailing marker stripped from the saved text + `SUGGEST_COMPLETE` emitted · marker mid-text or malformed → left as text, no action |
 | **Error classification** | Each extractor error → transient or permanent correctly |
 | **Cursor pagination** | Encode/decode round-trip · tampered cursor → 400 |
 
@@ -173,13 +176,21 @@
 | Test | Expected |
 |---|---|
 | Get lesson before generation | 404 `LESSON_NOT_GENERATED` |
-| Generate | Streamed, saved as version 1 |
+| Generate | Streamed, saved as version 1, citations snapshotted |
+| Concept with nothing relevant | Taught under the general-knowledge note, no citations for it; the other concepts still cited |
 | Regenerate | Version 2; version 1 still readable |
 | Generate while generating | 409 `LESSON_GENERATING` |
-| Disabled module | 409 `MODULE_DISABLED` |
+| Disabled module / path not `READY` | 409 `MODULE_DISABLED` / `PATH_NOT_READY` |
+| Client disconnects mid-stream | Lesson still completes and saves |
+| Another user's module / lesson | 404 |
 | Mark done | `completed_at` set + `UNDERSTOOD` memories |
 | **Un-mark done** | `completed_at` cleared + those memories removed |
-| "Ask about this" on an older version | Chat scoped to that version's sources |
+| Tutor on an older version | Chat scoped to that version's sources; `conversationId` returned on the module's lesson |
+| Tutor context | Prompt holds the lesson, the module and the other modules' summaries + done state |
+| Tutor suggests done | `action` event sent, nothing marked done until `PUT /completion` |
+| Scope check: broad / focused / LLM down | 4–6 options / `broad: false` / `broad: false`, never an error |
+| Order output with `why` + difficulty | Saved on modules; outline returns them + `minutes`; pre-Phase 9 path → `null`s |
+| Map progress | Each mapped resource gets `mapped_at`; poll returns `READING` / `READ` / `FAILED` / `MAPPED` |
 
 ### Phase 10: Hardening
 | Test | Expected |
@@ -250,7 +261,7 @@ A small test account is used, and smoke tests clean up after themselves.
 | **False refusal rate** | answerable questions wrongly refused ÷ answerable questions |
 | **Path coverage** | official core sections matched by included concepts ÷ official core sections |
 | **Path consistency** | overlap (Jaccard) of included concepts across 3 runs, same topic + level |
-| **Lesson faithfulness** | same as answer faithfulness |
+| **Lesson faithfulness** | supported factual claims ÷ factual claims, judged against the cited chunks; examples, analogies, code and the general-knowledge sections are not claims (L-10) |
 
 **Why track false refusals too:** a gate that refuses everything gets perfect refusal accuracy. False refusals catch a gate that's **too strict**.
 

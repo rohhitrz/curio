@@ -210,6 +210,15 @@
 - **How:** a `recall` step (one Luna call, alongside the maps) lists the topic's core concepts for the learner's level from the model's own knowledge (≤ 25). Merge groups them with the resources' concepts as one more voter, weight 1 (official 2, popular 1). It only adds to scores: it is not a resource, gets no coverage rows and is not counted in "covered by N of M resources". A concept only the model lists scores low (0.2 with 2 popular + official) and is kept only when the floor tops a path up ("Not in the resources (general knowledge only)" when skipped). Recall failing on the last attempt → the path is built from the resources alone
 - **Why:** owner (2026-10-04): the model has seen far more material on a topic than the 3–6 resources a path reads. Its vote fills sections the resources miss and stops the official docs alone from passing every threshold (with 3 resources, official-only concepts scored 0.5, so beginner and intermediate kept the same 40–60 concepts). Lessons stay grounded in the sources (PRD: the LLM's own knowledge only connects and explains)
 
+**L-10 · Curio teaches: streamed teaching lessons + a tutor per module, resources become citations (Phase 9)**
+- **How:** opening a module streams its lesson (no button). One section per concept: intuition → precise idea (cited) → worked example (runnable code for technical topics) → misconception → key takeaways. Factual claims are cited; examples, analogies and code are the teacher's own and must agree with the sources. A concept with nothing relevant in the sources (the model's own list, L-09, or a gap prerequisite) is taught briefly under *"General knowledge, not in the resources"*, never cited. The tutor is the lesson-scoped chat with the lesson, module and path in context; it stays on the module's topic and only **suggests** marking done (the learner clicks, since done writes `UNDERSTOOD` memories). One classroom screen; the resources sit in a collapsed "What your teacher studied"
+- **Alternatives:** lessons as summaries + links (the Phase 8 outline felt like "a list of links to go and read"); writing lessons from search snippets (notebookLmPlus, ~2.5k chars per source); skipping uncovered concepts (holes in the lesson); the tutor marking done itself
+- **Why:** owner (2026-10-03): Curio should study the resources and teach. Full ingestion and the tested retrieval keep the facts grounded; examples are what make a lesson click and can't come from the sources. Faithfulness is judged on factual claims only, so the metric still means "nothing invented"
+
+**L-11 · Scope check before a path; module time computed in code (Phase 9)**
+- **How:** `GET /learning-paths/scope` (one Luna call) → too broad → 4–6 narrower topics as options; failure → not broad. The order step adds `why` + relative difficulty per module and sizes the module count to the topic's breadth (still 3–10). Minutes = included concepts × `minutesPerConcept[level]` after the cut
+- **Why:** a goal like "programming" makes a shallow path; one question up front fixes that. A model's minute estimate is made before the cut drops concepts, so it would be wrong; the code number always matches what is taught (L-02)
+
 ---
 
 ## 6. Memory decisions
@@ -363,4 +372,4 @@
 | 6 | HyDE: kept or dropped (with numbers) | R-10 |
 | 6 | Chunk size after tuning | I-14 |
 | 6 | Relevance gate threshold | R-11 |
-| 9 | Lessons: Luna enough, or upgrade to Sol? | A-10 |
+| 9 | Lessons: Luna enough, or upgrade to Sol? | L-12 (A-10 is the R2 SDK) |

@@ -47,7 +47,7 @@
 | 6 | Advanced retrieval | Measured gain per technique |
 | 7 | Memory | Summaries + long-term memory |
 | 8 | Learning paths | Topic → path |
-| 9 | Lessons | Streamed lessons + "ask about this" |
+| 9 | Lessons | Classroom: streamed teaching lessons + a tutor per module |
 | 10 | Hardening | Production-safe |
 | 11 | Final evals + polish | Resume-ready |
 
@@ -211,16 +211,19 @@
 
 ## 12. Phase 9: Lessons
 
+Curio becomes the teacher (owner feedback on the first live path, 2026-10-03): it studied the resources, so lessons teach and a tutor answers; the resources step back to citations (L-10).
+
 | Step | Work |
 |---|---|
-| 9.1 | Migration: `lessons` (also adds the FK `conversations.lesson_id → lessons.id`, ON DELETE SET NULL; the column exists since 5.1); lesson pipeline (retrieval per concept → structured lesson → stream), versions, Redis lock |
-| 9.2 | Lesson API: get latest, generate (stream), get version |
-| 9.3 | `PUT /completion` + `UNDERSTOOD` memories (added and removed) |
-| 9.4 | "Ask about this": chat filtered by the lesson's cited sources |
-| 9.5 | Frontend: lesson view, regenerate, mark done, ask about this |
-| 9.6 | Eval: lesson faithfulness |
+| 9.1 | Migration `0011_lessons`: `lessons` (+ FK `conversations.lesson_id → lessons.id`, ON DELETE SET NULL, and its index; the column exists since 5.1), `modules.why` + `modules.difficulty`, `path_resources.mapped_at` |
+| 9.2 | Path upgrades: order step returns `why` + difficulty per module and sizes the module count to the topic's breadth · module minutes computed in code (L-11) · map steps set `mapped_at`, poll returns resource states · `GET /learning-paths/scope` (L-11) |
+| 9.3 | Lesson pipeline: retrieval per concept → teaching prompt (intuition → idea → worked example / code → misconception → takeaways; uncovered concepts as general knowledge) → citation check → stream → save; versions, Redis lock |
+| 9.4 | Lesson API: get latest (+ `conversationId`), generate (stream), get version · `PUT /completion` + `UNDERSTOOD` memories (added and removed) |
+| 9.5 | Tutor: lesson-scoped chat that knows the lesson, the module and the path, stays on topic, and suggests "mark done" (`action` event) |
+| 9.6 | Frontend: scope options on the clarify screen, progress naming resources, outline with why / difficulty / minutes, **classroom** (modules · lesson + tutor; "What your teacher studied" collapsed; "Start learning" opens the first module not done), regenerate, mark done |
+| 9.7 | Eval: lesson faithfulness (factual claims vs cited chunks; examples excluded) |
 
-**Done when:** lessons stream with citations · regenerate creates a version · marking done creates memories, un-marking removes them · "ask about this" stays scoped · tests pass
+**Done when:** lessons stream with citations as a module opens · regenerate creates a version · marking done creates memories, un-marking removes them · the tutor stays scoped and on topic · scope check, module why / difficulty / minutes and map progress work · tests pass
 
 ---
 
@@ -228,7 +231,7 @@
 
 | Step | Work |
 |---|---|
-| 10.1 | Rate limits (Upstash) on all 4 limited endpoints, `Retry-After` |
+| 10.1 | Rate limits (Upstash) on all 5 limited endpoints, `Retry-After` |
 | 10.2 | Quota enforcement audit (file size, video length, text length, counts) |
 | 10.3 | **Ownership test suite:** every endpoint called as another user → 404 |
 | 10.4 | Prompt-injection check: a source containing instructions doesn't change behavior |

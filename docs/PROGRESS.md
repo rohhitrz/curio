@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 9 (Lessons), not started
-- **Current step:** Phase 8 approved by the owner (2026-10-04)
+- **Phase:** 9 (Lessons), in progress
+- **Current step:** Phase 9 doc changes approved by the owner and committed (2026-10-04)
 - **Blocked on:** nothing
-- **Next step:** Phase 9 in a new chat: start by proposing the doc changes from the owner's teacher feedback ("Owner feedback on the first live path" under Phase 8 notes)
+- **Next step:** 9.1 migration `0011_lessons`
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -22,13 +22,24 @@
 | 6 | Advanced retrieval | ✅ Done (owner approved) |
 | 7 | Memory | ✅ Done (owner approved) |
 | 8 | Learning paths | ✅ Done (owner approved) |
-| 9 | Lessons | ⏳ Not started |
+| 9 | Lessons | 🔨 In progress |
 | 10 | Hardening | ⏳ Not started |
 | 11 | Final evals + polish | ⏳ Not started |
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 8
+## Current phase steps: Phase 9
+- [x] 9.0 Doc changes from the owner's teacher feedback (approved 2026-10-04): PRD 5.6–5.7 + flow B, system design §8–9 (teaching lessons, tutor), DB (`modules.why` / `difficulty`, `path_resources.mapped_at`, tutor lookup), API (scope check, resource states in the poll, module why / difficulty / minutes, lesson `conversationId`, `action` stream event), build plan Phase 9 (9.1–9.7), test plan, decisions L-10 + L-11 · owner's picks: uncovered concepts taught under "General knowledge, not in the resources"; the tutor only suggests mark done
+- [ ] 9.1 Migration `0011_lessons`: `lessons` + FK/index `conversations.lesson_id`, `modules.why` + `difficulty`, `path_resources.mapped_at`
+- [ ] 9.2 Path upgrades: order `why` + difficulty + breadth-sized modules · minutes in code · `mapped_at` + resource states · scope check
+- [ ] 9.3 Lesson pipeline (retrieval per concept → teaching prompt → citation check → stream → save; versions, lock)
+- [ ] 9.4 Lesson API + `PUT /completion` with `UNDERSTOOD` memories
+- [ ] 9.5 Tutor (lesson-scoped chat with path context, on topic, suggests done)
+- [ ] 9.6 Frontend: scope options, progress with resource names, outline additions, classroom
+- [ ] 9.7 Eval: lesson faithfulness
+- [ ] 🛑 Owner approves Phase 9
+
+## Phase 8 steps (done)
 - [x] 8.1 Migration `0010_learning_paths` (enums `goal`, `path_status`, `resource_role`, `resource_type`, `concept_status`; tables `learning_paths` (one per notebook), `path_resources`, `modules` (unique `(path_id, position)`), `concepts` (indexes `(path_id)`, `(module_id, position)`), `concept_coverage` (PK `(concept_id, path_resource_id)`); plus the deferred FK `memories.concept_id → concepts.id ON DELETE SET NULL`) on dev + test · shared `learning.ts` (enums, `pathHookSchema`, `branchOptionsSchema`) · `level` enum moved to `db/schema/level.ts` (memories ↔ learning paths would import each other)
 - [x] 8.2 Tavily provider `lib/search/` (`SearchProvider.search` → title / url / snippet / score; `SearchError` retryable on timeout, network, 429, 5xx; `webSearch` config: 15s, `basic` depth) · `GET /learning-paths/prefill?topic=` (`learning-paths` route → controller → service): user has no levels → `null` without an embedding call; same normalized topic with a level → `EXACT`; else the nearest of the user's levels by topic-name cosine ≥ `learningPaths.relatedTopicMinSimilarity` (0.6) → `RELATED` (known topic → stored embedding; unseen topic → embedded, **not created**: the endpoint is read-only); embeddings down → `null` · repo: `memories.levels`, `memories.nearestLevel`, `topics.findWithEmbedding` · shared `prefillQuerySchema` / `prefillResponseSchema`
 - [x] 8.3 `generateLearningPath` job (`path/requested`), part 1: `claim` (only a `GATHERING` path) → `search` (3 searches via Tavily, Firecrawl search as fallback; some failing is fine, all failing retries then `SEARCH_FAILED`) → `select` (Luna `resourceSelection` judges every result; pure `selectResources` picks 1 `OFFICIAL` + ≤ 5 `POPULAR`, ≤ 1 video, one per site; model down on the last attempt → search order; < 3 → `NO_RESOURCES`) → `save-resources` (one transaction: sources `LEARNING_PATH`/`PENDING` + `path_resources`, status `READING`; a page already in the notebook is reused) → `step.invoke(processSource)` per source, in parallel → `finish-reading-N` (sources still in flight: `step.sleep` 1m, up to 10×) → `MAPPING`, or `TOO_FEW_RESOURCES` with the count · retry reuses saved resources (no search), resets `FAILED` sources · `onFailure` → `GENERATION_FAILED` · decision L-06 · `TAVILY_API_KEY` required at boot
@@ -515,6 +526,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-04 (Phase 9 doc changes)
+- Done: 9.0, the doc changes for "Curio teaches" (owner approved, with the recommended picks: uncovered concepts taught as marked general knowledge; the tutor suggests mark done, the learner clicks)
+- Notes: the decisions table pointed "Lessons: Luna or Sol?" at A-10, which is the R2 SDK decision; it's L-12 now
 
 ### 2026-10-04 (code review fixes)
 - Done: 3 findings from the owner's review of Phases 5–6 (chat lock renewal, answer placement, dropped connection in the web app); see "Code review fixes (2026-10-04)"

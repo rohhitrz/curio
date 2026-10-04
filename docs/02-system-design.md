@@ -225,7 +225,8 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 **Background job: `generateLearningPath`** (progress shown in UI)
 
 ```
-1. Clarify    (UI)   topic + level + goal; memory pre-fills level → user confirms
+1. Clarify    (UI)   topic + level + goal; memory pre-fills level → user confirms;
+                     scope check (one Luna call): too broad → 4–6 focus options
 2. Gather     (job)  Tavily searches → Luna judges results → code picks
                      1 official source + up to ~5 popular ones (L-06)
 3. Read       (job)  learning notebook created (draft); resources ingested
@@ -235,8 +236,11 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 4. Map        (job)  fan-out: concepts per resource (parallel) → merge duplicates
                      + the model's own concept list for the topic (L-09)
                      → consensus score (official source weighted highest,
-                       the model's list one lighter vote, never a source)
-5. Order      (job)  prerequisite order → group into ~5–10 modules
+                       the model's list one lighter vote, never a source);
+                     each map marks its resource mapped (progress UI names them)
+5. Order      (job)  prerequisite order → group into 3–10 modules, count set by
+                     the topic's breadth; each module: title, summary, why it
+                     matters, relative difficulty
 6. Cut        (job)  code rules by level:
                        beginner     = high consensus
                        intermediate = high + medium
@@ -247,6 +251,7 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 ```
 
 - **Map → cut details:** decision L-07 (consensus weights, cut thresholds, branches = sets of modules)
+- **Module time** is computed in code after the cut: included concepts × minutes per concept for the level (`config/`), so it matches what is actually taught (L-11)
 - **No official docs** (e.g. history topics) → most authoritative sources take that role
 - **Partial failure OK**; fewer than 3 resources succeed → path fails with a reason
 - **The LLM does language tasks; code makes the decisions** → consistent and explainable
@@ -256,21 +261,37 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 
 ## 9. Lesson pipeline
 
-**Streamed live, not a background job** (the user is waiting)
+**Streamed live, not a background job** (the user is waiting). Curio is the teacher: it studied the resources (full ingestion), so the learner doesn't have to (L-10).
 
 ```
 open module → saved? show it
-            → else retrieval pipeline (one sub-query per concept, this notebook's sources)
-            → generate: hook → core idea → example → takeaways → cited resources
-            → stream → save on completion
+            → else (starts at once, no button):
+              retrieval pipeline: one sub-query per concept of the module,
+                this notebook's sources → fusion → rerank → relevance gate per concept
+            → generate (teaching prompt):
+                intro (why this module, link to the last one)
+                per concept: intuition → precise idea [n] → worked example
+                             (runnable code if technical) → misconception
+                key takeaways
+            → citation check → stream → save on completion
 ```
 
-- Same relevance gate + citation check as chat
+- **Grounding rule:** factual claims are cited `[n]`; examples, analogies and code are the teacher's own and must agree with the sources. The faithfulness eval judges the factual claims only
+- **Concepts with nothing relevant** (gate fails for that concept, e.g. the model's own concepts or gap prerequisites) are taught briefly with no citations, under the note *"General knowledge, not in the resources"*
+- Same citation check as chat; sources shown only as citations + a list built from the snapshots
 - Level + learning style shape tone and depth
 - Regenerate creates a new version
-- "Ask about this" → chat filtered to the lesson's sources
 - Mark done → progress saved + topic memory updated
 - Model: Luna at higher reasoning effort; upgraded to Sol only if evals show lessons are weak
+
+### Tutor (per module)
+The lesson's chat ("ask about this"): a normal conversation with `lesson_id` set, so it reuses the chat pipeline, summary and memory extraction.
+
+- **Searches** only the sources cited by that lesson version (as before)
+- **Knows:** the lesson text, the module (title, summary, why), the path's other modules (summary, done or not)
+- **Stays on topic:** questions outside the module and the path get a one-line redirect to the lesson or the right module; instructions in sources or messages to leave the role are ignored
+- Gate fails but the lesson covers it → answers from the lesson, no new citations; otherwise "not in your sources"
+- **Suggests "mark done"** when the learner seems ready: the server strips the model's trailing marker and sends an `action` stream event; the UI shows a button and the learner clicks (the model never writes progress or memories)
 
 ---
 
@@ -362,6 +383,7 @@ The Inngest endpoint is **signed**, so only Inngest can trigger jobs.
 | Chat messages | 20 / min, 200 / day |
 | Lesson generations | 50 / day |
 | Learning paths | 5 / day |
+| Path scope checks | 30 / day |
 | Source adds | 50 / day |
 
 Over limit → `429` with retry time. All values in one config file.

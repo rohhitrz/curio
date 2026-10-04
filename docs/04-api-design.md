@@ -66,7 +66,7 @@
 
 ## 2. Endpoint index
 
-**39 endpoints under `/api/v1`, plus `GET /health`.**
+**40 endpoints under `/api/v1`, plus `GET /health`.**
 
 ### Notebooks (5)
 | Method | Path | Success |
@@ -104,10 +104,11 @@
 | POST | `/conversations/:conversationId/retry` | stream |
 | PUT | `/messages/:messageId/feedback` | 200 |
 
-### Learning (11)
+### Learning (12)
 | Method | Path | Success |
 |---|---|---|
 | GET | `/learning-paths/prefill?topic=` | 200 |
+| GET | `/learning-paths/scope?topic=&level=` | 200 |
 | POST | `/learning-paths` | 202 |
 | GET | `/learning-paths/:pathId` | 200 |
 | POST | `/learning-paths/:pathId/branch` | 202 |
@@ -250,6 +251,14 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 - `EXACT`: a level confirmed for the same (normalized) topic · `RELATED`: the user's level whose topic name is most similar (embedding cosine ≥ `learningPaths.relatedTopicMinSimilarity`)
 - Read-only (an unseen topic is not created); not rate-limited against path creation; embeddings down → `{ "match": null }`
 
+### Scope check: `GET /learning-paths/scope?topic=…&level=…`
+```json
+{ "broad": true, "question": "Which part of programming?", "options": [ { "label": "Python basics", "topic": "Programming fundamentals in Python" } ] }
+```
+- One Luna call: is the topic focused enough for one path? `broad: true` → a short `question` + **4–6** `options` (`label` 2–5 words, `topic` = the narrower topic to start with); `broad: false` → `options: []`
+- The clarify screen shows the options as chips; the learner can keep the original topic
+- Fails or times out → `{ "broad": false, "question": null, "options": [] }` (never blocks starting) · rate limit **30 / day**
+
 ### Start: `POST /learning-paths`
 ```json
 { "topic": "Deep Learning", "level": "INTERMEDIATE", "goal": "JOB" }
@@ -260,7 +269,7 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 - ← **202** `{ pathId, notebookId, status }` · rate limit **5 / day**
 
 ### Progress: `GET /learning-paths/:id`
-- Lightweight poll: status, hook, branch options, error
+- Lightweight poll: status, hook, branch options, error, and `resources`: `[{ id, title, state }]`, `state` = `READING` (source pending / processing) · `READ` · `FAILED` · `MAPPED` (its concepts are extracted), so the progress screen can name what it's working on
 - Failure codes (`error.code`, with a user-facing message): `SEARCH_FAILED` (web search down) · `NO_RESOURCES` (too few usable results for the topic) · `TOO_FEW_RESOURCES` (fewer than 3 resources could be read or turned into concepts; the message gives the count) · `BRANCH_NOT_PICKED` (advanced path: no branch picked within 3 days) · `GENERATION_FAILED` (unexpected)
 
 ### Branch: `POST /learning-paths/:id/branch`
@@ -284,6 +293,7 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
   "modules": [
     {
       "id": "…", "position": 1, "title": "…", "summary": "…",
+      "why": "…", "difficulty": "BEGINNER", "minutes": 25,
       "isEnabled": true, "completedAt": null, "hasLesson": false,
       "concepts": [
         { "id": "…", "name": "Supervised learning", "coveredBy": 5, "officialCovers": true }
@@ -298,7 +308,8 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 
 ### Modules
 - **`PATCH /modules/:id`** `{ isEnabled }` → the module (without concepts)
-- Outline `progress`: `enabled` = enabled modules, `completed` = enabled modules marked done; `hasLesson` is `false` until lessons (Phase 9)
+- Outline `progress`: `enabled` = enabled modules, `completed` = enabled modules marked done; `hasLesson` = the module has a saved lesson
+- `why` (why this module matters, how it builds on the last) and `difficulty` (`level` enum, relative within the path) come from the order step; `null` on paths built before Phase 9. `minutes` = included concepts × `learningPaths.minutesPerConcept[level]` (computed at read time)
 - **`PUT /modules/:id/completion`** `{ completed }`
   - `true` → set `completed_at` + write `UNDERSTOOD` memories (origin `LESSON_COMPLETED`, `origin_ref` = module)
   - `false` → clear `completed_at` + remove memories with this `origin_ref`
@@ -307,14 +318,23 @@ A `FAILED` source carries `errorMessage` (written for the user) and `errorCode`:
 ```
 GET /modules/:id/lesson
    ├── 200 → saved lesson (latest version)
-   └── 404 LESSON_NOT_GENERATED → POST /modules/:id/lessons → stream
+   └── 404 LESSON_NOT_GENERATED → the client calls POST /modules/:id/lessons at once (no button) → stream
 ```
+```json
+{
+  "id": "…", "moduleId": "…", "version": 2, "status": "COMPLETE", "model": "…",
+  "content": "markdown with [n]", "citations": [ /* snapshots, same shape as messages */ ],
+  "conversationId": "…", "createdAt": "…"
+}
+```
+- `conversationId`: the module's latest tutor conversation (linked to any version of its lesson), `null` if none yet → the client creates one on the first question
 - **`POST /modules/:id/lessons`** always creates a **new version** (first generation + regenerate)
   - Checks: path `READY` · module enabled (**409 `MODULE_DISABLED`**) · not generating (**409 `LESSON_GENERATING`**, Redis lock)
   - Rate limit **50 / day**
   - Client disconnects → still completes and saves
-- **`GET /lessons/:id`** → a specific version (used by "ask about this" chats linked to older versions)
-- **"Ask about this"** = `POST /notebooks/:id/conversations` with `lessonId`
+  - Concepts with no relevant source are taught under a *"General knowledge, not in the resources"* note, without citations
+- **`GET /lessons/:id`** → a specific version (used by tutor chats linked to older versions)
+- **Tutor** ("ask about this") = `POST /notebooks/:id/conversations` with `lessonId`; its messages may end with an `action` stream event `{ "type": "SUGGEST_COMPLETE", "moduleId": "…" }` → the UI offers "Mark module done" (→ `PUT /modules/:id/completion`); the server never marks it done itself
 
 ### Deleting a path
 - Delete its notebook; there's no separate endpoint
@@ -363,6 +383,7 @@ Used by `POST /conversations/:id/messages`, `POST /conversations/:id/retry`, and
 | **citations** | Final citation snapshots (after the citation check) |
 | **finish** | Trace ID |
 | **error** | Error code + message (saved as `ERROR`) |
+| **action** | Tutor only: `{ type: "SUGGEST_COMPLETE", moduleId }`, sent before **finish** (not saved in `content`) |
 
 **One format → one frontend streaming component** for chat and lessons.
 
@@ -401,6 +422,7 @@ Used by `POST /conversations/:id/messages`, `POST /conversations/:id/retry`, and
 | `POST /conversations/:id/messages` + `/retry` | 20 / min, 200 / day |
 | `POST /modules/:id/lessons` | 50 / day |
 | `POST /learning-paths` | 5 / day (retries excluded) |
+| `GET /learning-paths/scope` | 30 / day |
 | `POST /notebooks/:id/sources` | 50 / day |
 
 ### Polled endpoints
