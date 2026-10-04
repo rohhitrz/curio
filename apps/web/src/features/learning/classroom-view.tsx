@@ -177,7 +177,8 @@ function Classroom({
       <section
         aria-label="Lesson"
         className={cn(
-          'rounded-xl border p-5 sm:p-8 lg:block lg:min-h-0 lg:overflow-y-auto',
+          // Only vertical scrolling: code blocks and tables scroll sideways on their own.
+          'min-w-0 overflow-x-hidden rounded-xl border px-5 py-6 sm:px-10 sm:py-10 lg:block lg:min-h-0 lg:overflow-y-auto',
           tab !== 'lesson' && 'hidden',
         )}
       >

@@ -44,15 +44,19 @@ export function LessonPanel({ pathId, module, stream, onCite, onNext }: LessonPa
   const done = module.completedAt !== null;
 
   return (
-    <article aria-labelledby="lesson-title" className="mx-auto max-w-2xl">
+    // ~70 characters a line at the lesson's size: comfortable to read.
+    <article aria-labelledby="lesson-title" className="mx-auto w-full max-w-[42rem] min-w-0">
       <header>
         <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
           Module {module.position}
         </p>
-        <h2 id="lesson-title" className="mt-1 text-xl font-semibold tracking-tight">
+        <h2
+          id="lesson-title"
+          className="mt-1.5 text-2xl leading-tight sm:text-3xl font-semibold tracking-tight"
+        >
           {module.title}
         </h2>
-        <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-2 text-xs">
           {module.difficulty && (
             <Badge variant="outline">{DIFFICULTY_LABELS[module.difficulty]}</Badge>
           )}
@@ -69,10 +73,14 @@ export function LessonPanel({ pathId, module, stream, onCite, onNext }: LessonPa
             </span>
           )}
         </div>
-        {module.why && <p className="text-muted-foreground mt-2 text-sm">{module.why}</p>}
+        {module.why && (
+          <p className="text-muted-foreground mt-4 text-[0.9375rem] leading-relaxed">
+            {module.why}
+          </p>
+        )}
       </header>
 
-      <div className="mt-6" aria-live="polite">
+      <div className="mt-8 border-t pt-8" aria-live="polite">
         {!module.isEnabled ? (
           <p className="text-muted-foreground rounded-lg border p-4 text-sm">
             This module is turned off. Turn it on in the path to learn it.
@@ -91,6 +99,7 @@ export function LessonPanel({ pathId, module, stream, onCite, onNext }: LessonPa
               status={running.answer.status}
               streaming
               error={running.answer.error?.message ?? null}
+              variant="lesson"
             />
           )
         ) : failure ? (
@@ -107,7 +116,12 @@ export function LessonPanel({ pathId, module, stream, onCite, onNext }: LessonPa
             </Button>
           </div>
         ) : lesson.isSuccess ? (
-          <Answer text={lesson.data.content} citations={lesson.data.citations} onCite={onCite} />
+          <Answer
+            text={lesson.data.content}
+            citations={lesson.data.citations}
+            onCite={onCite}
+            variant="lesson"
+          />
         ) : lesson.isError && !notWritten ? (
           <div className="rounded-lg border p-4 text-center text-sm">
             <p>Couldn’t load this lesson.</p>
@@ -130,7 +144,7 @@ export function LessonPanel({ pathId, module, stream, onCite, onNext }: LessonPa
       </div>
 
       {module.isEnabled && lesson.isSuccess && !running && (
-        <footer className="mt-8 flex flex-wrap items-center gap-2 border-t pt-4">
+        <footer className="mt-10 flex flex-wrap items-center gap-2 border-t pt-6">
           {done ? (
             <Button
               variant="outline"

@@ -538,6 +538,11 @@ What it says:
 - Notes: anything the next session must know
 -->
 
+### 2026-10-04 (classroom UI fixes, after Phase 9 approval)
+- Owner's live check: lesson text was cut off at the left of its box, and the font / sizes felt cramped
+- Cause: a source card's location (long heading path) couldn't shrink (`shrink-0`) inside a grid whose column grew to fit it, so the card widened the panel. Now it truncates (`min-w-0`, `grid-cols-[minmax(0,1fr)]`), and the lesson column only scrolls vertically
+- Fonts: Inter (interface), Source Serif 4 (lesson text, 18px / 17px on phones, line height 1.8, roomier paragraphs and lists, sans section headings with dividers, note box for "General knowledge", "Sources cited in this lesson" heading), JetBrains Mono (code); chat text 15px. Checked on a local preview page (not committed) at desktop and phone widths: no horizontal overflow
+
 ### 2026-10-04 (9.5–9.7, Phase 9 built)
 - Done: 9.5 tutor, 9.6 classroom frontend, 9.7 lesson eval (0.936). Full suite green alone (server 822, web 97, evals 32); a run started while the eval was running timed out 3 timing tests, all green alone
 - Notes: the eval uses the last outline the path eval saved (both paths were left `BUILDING` / `MAPPING` by the stopped 8.7 run); the French Revolution path was never built

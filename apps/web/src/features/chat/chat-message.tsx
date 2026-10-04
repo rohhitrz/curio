@@ -14,13 +14,13 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from 'cn';
-import { AnswerMarkdown } from './answer-markdown';
+import { AnswerMarkdown, type MarkdownVariant } from './answer-markdown';
 import { citationLocation } from './citations';
 
 export function QuestionBubble({ content }: { content: string }) {
   return (
     <div className="flex justify-end">
-      <p className="bg-primary text-primary-foreground max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap">
+      <p className="bg-primary text-primary-foreground max-w-[85%] rounded-2xl rounded-br-md px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap">
         {content}
       </p>
     </div>
@@ -37,7 +37,10 @@ function CitationList({
   onCite: (citation: CitationSnapshot) => void;
 }) {
   return (
-    <ol className="mt-3 grid gap-1.5" aria-label="Sources for this answer">
+    <ol
+      className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5"
+      aria-label="Sources for this answer"
+    >
       {citations.map((citation) => {
         const Icon = sourceIcons[citation.sourceType];
         const location = citationLocation(citation);
@@ -54,12 +57,15 @@ function CitationList({
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
                   <Icon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">{citation.sourceTitle}</span>
+                  {/* Long titles and heading paths truncate: the card never widens the panel. */}
+                  <span className="min-w-0 shrink truncate">{citation.sourceTitle}</span>
                   {location && (
-                    <span className="text-muted-foreground shrink-0 font-normal">· {location}</span>
+                    <span className="text-muted-foreground min-w-0 flex-1 truncate font-normal">
+                      · {location}
+                    </span>
                   )}
                 </span>
-                <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-xs">
+                <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-xs break-words">
                   {citation.snippet}
                 </span>
               </span>
@@ -84,6 +90,7 @@ interface AnswerProps {
   feedback?: Feedback | null;
   /** Shown on saved, complete answers. */
   onFeedback?: ((value: Feedback | null) => void) | undefined;
+  variant?: MarkdownVariant;
 }
 
 export function Answer({
@@ -96,16 +103,19 @@ export function Answer({
   onRetry,
   feedback = null,
   onFeedback,
+  variant = 'chat',
 }: AnswerProps) {
   return (
-    <div className="max-w-full">
+    <div className="max-w-full min-w-0">
       {text === '' && streaming ? (
         <p className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
           <Loader2 className="size-3.5 animate-spin" aria-hidden />
           {status ?? 'Thinking…'}
         </p>
       ) : (
-        text !== '' && <AnswerMarkdown text={text} citations={citations} onCite={onCite} />
+        text !== '' && (
+          <AnswerMarkdown text={text} citations={citations} onCite={onCite} variant={variant} />
+        )
       )}
 
       {error && (
@@ -124,7 +134,16 @@ export function Answer({
         </div>
       )}
 
-      {citations.length > 0 && <CitationList citations={citations} onCite={onCite} />}
+      {citations.length > 0 && (
+        <div className={variant === 'lesson' ? 'mt-10 border-t pt-6' : undefined}>
+          {variant === 'lesson' && (
+            <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Sources cited in this lesson
+            </h3>
+          )}
+          <CitationList citations={citations} onCite={onCite} />
+        </div>
+      )}
 
       {onFeedback && (
         <div className="mt-2 flex gap-1">
