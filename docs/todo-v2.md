@@ -23,6 +23,9 @@
 
 ## Tooling
 
+- [ ] **Learning-path eval full run:** 3 topics × 3 runs (~$0.30, ~40 min) for consistency numbers and the topic without official docs (French Revolution); skipped by the owner. Before it: the runner should write results per topic and retry transient DB errors (a dropped Neon connection crashed the first attempt), and the owner reviews `evals/dataset/paths.json`. *(8.7)*
+- [ ] **Python path misses collections and classes:** the tutorial's classes chapter is past `officialSectionPages` (8). *(8.7)*
+
 - [ ] **TypeScript 7:** pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7. Revisit when it does. *(0.1)*
 
 
