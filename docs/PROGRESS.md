@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 11 (Final evals + polish), in progress
-- **Current step:** 11.1 done (final eval run)
+- **Current step:** 11.2 done (README)
 - **Blocked on:** nothing
-- **Next step:** 11.2 `README.md`
+- **Next step:** 11.3 demo notebook + demo learning path on the live app (owner signs in; needs the owner's account)
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -30,7 +30,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
 ## Current phase steps: Phase 11
 - [x] 11.1 Full eval run on the final pipeline (the app's flags: rewrite + hybrid + rerank `v4.0-fast` + gate 0.70, commit `eb41c05`, 2 runs, Luna judge): `evals/results/2026-10-05-vector+queryRewrite+hybridSearch+rerank-v4.0-fast+relevanceGate.json`, $0.21 · retrieval unchanged at the ceiling (hit@5 1.0, MRR 0.983), answers within noise of the Phase 6 gate row (faithfulness 0.969, correctness 4.72, citation accuracy 0.884, the best yet, refusals 1.0, false refusals 0) · final ablation table in Eval results · the 6.8 understanding timeout (3s) fired on 7 / 70 questions and 3 vector searches failed on a dropped Neon dev connection; both fell back as designed with no loss (follow-up MRR 1.0) · `gitDirty: true` only from the owner's uncommitted table reformatting in `05-build-plan.md` · **owner skipped** the "+ sub-queries" ablation row and the lesson re-run (R-10) · the run took 56 min against 12 min for the same config on 10-01: same calls (423 Luna, 70 rerank, no retries), so OpenAI latency that day
-- [ ] 11.2 `README.md`
+- [x] 11.2 `README.md`: what it is, architecture (Mermaid) + one paragraph per pipeline, eval results (ablation table with the final re-run, where each technique helped, lesson / injection / path evals), 12 key decisions linked to `07-decisions.md`, repo layout, local setup (env, migrations, dev servers, Docker tests, evals), deployment · `.env.example` was missing the Langfuse, Upstash and Cohere keys the server requires (added, no values)
 - [ ] 11.3 Demo notebook + demo learning path on the live app
 - [ ] 11.4 Final check against the PRD's success metrics
 - [ ] 🛑 Owner's final review
@@ -586,7 +586,7 @@ What it says:
 -->
 
 ### 2026-10-05 (Phase 11 started)
-- Done: 11.1 final eval run (see Eval results)
+- Done: 11.1 final eval run (see Eval results), 11.2 README
 - Notes: the owner skipped the sub-queries ablation row and the lesson re-run (R-10). A full `pnpm eval` took 56 min that day (OpenAI slow; Cohere trial pacing is ~7 min of it)
 
 ### 2026-10-04 (classroom UI fixes, after Phase 9 approval)
