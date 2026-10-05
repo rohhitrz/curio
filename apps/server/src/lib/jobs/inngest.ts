@@ -38,11 +38,14 @@ export function createInngestJobsProvider(client: Inngest): JobsProvider {
 
 /**
  * The endpoint Inngest calls to run jobs. Outside dev mode the SDK rejects any request that isn't
- * signed with the signing key, so only Inngest can trigger jobs.
+ * signed with the signing key, so only Inngest can trigger jobs. An unsigned `PUT` (a sync) is
+ * allowed by design; `serveOrigin` pins the URL it registers, which otherwise comes from the
+ * request's `Host` header.
  */
 export function createInngestHandler(
   client: Inngest,
   functions: readonly InngestFunction.Like[],
+  serveOrigin?: string,
 ): RequestHandler {
-  return serve({ client, functions }) as RequestHandler;
+  return serve({ client, functions, ...(serveOrigin ? { serveOrigin } : {}) }) as RequestHandler;
 }

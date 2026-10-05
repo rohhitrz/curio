@@ -232,26 +232,30 @@ const app: Express = createApp({
   tracer,
   locks: createUpstashLocks(redis),
   rateLimiter: createUpstashRateLimiter(redis),
-  jobsHandler: createInngestHandler(inngest, [
-    processSource,
-    createGenerateLearningPathFunction(
-      inngest,
-      learningPathGeneration,
-      createLearningPathOutlineService({
-        repository: createLearningPathsRepository(db),
-        llm,
-        tracer,
-        logger,
-        limits: learningPaths,
-      }),
+  jobsHandler: createInngestHandler(
+    inngest,
+    [
       processSource,
-      logger,
-    ),
-    createSweepStuckSourcesFunction(inngest, ingestionService),
-    createCleanupNotebookFilesFunction(inngest, notebooksService),
-    createSummarizeConversationFunction(inngest, summaryService),
-    createExtractMemoriesFunction(inngest, memoryExtractionService),
-  ]),
+      createGenerateLearningPathFunction(
+        inngest,
+        learningPathGeneration,
+        createLearningPathOutlineService({
+          repository: createLearningPathsRepository(db),
+          llm,
+          tracer,
+          logger,
+          limits: learningPaths,
+        }),
+        processSource,
+        logger,
+      ),
+      createSweepStuckSourcesFunction(inngest, ingestionService),
+      createCleanupNotebookFilesFunction(inngest, notebooksService),
+      createSummarizeConversationFunction(inngest, summaryService),
+      createExtractMemoriesFunction(inngest, memoryExtractionService),
+    ],
+    env.INNGEST_SERVE_ORIGIN,
+  ),
 });
 
 // On Vercel the app runs as a function (default export); locally we listen.

@@ -123,6 +123,17 @@ describe('env validation', () => {
     );
   });
 
+  it('INNGEST_SERVE_ORIGIN is optional; set, it must be a bare origin', () => {
+    expect(loadEnv(validEnv).INNGEST_SERVE_ORIGIN).toBeUndefined();
+    expect(
+      loadEnv({ ...validEnv, INNGEST_SERVE_ORIGIN: 'https://api.example.com' })
+        .INNGEST_SERVE_ORIGIN,
+    ).toBe('https://api.example.com');
+    expect(() =>
+      loadEnv({ ...validEnv, INNGEST_SERVE_ORIGIN: 'https://api.example.com/api/inngest' }),
+    ).toThrow('INNGEST_SERVE_ORIGIN: must be an origin');
+  });
+
   it('parses valid env with defaults', () => {
     const env = loadEnv({
       ...validEnv,
