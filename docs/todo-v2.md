@@ -15,7 +15,7 @@
 
 ## Accounts and deploys
 
-- [ ] **Clerk production instance:** still on dev keys, because a production instance needs a custom domain. *(1.x)*
+- [ ] **Clerk production instance:** still on dev keys (`pk_test_`), because a production instance needs a custom domain. Steps: domain on `curio-web` → Clerk "Create production instance" (clone dev settings) → Clerk's DNS records → own OAuth credentials for any social login → `pk_live_` / `sk_live_` keys in both Vercel projects → new origin in `CORS_ORIGINS` and the `curio-prod` R2 CORS policy. Users get new Clerk IDs, so dev-instance data is not carried over: switch **before** the Phase 11 demo notebook if the domain exists by then. *(1.x; 10.6)*
 - [ ] **Vercel Preview env:** the Inngest, OpenAI, Firecrawl and transcript keys are Production only, so `curio-server` preview deployments won't boot. *(3.x)*
 - [ ] **Leftover dev upload:** a 12.7 MB file in `curio-dev` from 2026-09-29 under user `7226501d…`, likely an orphan from manual testing. *(2026-09-30)*
 
