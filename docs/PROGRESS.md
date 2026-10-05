@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 11 (Final evals + polish), in progress
-- **Current step:** 11.2 done (README)
+- **Current step:** 11.3 demo built on the live app (PDF source pending: owner uploads)
 - **Blocked on:** nothing
-- **Next step:** 11.3 demo notebook + demo learning path on the live app (owner signs in; needs the owner's account)
+- **Next step:** owner decides on the live false refusal (compare question) and the polish list; then 11.4 PRD metrics check
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -31,7 +31,12 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 ## Current phase steps: Phase 11
 - [x] 11.1 Full eval run on the final pipeline (the app's flags: rewrite + hybrid + rerank `v4.0-fast` + gate 0.70, commit `eb41c05`, 2 runs, Luna judge): `evals/results/2026-10-05-vector+queryRewrite+hybridSearch+rerank-v4.0-fast+relevanceGate.json`, $0.21 · retrieval unchanged at the ceiling (hit@5 1.0, MRR 0.983), answers within noise of the Phase 6 gate row (faithfulness 0.969, correctness 4.72, citation accuracy 0.884, the best yet, refusals 1.0, false refusals 0) · final ablation table in Eval results · the 6.8 understanding timeout (3s) fired on 7 / 70 questions and 3 vector searches failed on a dropped Neon dev connection; both fell back as designed with no loss (follow-up MRR 1.0) · `gitDirty: true` only from the owner's uncommitted table reformatting in `05-build-plan.md` · **owner skipped** the "+ sub-queries" ablation row and the lesson re-run (R-10) · the run took 56 min against 12 min for the same config on 10-01: same calls (423 Luna, 70 rerank, no retries), so OpenAI latency that day
 - [x] 11.2 `README.md`: what it is, architecture (Mermaid) + one paragraph per pipeline, eval results (ablation table with the final re-run, where each technique helped, lesson / injection / path evals), 12 key decisions linked to `07-decisions.md`, repo layout, local setup (env, migrations, dev servers, Docker tests, evals), deployment · `.env.example` was missing the Langfuse, Upstash and Cohere keys the server requires (added, no values)
-- [ ] 11.3 Demo notebook + demo learning path on the live app
+- [x] 11.3 Demo on the live app (Clerk dev instance, no domain yet: owner, 2026-10-05; recreate after the switch, todo-v2), driven in the owner's Chrome:
+  - Notebook **ML Fundamentals**: Wikipedia Overfitting, scikit-learn 1.1 Linear Models, 3Blue1Brown neural network, StatQuest Ridge, all `READY` on the first try (1–4 min; StatQuest queued behind the per-user limit). **PDF (Attention paper): owner to upload**
+  - Chat: cited answer ✅ · follow-up "How does ridge regression do that in scikit-learn?" rewritten correctly, formula + code + citation, says what the sources don't cover ✅ · not in sources (Transformer LR schedule) → refusal ✅ · **"Compare ridge regression and lasso…" → false refusal ❌** although the scikit-learn page has both sections: a two-part question splits relevance across chunks so the top rerank score can fall under the 0.70 gate (the narrow margin noted in 6.5; multi-part is the weakest eval category). Not fixed yet: owner to decide
+  - Path **Python · Beginner · For work**: job completed in 3m 38s (search → select → 5 resources read → recall + 5 maps → merge → order → hook → save); 8 modules, ~2 h 20 min, 36 concepts skipped with reasons · lesson 1 "Getting Started" streamed with citations to the official tutorial, worked examples, misconceptions, key takeaways ✅ · tutor answered "python -c vs -m" with a citation ✅
+  - Looked like a stuck path but wasn't: the path page stops polling in a background tab (TanStack Query default) and the automated tab never got a focus event; Inngest showed the run completed. One reload also read the old progress view, not reproduced since
+  - Polish seen (not fixed): first click on **Add source** after the dialog closes is swallowed; source snippets show raw Markdown links; math shows as raw LaTeX; citation numbers appear out of order (5, 6, 1); a gated refusal took ~10 s (OpenAI slow that day; first-token check is 11.4)
 - [ ] 11.4 Final check against the PRD's success metrics
 - [ ] 🛑 Owner's final review
 
