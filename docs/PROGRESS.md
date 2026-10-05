@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 11 (Final evals + polish), in progress
-- **Current step:** 11.3 demo built on the live app (PDF source pending: owner uploads)
+- **Current step:** 11.3b multi-part fix adopted (`subQueries` on, R-11)
 - **Blocked on:** nothing
-- **Next step:** owner decides on the live false refusal (compare question) and the polish list; then 11.4 PRD metrics check
+- **Next step:** re-ask the compare question live after deploy; owner decides on the polish list and the understanding deadline; then 11.4 PRD metrics check
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -37,6 +37,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - Path **Python · Beginner · For work**: job completed in 3m 38s (search → select → 5 resources read → recall + 5 maps → merge → order → hook → save); 8 modules, ~2 h 20 min, 36 concepts skipped with reasons · lesson 1 "Getting Started" streamed with citations to the official tutorial, worked examples, misconceptions, key takeaways ✅ · tutor answered "python -c vs -m" with a citation ✅
   - Looked like a stuck path but wasn't: the path page stops polling in a background tab (TanStack Query default) and the automated tab never got a focus event; Inngest showed the run completed. One reload also read the old progress view, not reproduced since
   - Polish seen (not fixed): first click on **Add source** after the dialog closes is swallowed; source snippets show raw Markdown links; math shows as raw LaTeX; citation numbers appear out of order (5, 6, 1); a gated refusal took ~10 s (OpenAI slow that day; first-token check is 11.4)
+- [x] 11.3b Multi-part fix (owner chose option A over documenting the limitation; R-11): docs first (system design §7 steps 4–5, R-05, R-10 superseded, R-11) · `runRetrieval` reranks the fused candidates against the whole question and each sub-query in parallel, `mergeRerankedLists` (pure, `rerank.ts`) merges in turns with duplicates kept once at their best score, the gate takes the best score of any part; any rerank call failing → fused order, gate skipped · eval runner: the Cohere pacer queues parallel calls (three at once broke the Trial key's limit and silently dropped a rerank) · tests: 8 unit (per-part calls, merge order, part relevant → not gated, none relevant → gated, one part failing → fused + no gate, subQueries off → one call, merge edge cases), degradation expects 3 rerank calls · **eval:** `…+subQueries+relevanceGate.json`, $0.23, 14 min: multi-part correctness 4.42 → 4.67, citation accuracy 0.65 → 0.75, refusals 1.0 / false 0 → **`subQueries` on** · 3 of 6 multi-part questions lost the benefit to the 3s understanding deadline (owner to decide whether to raise it)
 - [ ] 11.4 Final check against the PRD's success metrics
 - [ ] 🛑 Owner's final review
 
@@ -567,7 +568,7 @@ What it says:
 | + rerank **fast** (`7df8e28`) | **1.000** | **1.000** | **0.983** | 0.968 | 4.78 | 0.95 | 0.847 | 0.95 | 0 |
 | + gate 0.70 (`0568397`) | 1.000 | 1.000 | 0.983 | **0.990** | 4.74 | 0.96 | 0.842 | **1.00** | **0** |
 | **final, same flags (`eb41c05`)** | 1.000 | 1.000 | 0.983 | 0.969 | 4.72 | 0.93 | **0.884** | **1.00** | **0** |
-| + sub-queries | not run (R-10) | | | | | | | | |
+| **+ sub-queries, gate per part (R-11, `87bced9`+)** | 1.000 | 1.000 | 0.981 | **0.977** | **4.76** | **0.96** | 0.881 | **1.00** | **0** |
 
 | By category (correctness · MRR) | vector | + rewrite | + hybrid |
 |---|---|---|---|

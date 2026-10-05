@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { retrieval, type RetrievalFlags } from '../../src/config/index.js';
 import { fuseRankLists } from '../../src/pipelines/retrieval/fusion.js';
+import { mergeRerankedLists } from '../../src/pipelines/retrieval/rerank.js';
 import {
   runRetrieval,
   type QueryUnderstanding,
@@ -293,6 +294,112 @@ describe('runRetrieval', () => {
     expect(calls.rerank).toEqual([]);
   });
 
+  describe('multi-part questions: rerank and gate per part (R-11)', () => {
+    const parts: QueryUnderstanding = {
+      needsRetrieval: true,
+      standaloneQuery: 'Compare ridge and lasso',
+      subQueries: ['ridge penalty', 'lasso penalty'],
+    };
+    /** Each query's own list: its chunk first with the given score, then the shared chunk. */
+    const scoredByQuery = (deps: RetrievalPipelineDeps, scores: Record<string, number>) => {
+      deps.rerank = ({ query, chunks: candidates }) => {
+        const own = candidates.find((c) => c.chunkId === `vector:${query}-1`);
+        const shared = candidates.find((c) => c.chunkId === 'vector:Compare ridge and lasso-2');
+        return Promise.resolve(
+          [own, shared].flatMap((c, i) =>
+            c ? [{ ...c, score: (scores[query] ?? 0) - i * 0.1 }] : [],
+          ),
+        );
+      };
+    };
+
+    it('reranks against the whole question and each part, merged in turns', async () => {
+      const { deps, calls } = setup({ queryRewrite: true, subQueries: true, rerank: true }, parts);
+
+      const result = await runRetrieval(input, deps);
+
+      expect(calls.rerank.map((c) => c.query)).toEqual([
+        'Compare ridge and lasso',
+        'ridge penalty',
+        'lasso penalty',
+      ]);
+      // Every call sees the same fused candidates.
+      expect(new Set(calls.rerank.map((c) => c.ids.join()))).toHaveProperty('size', 1);
+      expect(result.steps.rerank).toBe(true);
+    });
+
+    it('a part is relevant though the whole question scores low → not gated', async () => {
+      const { deps } = setup(
+        { queryRewrite: true, subQueries: true, rerank: true, relevanceGate: true },
+        parts,
+      );
+      scoredByQuery(deps, {
+        'Compare ridge and lasso': 0.6,
+        'ridge penalty': 0.9,
+        'lasso penalty': 0.8,
+      });
+
+      const result = await runRetrieval(input, { ...deps, relevanceThreshold: 0.7 });
+
+      expect(result).toMatchObject({ gated: false, gateScore: 0.9 });
+      // Turns: each list's #1, then the shared #2 once, with its best score.
+      expect(result.chunks.map((c) => [c.rank, c.chunkId, c.score])).toEqual([
+        [1, 'vector:Compare ridge and lasso-1', 0.6],
+        [2, 'vector:ridge penalty-1', 0.9],
+        [3, 'vector:lasso penalty-1', 0.8],
+        [4, 'vector:Compare ridge and lasso-2', expect.closeTo(0.8)],
+      ]);
+    });
+
+    it('no part relevant → gated', async () => {
+      const { deps } = setup(
+        { queryRewrite: true, subQueries: true, rerank: true, relevanceGate: true },
+        parts,
+      );
+      scoredByQuery(deps, {
+        'Compare ridge and lasso': 0.5,
+        'ridge penalty': 0.6,
+        'lasso penalty': 0.65,
+      });
+
+      const result = await runRetrieval(input, { ...deps, relevanceThreshold: 0.7 });
+
+      expect(result).toMatchObject({ gated: true, gateScore: 0.65, chunks: [] });
+    });
+
+    it('one part’s rerank failing → fused order, gate skipped', async () => {
+      const { deps } = setup(
+        { queryRewrite: true, subQueries: true, rerank: true, relevanceGate: true },
+        parts,
+      );
+      const error = new Error('Cohere 429');
+      deps.rerank = ({ query, chunks: candidates, topK }) =>
+        query === 'lasso penalty'
+          ? Promise.reject(error)
+          : Promise.resolve(candidates.slice(0, topK).map((c) => ({ ...c, score: 0.1 })));
+      const reported: [string, unknown][] = [];
+      deps.onStepFailed = (step, err) => reported.push([step, err]);
+
+      const result = await runRetrieval({ ...input, topK: 2 }, deps);
+
+      expect(result).toMatchObject({
+        gated: false,
+        failed: ['rerank'],
+        steps: { rerank: false, gate: false },
+      });
+      expect(result.chunks).toHaveLength(2);
+      expect(reported).toEqual([['rerank', error]]);
+    });
+
+    it('subQueries off → one rerank call, even if the model found parts', async () => {
+      const { deps, calls } = setup({ queryRewrite: true, rerank: true }, parts);
+
+      await runRetrieval(input, deps);
+
+      expect(calls.rerank.map((c) => c.query)).toEqual(['Compare ridge and lasso']);
+    });
+  });
+
   describe('relevance gate (rerank + relevanceGate on)', () => {
     const withTopScore = (deps: RetrievalPipelineDeps, score: number) => {
       deps.rerank = ({ chunks }) =>
@@ -458,6 +565,40 @@ describe('runRetrieval', () => {
     delete deps.keywordSearch;
     delete deps.rerank;
     await expect(runRetrieval(input, deps)).resolves.toMatchObject({ retrieved: true });
+  });
+});
+
+describe('mergeRerankedLists', () => {
+  const scored = (id: string, score: number) => ({ ...chunk(id), score });
+
+  it('one list comes back as it was, cut to topK', () => {
+    const list = [scored('a', 0.9), scored('b', 0.5), scored('c', 0.4)];
+    expect(mergeRerankedLists([list], 2).map((c) => [c.rank, c.chunkId])).toEqual([
+      [1, 'a'],
+      [2, 'b'],
+    ]);
+  });
+
+  it('takes turns across lists; a repeat keeps its first place and its best score', () => {
+    const merged = mergeRerankedLists(
+      [
+        [scored('a', 0.5), scored('shared', 0.4)],
+        [scored('shared', 0.95), scored('b', 0.3)],
+        [scored('c', 0.8)],
+      ],
+      10,
+    );
+    expect(merged.map((c) => [c.rank, c.chunkId, c.score])).toEqual([
+      [1, 'a', 0.5],
+      [2, 'shared', 0.95],
+      [3, 'c', 0.8],
+      [4, 'b', 0.3],
+    ]);
+  });
+
+  it('handles no lists and empty lists', () => {
+    expect(mergeRerankedLists([], 8)).toEqual([]);
+    expect(mergeRerankedLists([[], []], 8)).toEqual([]);
   });
 });
 

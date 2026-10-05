@@ -161,6 +161,7 @@
 - **Why:** search always returns *something*; enforces "never invent" in code, not just in a prompt
 - **How (6.5):** thresholds the **top rerank score** (0–1). Fused RRF scores and cosine similarity can't be thresholded (unanswerable questions reached cosine 0.68 while answerable ones sat at 0.24), so the gate is skipped when rerank didn't run
 - **Threshold 0.70:** on the eval, unanswerable top scores reach 0.670 and answerable ones start at 0.725; 0.70 refuses all 10 unanswerable and none of the 60 answerable (0.65 misses one; 0.75 wrongly refuses two). Tuned on the same 10 questions it is scored on, with a narrow gap, so watch gated traces in Langfuse for false refusals
+- **Per part (R-11, 2026-10-05):** with sub-queries, the gate takes the best top score across the whole question and its parts
 
 **R-06 · Deterministic citation check**
 - **Why:** LLMs sometimes cite sources that don't exist
@@ -178,6 +179,15 @@
 **R-10 · Sub-queries stay off; their ablation row was not run** (2026-10-05, owner, 11.1)
 - **Why:** the final pipeline is at the dataset's retrieval ceiling (hit@5 1.0, MRR 0.983), so sub-queries could only show a gain on multi-part answers (correctness 4.42, citation accuracy 0.65), and a full run took ~1 hour that day. The owner moved on to the README; with no result, nothing is adopted (R-07). The lesson eval was not re-run after 10.4's prompt fencing either
 - **Left in place:** the `subQueries` flag (off) and `pnpm eval -- --flags=queryRewrite,hybridSearch,rerank,relevanceGate,subQueries` to run the row later
+- **Superseded by R-11** the same day: a live false refusal made the owner choose to build and measure it after all
+
+**R-11 · Multi-part questions: rerank and gate per part** (2026-10-05, owner chose this over documenting the limitation, 11.3)
+- **Problem:** on the live demo, "Compare ridge regression and lasso: how do their penalties differ, and when would you pick each?" was refused although the scikit-learn page covers both. Reranked as one query, a two-part question matches each chunk only half-way: in the 11.1 eval the multi-part questions had the lowest top scores of all (0.758, 0.769, 0.774 against the 0.70 gate), and the live wording fell below it
+- **How:** behind the `subQueries` flag. Each sub-query gets its own vector + keyword search (as built in 6.2); then the fused candidates are reranked against the whole question and against each part in parallel; the lists are merged in turns (whole #1, part 1 #1, part 2 #1, whole #2, …, duplicates once with their best score) and cut to `rerankTopK`, so every part reaches the answer. The gate takes the best score of the merged chunks, so it refuses only when no part is relevant. Any rerank call failing → fused order, gate skipped (as before)
+- **Cost:** one rerank call per part (≤ `maxSubQueries` 3 more) on multi-part messages only, in parallel; a Trial key's 10 calls/min fills faster
+- **Kept only if the eval shows it** (R-07): multi-part gains, no regression elsewhere, no false refusals
+- **Result: adopted, `subQueries` on** (`evals/results/2026-10-05-vector+queryRewrite+hybridSearch+rerank-v4.0-fast+subQueries+relevanceGate.json`, against the 11.1 final run): multi-part correctness 4.42 → 4.67, ≥ 4 0.83 → 0.92, citation accuracy 0.65 → 0.75; overall correctness 4.72 → 4.76, faithfulness 0.969 → 0.977, citation accuracy flat (0.884 / 0.881); refusals 1.0, false refusals 0, threshold 0.70 still the only clean one. Where parts were found, the gate score rose 0.758 → 0.891, 0.774 → 0.885, 0.829 → 0.888. Multi-part MRR 0.917 → 0.889: turns can put another part's passage first. 81 rerank calls instead of 70
+- **Limit:** the parts come from the understanding call; past its 3s deadline (5 of 70 questions in this run, 3 of them multi-part) the question is searched and gated as one, as before. A longer deadline would help these and costs time to the first token only when OpenAI is slow
 
 ---
 

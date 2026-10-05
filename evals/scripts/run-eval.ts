@@ -278,13 +278,19 @@ async function main() {
   });
   const usage = new UsageByModel();
   const rerankUsage = { calls: 0, searchUnits: 0, latenciesMs: [] as number[] };
-  // Questions are retrieved one at a time, so spacing the calls keeps under the key's limit.
+  // Spacing the calls keeps under the key's limit. A multi-part question reranks its parts at
+  // the same time (R-11), so the calls queue: each waits for the one before to be spaced.
   let lastRerankAt = 0;
-  const rerankPacer = async () => {
-    const gapMs = 60_000 / evalConfig.rerankCallsPerMinute + 100;
-    const wait = lastRerankAt + gapMs - Date.now();
-    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-    lastRerankAt = Date.now();
+  let rerankQueue = Promise.resolve();
+  const rerankPacer = () => {
+    const turn = rerankQueue.then(async () => {
+      const gapMs = 60_000 / evalConfig.rerankCallsPerMinute + 100;
+      const wait = lastRerankAt + gapMs - Date.now();
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+      lastRerankAt = Date.now();
+    });
+    rerankQueue = turn;
+    return turn;
   };
   const reranker = args.flags.rerank
     ? createCohereRerank({

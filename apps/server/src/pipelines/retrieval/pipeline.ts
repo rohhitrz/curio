@@ -3,6 +3,7 @@ import { chatTimeouts, retrieval } from '../../config/index.js';
 import type { LlmMessage } from '../../lib/llm/index.js';
 import { withDeadline } from './deadline.js';
 import { fuseRankLists } from './fusion.js';
+import { mergeRerankedLists } from './rerank.js';
 import {
   retrieve,
   toRetrievedChunk,
@@ -99,7 +100,7 @@ export interface RetrievalPipelineResult {
   };
   /** The gate found nothing relevant enough: `chunks` is empty, so the answer is a refusal. */
   gated: boolean;
-  /** The top rerank score the gate checked (kept even when gated; the eval tunes on it). */
+  /** The best rerank score the gate checked (kept even when gated; the eval tunes on it). */
   gateScore: number | null;
   /** Optional steps that failed and were skipped. */
   failed: OptionalStep[];
@@ -121,8 +122,11 @@ const runDirectly: StepRunner = (_name, _input, fn) => fn();
  * - `rerank`: reorders the fused candidates; without it they are cut to `topK` in fused order.
  * - `hyde` (eval-gated): one more vector search with a hypothetical answer passage; a failed
  *   call is skipped.
+ * - With sub-queries and `rerank`, the candidates are reranked against the whole question and each
+ *   part, and the lists merged in turns (R-11).
  * - `relevanceGate` (needs `rerank`): a top rerank score below the threshold empties `chunks`, so
- *   the answer is "not in your sources" without a model call. Skipped if rerank failed.
+ *   the answer is "not in your sources" without a model call; with parts, the best of any part.
+ *   Skipped if rerank failed.
  *
  * Flag on without its step's dep is a wiring bug: it throws before anything is called.
  * Graceful degradation (6.8): understanding and HyDE have deadlines (`chatTimeouts`); past them,
@@ -266,27 +270,34 @@ export async function runRetrieval(
     candidates = lists[0] ?? [];
   }
 
+  // With sub-queries, the candidates are reranked against the whole question and each part, so
+  // a part isn't judged by how well it matches the whole question (R-11).
   let chunks: RetrievedChunk[] | null = null;
   if (flags.rerank && deps.rerank && candidates.length > 0) {
     const rerank = deps.rerank;
-    chunks = await step('rerank', { query: searchQuery, candidates: candidates.length }, () =>
-      rerank({ query: searchQuery, chunks: candidates, topK }),
+    const rerankQueries = subQueries.length > 0 ? queries : [searchQuery];
+    const reranked = await step(
+      'rerank',
+      { queries: rerankQueries, candidates: candidates.length },
+      () => Promise.all(rerankQueries.map((query) => rerank({ query, chunks: candidates, topK }))),
     ).catch((error: unknown) => {
       failed.push('rerank');
       deps.onStepFailed?.('rerank', error);
       return null;
     });
+    if (reranked) chunks = mergeRerankedLists(reranked, topK);
     steps.rerank = chunks !== null;
   }
   chunks ??= candidates.slice(0, topK);
 
   // Step 5. Only rerank scores mean "how relevant" on a fixed 0–1 scale; when rerank was off or
-  // failed, the scores are fused ranks or cosine similarities, so the gate stays out.
+  // failed, the scores are fused ranks or cosine similarities, so the gate stays out. The best
+  // score of any list: a question refuses only when none of its parts is relevant (R-11).
   let gated = false;
   let gateScore: number | null = null;
   if (flags.relevanceGate && steps.rerank) {
     steps.gate = true;
-    gateScore = chunks[0]?.score ?? 0;
+    gateScore = Math.max(0, ...chunks.map((chunk) => chunk.score));
     gated = gateScore < (deps.relevanceThreshold ?? retrieval.relevanceThreshold);
     if (gated) chunks = [];
   }

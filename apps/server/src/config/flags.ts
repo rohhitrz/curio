@@ -10,6 +10,9 @@
  *   question's location in the top 5 (`…+rerank-v4.0-fast.json`). Needs `COHERE_API_KEY`.
  * - `relevanceGate` on since 6.5 (threshold 0.70): refusal accuracy 0.95 → 1.0, no false
  *   refusals, answers unchanged (`…+relevanceGate.json`).
+ * - `subQueries` on since 11.3 (R-11: each part searched, reranked and gated on its own):
+ *   multi-part correctness 4.42 → 4.67, citation accuracy 0.65 → 0.75, refusals still 1.0 with
+ *   no false refusals (`…+subQueries+relevanceGate.json`).
  */
 export interface RetrievalFlags {
   queryRewrite: boolean;
@@ -25,7 +28,7 @@ export const retrievalFlags: RetrievalFlags = {
   queryRewrite: true,
   hybridSearch: true,
   rerank: true,
-  subQueries: false,
+  subQueries: true,
   relevanceGate: true,
   hyde: false,
 };

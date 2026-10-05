@@ -223,7 +223,8 @@ describe('chat with every retrieval step on', () => {
     const { conversationId, sourceId } = await setup();
     await expectFullAnswer(conversationId, sourceId);
     expect(new Set(llm.tasks)).toEqual(new Set(['queryUnderstanding', 'hyde', 'chatAnswer']));
-    expect(reranker.state.calls).toBe(1);
+    // The whole question and its two sub-queries, each reranked (R-11).
+    expect(reranker.state.calls).toBe(3);
     expect(failedSteps()).toEqual([]);
   });
 

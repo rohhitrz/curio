@@ -193,8 +193,10 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 2. Hybrid search         vector + keyword, in parallel, filtered by notebook
                          (and by source IDs for lesson-scoped chat)
 3. Fusion                Reciprocal Rank Fusion → ~40 candidates
-4. Rerank                rerank API → top ~6–8
+4. Rerank                rerank API → top ~6–8; a question with sub-queries is reranked
+                         against the whole question and each part, merged in turns (R-11)
 5. Relevance gate        top score < threshold → "not in your sources"
+                         (with parts: refuse only when no part reaches it)
 6. Context building      dedupe, number [1] [2]…, token budget
 7. Generation            grounded prompt, cites [n], streamed
 8. Citation check        drop invalid [n]; valid ones link to page / timestamp / passage

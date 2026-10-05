@@ -41,9 +41,10 @@ and replaces the chunks and sets `READY` in **one transaction**. Every source en
 `apps/server/src/config/flags.ts`:
 
 ```
-question → understand (one Luna call: route + standalone rewrite)
-         → vector + keyword search in parallel → RRF fusion (~40 candidates)
-         → Cohere rerank → top 8 → relevance gate (top score < 0.70 → "not in your sources", no model call)
+question → understand (one Luna call: route + standalone rewrite + the parts of a multi-part question)
+         → vector + keyword search per query, in parallel → RRF fusion (~40 candidates)
+         → Cohere rerank against the question and each part → merged top 8
+         → relevance gate (best score < 0.70 → "not in your sources", no model call)
          → numbered context → streamed answer citing [n] → citation check drops any [n] the model never saw
 ```
 
@@ -72,14 +73,15 @@ judged by GPT-6 Luna with fixed prompts (`evals/judges/`), averaged over 2 runs.
 
 **Ablation** (each row adds one technique to the row above):
 
-| Config                                 | Hit@5     | MRR       | Faithfulness | Correctness (1–5) | Citation acc. | Refusal acc. | False refusals |
-| -------------------------------------- | --------- | --------- | ------------ | ----------------- | ------------- | ------------ | -------------- |
-| Vector only                            | 0.933     | 0.796     | 0.976        | 4.50              | 0.832         | 0.90         | 0.008          |
-| + query rewrite                        | 0.950     | 0.814     | 0.956        | 4.59              | 0.867         | 0.95         | 0              |
-| + hybrid search (RRF)                  | 0.967     | 0.845     | 0.963        | 4.73              | 0.865         | 0.95         | 0              |
-| + rerank (Cohere v4.0 fast)            | 1.000     | 0.983     | 0.968        | 4.78              | 0.847         | 0.95         | 0              |
-| + relevance gate 0.70                  | 1.000     | 0.983     | 0.990        | 4.74              | 0.842         | 1.00         | 0              |
-| **Final pipeline, re-run (`eb41c05`)** | **1.000** | **0.983** | **0.969**    | **4.72**          | **0.884**     | **1.00**     | **0**          |
+| Config                             | Hit@5     | MRR       | Faithfulness | Correctness (1–5) | Citation acc. | Refusal acc. | False refusals |
+| ---------------------------------- | --------- | --------- | ------------ | ----------------- | ------------- | ------------ | -------------- |
+| Vector only                        | 0.933     | 0.796     | 0.976        | 4.50              | 0.832         | 0.90         | 0.008          |
+| + query rewrite                    | 0.950     | 0.814     | 0.956        | 4.59              | 0.867         | 0.95         | 0              |
+| + hybrid search (RRF)              | 0.967     | 0.845     | 0.963        | 4.73              | 0.865         | 0.95         | 0              |
+| + rerank (Cohere v4.0 fast)        | 1.000     | 0.983     | 0.968        | 4.78              | 0.847         | 0.95         | 0              |
+| + relevance gate 0.70              | 1.000     | 0.983     | 0.990        | 4.74              | 0.842         | 1.00         | 0              |
+| Final pipeline, re-run (`eb41c05`) | 1.000     | 0.983     | 0.969        | 4.72              | 0.884         | 1.00         | 0              |
+| **+ sub-queries, gate per part**   | **1.000** | **0.981** | **0.977**    | **4.76**          | **0.881**     | **1.00**     | **0**          |
 
 Where each technique helped:
 
@@ -91,8 +93,12 @@ Where each technique helped:
   Its 0–1 scores are what make the gate possible.
 - **Relevance gate:** all 10 unanswerable questions refused before the model runs, with no
   answerable question refused.
+- **Sub-queries with a per-part gate:** a compare question was refused live because, reranked
+  as one query, no passage matched both halves. Reranking and gating each part on its own took
+  multi-part correctness from 4.42 to 4.67 and citation accuracy from 0.65 to 0.75, with no false
+  refusals (R-11).
 - **Not adopted:** HyDE and chunk-size tuning (retrieval was already at the dataset's ceiling,
-  R-09); sub-queries (not measured, R-10). Both remain behind flags.
+  R-09). Both remain behind flags.
 
 **Other evals:**
 

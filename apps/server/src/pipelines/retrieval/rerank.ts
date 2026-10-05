@@ -27,3 +27,24 @@ export async function rerankChunks(
     return chunk ? [{ ...chunk, rank: position + 1, score }] : [];
   });
 }
+
+/**
+ * A question with sub-queries is reranked once per query (R-11): the whole question first, then
+ * each part. Merged in turns (every list's #1, then every #2, …) so each part reaches the answer
+ * even when another part scores higher everywhere; a chunk in several lists stays at its first
+ * place with its best score. Cut to `topK`, ranks 1…n. One list comes back unchanged.
+ */
+export function mergeRerankedLists(lists: RetrievedChunk[][], topK: number): RetrievedChunk[] {
+  const merged = new Map<string, RetrievedChunk>();
+  const longest = Math.max(0, ...lists.map((list) => list.length));
+  for (let position = 0; position < longest; position += 1) {
+    for (const list of lists) {
+      const chunk = list[position];
+      if (!chunk) continue;
+      const seen = merged.get(chunk.chunkId);
+      if (!seen) merged.set(chunk.chunkId, chunk);
+      else if (chunk.score > seen.score) merged.set(chunk.chunkId, { ...seen, score: chunk.score });
+    }
+  }
+  return [...merged.values()].slice(0, topK).map((chunk, index) => ({ ...chunk, rank: index + 1 }));
+}
