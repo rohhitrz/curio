@@ -7,6 +7,8 @@ export function createFakeLocks() {
   let nextToken = 0;
   let failNext: Error | null = null;
   let extensions = 0;
+  /** Release and renewal fail from now on (Redis gone mid-answer). */
+  let heldCallsFail = false;
 
   const provider: LockProvider = {
     acquire(key, ttlSeconds) {
@@ -21,10 +23,12 @@ export function createFakeLocks() {
       held.set(key, { token, expiresAt: now + ttlSeconds * 1000 });
       return Promise.resolve({
         release() {
+          if (heldCallsFail) return Promise.reject(new Error('fake locks: release failed'));
           if (held.get(key)?.token === token) held.delete(key);
           return Promise.resolve();
         },
         extend(ttl) {
+          if (heldCallsFail) return Promise.reject(new Error('fake locks: extend failed'));
           const current = held.get(key);
           if (current?.token !== token || current.expiresAt <= now) return Promise.resolve(false);
           current.expiresAt = now + ttl * 1000;
@@ -51,6 +55,10 @@ export function createFakeLocks() {
     extensions: () => extensions,
     failNextAcquire(error: Error) {
       failNext = error;
+    },
+    /** Every release and renewal of a held lock rejects from now on. */
+    failHeldCalls() {
+      heldCallsFail = true;
     },
   };
 }

@@ -8,6 +8,7 @@ export function createFakeTracer() {
   const deletedScores: string[] = [];
   let flushes = 0;
   let failNextScore: Error | null = null;
+  let flushFails = false;
 
   const tracer: Tracer = {
     async trace(options, fn) {
@@ -52,6 +53,7 @@ export function createFakeTracer() {
     },
     flush() {
       flushes += 1;
+      if (flushFails) return Promise.reject(new Error('fake tracer: Langfuse unreachable'));
       return Promise.resolve();
     },
   };
@@ -65,6 +67,10 @@ export function createFakeTracer() {
     flushes: () => flushes,
     failNextScore: (error: Error) => {
       failNextScore = error;
+    },
+    /** Every flush rejects from now on (Langfuse unreachable). */
+    failFlushes: () => {
+      flushFails = true;
     },
   };
 }
