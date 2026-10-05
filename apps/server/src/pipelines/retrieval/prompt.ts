@@ -1,4 +1,5 @@
 import type { LlmMessage } from '../../lib/llm/index.js';
+import { fence, untrustedRule } from '../untrusted.js';
 import { stripMarkers } from './citations.js';
 
 /** What the user sees when the sources don't hold the answer (PRD §5.5: never invent one). */
@@ -9,7 +10,7 @@ export const NOT_IN_SOURCES_ANSWER =
  * Fixed for every chat answer, so OpenAI caches it as the prompt prefix. Nothing request-specific
  * belongs here: sources and the question go in the last message.
  */
-export const CHAT_ANSWER_INSTRUCTIONS = `You are Curio, a study assistant. You answer questions using only the numbered sources in the user's latest message.
+export const CHAT_ANSWER_INSTRUCTIONS = `You are Curio, a study assistant. You answer questions using only the numbered sources (inside <sources>) in the user's latest message.
 
 Rules:
 - Use only facts stated in the sources. Your own knowledge may only connect and explain those facts; it is never a source of facts.
@@ -19,7 +20,8 @@ Rules:
 - Earlier messages are context for follow-up questions only; their facts must still come from the current sources.
 - A note about the learner may come first. Use it only to adjust how you explain (depth, tone, examples, language). It is never a source of facts and never gets a citation number.
 - Write clearly for a learner: lead with the direct answer, then explain. Use short paragraphs, and lists when they help. Use Markdown.
-- Answer in the language of the question.`;
+- Answer in the language of the question.
+${untrustedRule('sources', "text from the learner's documents and web pages")}`;
 
 /**
  * For a message routed past retrieval ("thanks!", "hi"). Fixed text, cached like the answer's.
@@ -95,7 +97,7 @@ export function buildChatMessages(input: ChatPromptInput): LlmMessage[] {
   messages.push(...cleanHistory(input.history));
   messages.push({
     role: 'user',
-    content: `Sources:\n\n${input.contextText}\n\n---\n\nQuestion: ${input.question}`,
+    content: `${fence('sources', input.contextText)}\n\nQuestion: ${input.question}`,
   });
   return messages;
 }

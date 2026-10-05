@@ -228,7 +228,7 @@ describe('buildChatMessages', () => {
     expect(messages[0]?.content).toContain('We talked about overfitting.');
     expect(messages[3]?.content).toBe('It drops units.');
     expect(messages.at(-1)?.content).toBe(
-      'Sources:\n\n[1] ML Notes (page 3)\nDropout drops units.\n\n---\n\nQuestion: And its downside?',
+      '<sources>\n[1] ML Notes (page 3)\nDropout drops units.\n</sources>\n\nQuestion: And its downside?',
     );
   });
 

@@ -1,18 +1,20 @@
 import type { Level } from '@curio/shared';
 import { z } from 'zod';
 import type { LlmProvider } from '../../lib/llm/index.js';
+import { fence, untrustedRule } from '../untrusted.js';
 
 /** Fixed for every map call, so OpenAI caches it as the prompt prefix. */
 export const CONCEPT_MAP_INSTRUCTIONS = `You list the concepts a learning resource teaches, for building a study path on a topic.
 
-You get the topic and the text of one resource (it may be cut off). List the distinct concepts this text actually explains, in the order it presents them.
+You get the topic and the text of one resource (inside <resource>; it may be cut off). List the distinct concepts this text actually explains, in the order it presents them.
 
 Rules:
 - Only concepts the text explains, not ones it merely mentions. Nothing from your own knowledge.
 - A concept is a teachable idea, technique or fact about the topic ("Gradient descent", "Overfitting"), not a section title like "Introduction" or "Next steps", and not the topic itself.
 - name: 1–5 words, the usual name of the concept. description: one sentence on what it is.
 - At most the number of concepts asked for; prefer the most important.
-- Write in English.`;
+- Write in English.
+${untrustedRule('resource', 'a web page or video transcript')}`;
 
 export const conceptMapSchema = z.object({
   concepts: z.array(z.object({ name: z.string(), description: z.string() })),
@@ -65,7 +67,7 @@ export async function mapResource(
       messages: [
         {
           role: 'user',
-          content: `Topic: ${input.topic}\nList at most ${String(input.maxConcepts)} concepts.\n\nResource: ${input.title}\n\n${input.text}`,
+          content: `Topic: ${input.topic}\nList at most ${String(input.maxConcepts)} concepts.\n\n${fence('resource', `Resource: ${input.title}\n\n${input.text}`)}`,
         },
       ],
     },

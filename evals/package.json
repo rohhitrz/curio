@@ -7,6 +7,7 @@
     "eval": "tsx --env-file-if-exists=../.env scripts/run-eval.ts",
     "eval:paths": "tsx --env-file-if-exists=../.env scripts/run-path-eval.ts",
     "eval:lessons": "tsx --env-file-if-exists=../.env scripts/run-lesson-eval.ts",
+    "eval:injection": "tsx --env-file-if-exists=../.env scripts/run-injection-eval.ts",
     "fetch-docs": "tsx --env-file-if-exists=../.env scripts/fetch-documents.ts",
     "preview": "tsx scripts/preview-chunks.ts",
     "check": "tsx scripts/check-dataset.ts",

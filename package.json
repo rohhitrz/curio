@@ -20,7 +20,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "eval": "pnpm build:shared && pnpm --filter @curio/evals eval",
-    "eval:paths": "pnpm build:shared && pnpm --filter @curio/evals eval:paths"
+    "eval:paths": "pnpm build:shared && pnpm --filter @curio/evals eval:paths",
+    "eval:lessons": "pnpm build:shared && pnpm --filter @curio/evals eval:lessons",
+    "eval:injection": "pnpm build:shared && pnpm --filter @curio/evals eval:injection"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
