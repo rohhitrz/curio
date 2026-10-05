@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 11 (Final evals + polish), not started
-- **Current step:** Phase 10 approved by the owner (2026-10-05)
+- **Phase:** 11 (Final evals + polish), in progress
+- **Current step:** 11.1 done (final eval run)
 - **Blocked on:** nothing
-- **Next step:** Phase 11 (11.1 full eval run on the final pipeline + final ablation table)
+- **Next step:** 11.2 `README.md`
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -24,11 +24,18 @@
 | 8 | Learning paths | ✅ Done (owner approved) |
 | 9 | Lessons | ✅ Done (owner approved) |
 | 10 | Hardening | ✅ Done (owner approved) |
-| 11 | Final evals + polish | ⏳ Not started |
+| 11 | Final evals + polish | 🔨 In progress |
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
-## Current phase steps: Phase 10
+## Current phase steps: Phase 11
+- [x] 11.1 Full eval run on the final pipeline (the app's flags: rewrite + hybrid + rerank `v4.0-fast` + gate 0.70, commit `eb41c05`, 2 runs, Luna judge): `evals/results/2026-10-05-vector+queryRewrite+hybridSearch+rerank-v4.0-fast+relevanceGate.json`, $0.21 · retrieval unchanged at the ceiling (hit@5 1.0, MRR 0.983), answers within noise of the Phase 6 gate row (faithfulness 0.969, correctness 4.72, citation accuracy 0.884, the best yet, refusals 1.0, false refusals 0) · final ablation table in Eval results · the 6.8 understanding timeout (3s) fired on 7 / 70 questions and 3 vector searches failed on a dropped Neon dev connection; both fell back as designed with no loss (follow-up MRR 1.0) · `gitDirty: true` only from the owner's uncommitted table reformatting in `05-build-plan.md` · **owner skipped** the "+ sub-queries" ablation row and the lesson re-run (R-10) · the run took 56 min against 12 min for the same config on 10-01: same calls (423 Luna, 70 rerank, no retries), so OpenAI latency that day
+- [ ] 11.2 `README.md`
+- [ ] 11.3 Demo notebook + demo learning path on the live app
+- [ ] 11.4 Final check against the PRD's success metrics
+- [ ] 🛑 Owner's final review
+
+## Phase 10 steps (done)
 - [x] 10.1 Rate limits: all 5 limited endpoints (6 routes: chat send + retry share `chatMessages`) were already behind `rateLimit`; audit fixes: the Upstash limiter checks rules shortest window first and stops at the first denial (they ran in parallel, so every per-minute 429 still counted against the daily 200: retrying after a 429 used up the day) · the 429 message names the real wait (`formatWait`: "42 seconds" / "5 minutes" / "about 24 hours"; it said "wait a moment" for daily limits too) · CORS already exposes `retry-after` · fake limiter gets `enforce()` (counts against the real rules like Upstash) · tests: `rate-limits.test.ts` (22: each route lets the last allowed request through and 429s the next with `Retry-After` + message, per user, the rule set = the endpoint list, chat's 21st per minute → 60s and the daily count untouched, send + retry share a count, path retry / prefill / upload URL / lesson read never checked, 401 before any check), `rate-limit.test.ts` unit (11: rule order, stop on denial, reset → seconds ≥ 1, `formatWait`)
 - [x] 10.2 Quota audit: every quota already enforced and tested: PDF size (upload URL, `FILE_TOO_LARGE`; the R2 URL signs `content-length`), video length (before the transcript; unknown length → last caption's end, `VIDEO_TOO_LONG`), pasted text (100k after normalising, `QUOTA_EXCEEDED`; 1 MB JSON body fits it), sources per notebook (create under a notebook row lock, upload URL pre-check), notebooks per user (advisory lock; paths too), memories (extraction, lesson completion, path start; no API creates one); path sources go into a fresh notebook (≤ a handful). One gap fixed: adding a PDF source now checks the **stored** file's size too (`assertPdfSize`), so a file larger than declared can't reach ingestion · test: stored file over 25 MB → 400 `FILE_TOO_LARGE`, nothing saved, no job
 - [x] 10.3 Ownership suite (`ownership.test.ts`, 38): Alice owns one of everything (notebook + PDF source + chat with an answer, READY path with a module, concept and lesson, a memory); **each of the 33 routes that take an ID**, called by Bob with a valid body → 404 `NOT_FOUND` (also where the state would give 409: path branch / retry, lesson generate), every table unchanged, no job sent, no model call, no file deleted; the same call as Alice is not a 404 (so a wrong seed can't pass) · IDs inside a body: Bob's tutor chat on Alice's lesson → 404, Bob's PDF source from Alice's upload key → 400 `UPLOAD_NOT_FOUND` · routes without an ID: Bob lists no notebooks / memories, his "delete all memories" keeps Alice's, prefill doesn't offer him her level · **coverage guard**: the routes registered on the app = the 33 cases + the 7 routes without an ID, so a new route fails the test until it's added. No ownership bug found
@@ -469,6 +476,21 @@ API and server:
   - Tests: 4 chat integration tests (lock held through 4 min, a stale run not saved over the fresh one, nor after a later question, the earlier-question resend order) and 5 web tests. API doc §5 and the locks table updated.
 
 ## Eval results so far
+**Final pipeline (11.1)** (`evals/results/2026-10-05-vector+queryRewrite+hybridSearch+rerank-v4.0-fast+relevanceGate.json`, commit `eb41c05`, the app's flags, generator and judge Luna, 2 runs averaged; cost $0.21):
+
+| | Hit@5 | MRR | Faithful. | Correct. | ≥ 4 | Citation acc. | Refusal acc. | False ref. |
+|---|---|---|---|---|---|---|---|---|
+| **Overall** | **1.000** | **0.983** | **0.969** | **4.72** | **0.93** | **0.884** | **1.00** | **0** |
+| factual | 1.000 | 1.000 | 0.981 | 4.74 | 0.95 | 0.935 | | 0 |
+| exact-term | 1.000 | 0.967 | 1.000 | 4.87 | 1.00 | 1.000 | | 0 |
+| multi-part | 1.000 | 0.917 | 0.934 | 4.42 | 0.83 | 0.652 | | 0 |
+| follow-up | 1.000 | 1.000 | 0.945 | 4.50 | 0.75 | 0.929 | | 0 |
+
+- Same as the Phase 6 gate row within noise; nothing added since (memory notes, prompt fencing, timeouts) cost answer quality
+- Gate sweep: 0.70 is still the only threshold with refusal accuracy 1.0 and no false refusals (0.65 → 0.9 refusals; 0.75 → 3% false refusals)
+- Multi-part is the weakest category (citation accuracy 0.65): the one sub-queries would target; not measured (R-10)
+- Rerank latency p50 775 ms / p95 1.2 s
+
 **Prompt injection (10.4)** (`evals/results/2026-10-05-injection.json`, `pnpm eval:injection`, 3 runs each, Luna as the app; cost $0.011):
 
 | Surface | Runs | Hijacked | On task |
@@ -539,6 +561,8 @@ What it says:
 | + rerank pro (`7df8e28`) | 1.000 | 1.000 | 0.983 | 0.985 | 4.83 | 0.97 | 0.866 | 0.85 | 0 |
 | + rerank **fast** (`7df8e28`) | **1.000** | **1.000** | **0.983** | 0.968 | 4.78 | 0.95 | 0.847 | 0.95 | 0 |
 | + gate 0.70 (`0568397`) | 1.000 | 1.000 | 0.983 | **0.990** | 4.74 | 0.96 | 0.842 | **1.00** | **0** |
+| **final, same flags (`eb41c05`)** | 1.000 | 1.000 | 0.983 | 0.969 | 4.72 | 0.93 | **0.884** | **1.00** | **0** |
+| + sub-queries | not run (R-10) | | | | | | | | |
 
 | By category (correctness · MRR) | vector | + rewrite | + hybrid |
 |---|---|---|---|
@@ -560,6 +584,10 @@ What it says:
 - Commits: <short hashes>
 - Notes: anything the next session must know
 -->
+
+### 2026-10-05 (Phase 11 started)
+- Done: 11.1 final eval run (see Eval results)
+- Notes: the owner skipped the sub-queries ablation row and the lesson re-run (R-10). A full `pnpm eval` took 56 min that day (OpenAI slow; Cohere trial pacing is ~7 min of it)
 
 ### 2026-10-04 (classroom UI fixes, after Phase 9 approval)
 - Owner's live check: lesson text was cut off at the left of its box, and the font / sizes felt cramped

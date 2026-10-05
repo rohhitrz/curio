@@ -175,6 +175,10 @@
 - **Why:** with rewrite + hybrid + rerank + gate, retrieval is at the ceiling of the golden dataset (hit@5 1.0, MRR 0.983), so neither trial has room to show a gain, and HyDE costs one more LLM call (~0.5–1s) on the path to the first token. The owner stopped the trial runs before they finished; no result was recorded, so nothing was adopted (R-07: kept only if evals improve)
 - **Left in place:** HyDE (`pipelines/retrieval/hyde.ts`, `hyde` flag off) and `pnpm eval -- --chunk-tokens=N`, to re-run if a harder dataset (e.g. paraphrased questions) brings retrieval below the ceiling
 
+**R-10 · Sub-queries stay off; their ablation row was not run** (2026-10-05, owner, 11.1)
+- **Why:** the final pipeline is at the dataset's retrieval ceiling (hit@5 1.0, MRR 0.983), so sub-queries could only show a gain on multi-part answers (correctness 4.42, citation accuracy 0.65), and a full run took ~1 hour that day. The owner moved on to the README; with no result, nothing is adopted (R-07). The lesson eval was not re-run after 10.4's prompt fencing either
+- **Left in place:** the `subQueries` flag (off) and `pnpm eval -- --flags=queryRewrite,hybridSearch,rerank,relevanceGate,subQueries` to run the row later
+
 ---
 
 ## 5. Learning decisions
