@@ -218,7 +218,7 @@ Embed and commit share one job step: vectors are too big to pass between steps, 
 **Eval-gated (only added if evals show a gain):** HyDE, LLM-written chunk context
 **Deliberately skipped:** GraphRAG, agentic retrieval loops, web fallback in chat, fine-tuned embeddings
 
-**Latency budget:** under ~3s to first token (understanding ~0.5–1s, embed ~0.2s, search ~0.1s, rerank ~0.3–0.5s, first token ~0.5s)
+**Latency budget:** ~3–6s to first token, measured as `firstTokenMs` on the chat trace (R-12). Steps run one after another; measured live 2026-10-05/06: understanding 1.3–3.0s (deadline 5s), embed + search 0.7–1.5s, rerank ~0.2s, then the answer model's own first token (~1–2s). The original target was under ~3s
 
 ---
 

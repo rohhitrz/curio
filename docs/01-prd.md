@@ -171,7 +171,7 @@ Add a website that fails to scrape → source shows `FAILED` with a reason → u
 | Area | Requirement |
 |---|---|
 | **Reliability** | Every source ends as `READY` or `FAILED` with a reason; automatic retries for transient errors; no half-indexed sources |
-| **Performance** | Chat first token in < ~3s, streamed; lessons stream; indexing runs in the background |
+| **Performance** | Chat first token in ~3–6s, streamed (was < ~3s; see R-12); lessons stream; indexing runs in the background |
 | **Quality** | Every answer cited or "not in your sources"; RAG evals with a tracked baseline |
 | **Observability** | Each chat request is traceable end-to-end (query → retrieval → answer) with latency, tokens, and cost; background jobs logged |
 | **Security** | Clerk auth; strict per-user data isolation on every request |
@@ -196,7 +196,7 @@ Add a website that fails to scrape → source shows `FAILED` with a reason → u
 - **Ingestion:** > 95% of sources index successfully on the first attempt; **zero** stuck in `PROCESSING`
 - **Retrieval:** hit rate and faithfulness measured on an eval set; each advanced technique shows **measured improvement** over the baseline
 - **Citations:** 100% of answers are cited or explicitly say "not in your sources"
-- **Speed:** chat first token < ~3s
+- **Speed:** chat first token ~3–6s, measured on every chat trace (`firstTokenMs`). Was < ~3s; relaxed for better multi-part answers and refusals (decision R-12)
 - **Learning path:** beginner paths cover the core sections of the official docs (checked by evals)
 - **Ownership:** the owner can explain every major decision via the decision log
 
