@@ -28,6 +28,7 @@
 - [ ] **Python path misses collections and classes:** the tutorial's classes chapter is past `officialSectionPages` (8). *(8.7)*
 
 - [ ] **Merge reranked part lists by score after a guaranteed few:** R-11 merges the whole question's and each part's lists in turns, so a weak part's list can push a strong passage out of the top 8 (q-052 lost a second Dropout-paper passage to two "External links" chunks). Keep each list's top 2, fill the rest by best score; measure with `pnpm eval`. *(11.3e)*
+- [ ] **Luna rerank fallback (R-13 draft):** built and unit-tested on local branch `wip/luna-rerank-fallback`; needs one `pnpm eval -- --rerank-model=gpt-6-luna` (~$0.15) before merging. The same branch fixes an OpenAI connection dropped mid-stream being a raw error instead of a retryable `LlmError`. *(11.4d)*
 - [ ] **Faster chat first token (R-12):** answer with `reasoningEffort: 'none'` (answer first token p50 ~1.1s; needs one `pnpm eval`, ~$0.25, to prove quality holds), and/or search the raw question while understanding runs (~1s saved on most first messages, but wasted searches when the question is rewritten). *(11.4)*
 - [ ] **Eval results never overwrite a committed file:** a same-day re-run of the same config replaces that day's results file, so a failed run (11.4b, Cohere limit) silently overwrote a committed result; write to a new name instead. *(11.4b)*
 - [ ] **TypeScript 7:** pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7. Revisit when it does. *(0.1)*
