@@ -7,7 +7,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { isApiError } from '@/lib/api';
 import { ChatPanel } from '@/features/chat/chat-panel';
 import { SourcesPanel } from '@/features/sources/sources-panel';
-import { timeAgo } from '@/lib/format';
+import { displayTitle, timeAgo } from '@/lib/format';
+import { NotebookKindTag } from './notebook-kind-tag';
 import { useNotebook } from './queries';
 
 export function NotebookDetailView({ notebookId }: { notebookId: string }) {
@@ -32,7 +33,10 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
           <Skeleton className="h-7 w-64" />
         ) : notebook.isSuccess ? (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{notebook.data.title}</h1>
+            <h1 className="truncate text-2xl font-bold tracking-tight">
+              {displayTitle(notebook.data.title)}
+            </h1>
+            <NotebookKindTag kind={notebook.data.kind} className="self-center" />
             <p className="text-muted-foreground text-sm">
               Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount}{' '}
               {notebook.data.sourceCount === 1 ? 'source' : 'sources'}

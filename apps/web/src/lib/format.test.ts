@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { timeAgo } from './format';
+import { displayTitle, timeAgo } from './format';
 
 const now = Date.parse('2026-09-28T12:00:00Z');
 
@@ -12,5 +12,25 @@ describe('timeAgo', () => {
     ['2026-09-14T12:00:00Z', '2 weeks ago'],
   ])('%s → %s', (iso, expected) => {
     expect(timeAgo(iso, now)).toBe(expected);
+  });
+});
+
+describe('displayTitle', () => {
+  it('capitalizes lowercase words', () => {
+    expect(displayTitle('binary search')).toBe('Binary Search');
+    expect(displayTitle('programming')).toBe('Programming');
+  });
+
+  it('keeps words that already have a capital', () => {
+    expect(displayTitle('ML fundamentals')).toBe('ML Fundamentals');
+    expect(displayTitle('iPhone tips')).toBe('iPhone Tips');
+  });
+
+  it('keeps short joining words lowercase, except first', () => {
+    expect(displayTitle('the history of rome and greece')).toBe('The History of Rome and Greece');
+  });
+
+  it('keeps spacing and punctuation', () => {
+    expect(displayTitle('  docker: the basics ')).toBe('  Docker: the Basics ');
   });
 });

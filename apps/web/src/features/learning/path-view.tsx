@@ -32,6 +32,7 @@ import {
   whyHere,
 } from './display';
 import { useOutline, usePath, useRetryPath, useSelectBranch, useToggleModule } from './queries';
+import { displayTitle } from '@/lib/format';
 
 const errorMessage = (error: unknown, fallback: string) =>
   isApiError(error) ? error.message : fallback;
@@ -91,7 +92,7 @@ function PathHeader({ path }: { path: LearningPath }) {
   const goal = GOAL_OPTIONS.find((o) => o.value === path.goal)?.label;
   return (
     <div className="mt-2">
-      <h1 className="text-2xl font-semibold tracking-tight break-words">{path.topic}</h1>
+      <h1 className="text-2xl font-bold tracking-tight break-words">{displayTitle(path.topic)}</h1>
       <div className="mt-2 flex flex-wrap gap-2">
         <Badge variant="secondary">{level}</Badge>
         <Badge variant="outline">For {goal?.toLowerCase()}</Badge>

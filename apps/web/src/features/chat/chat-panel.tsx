@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -130,22 +131,25 @@ export function ChatPanel({ notebookId }: { notebookId: string }) {
             <ChevronDown className="text-muted-foreground ml-auto" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-80 w-72 overflow-y-auto">
-            <DropdownMenuLabel>Conversations</DropdownMenuLabel>
-            {list.length === 0 && (
-              <p className="text-muted-foreground px-2 py-1.5 text-sm">No conversations yet.</p>
-            )}
-            {list.map((conversation) => (
-              <DropdownMenuItem
-                key={conversation.id}
-                onClick={() => setSelection({ kind: 'conversation', id: conversation.id })}
-              >
-                <Check className={conversation.id === activeId ? '' : 'invisible'} />
-                <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
-                <span className="text-muted-foreground shrink-0 text-xs">
-                  {timeAgo(conversation.lastMessageAt)}
-                </span>
-              </DropdownMenuItem>
-            ))}
+            {/* A group label outside a group throws in Base UI (the menu crashed on open). */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Conversations</DropdownMenuLabel>
+              {list.length === 0 && (
+                <p className="text-muted-foreground px-2 py-1.5 text-sm">No conversations yet.</p>
+              )}
+              {list.map((conversation) => (
+                <DropdownMenuItem
+                  key={conversation.id}
+                  onClick={() => setSelection({ kind: 'conversation', id: conversation.id })}
+                >
+                  <Check className={conversation.id === activeId ? '' : 'invisible'} />
+                  <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
+                  <span className="text-muted-foreground shrink-0 text-xs">
+                    {timeAgo(conversation.lastMessageAt)}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
         <Button

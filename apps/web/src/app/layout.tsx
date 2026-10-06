@@ -1,13 +1,13 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono, Source_Serif_4 } from 'next/font/google';
+import { JetBrains_Mono, Schibsted_Grotesk, Source_Serif_4 } from 'next/font/google';
 import { SiteHeader } from '@/components/site-header';
 import { cn } from '@/lib/utils';
 import { Providers } from './providers';
 import './globals.css';
 
-/** Interface text. */
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+/** Interface text and titles: a sturdy, editorial grotesk. */
+const schibsted = Schibsted_Grotesk({ subsets: ['latin'], variable: '--font-sans' });
 /** Long-form reading (lessons): a text serif is easier on the eyes over many paragraphs. */
 const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-serif' });
 /** Code examples in lessons and answers. */
@@ -18,17 +18,28 @@ export const metadata: Metadata = {
   description: 'Learn from your sources with grounded, cited answers.',
 };
 
+/**
+ * Applies the saved theme (or the system's) before the first paint, so a dark page never flashes
+ * light. `ThemeToggle` writes the same key.
+ */
+const themeScript = `try{var t=localStorage.getItem('theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d)}catch(e){}`;
+
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html
       lang="en"
+      // The theme script sets `dark` before React hydrates.
+      suppressHydrationWarning
       className={cn(
         'font-sans antialiased',
-        inter.variable,
+        schibsted.variable,
         sourceSerif.variable,
         jetbrainsMono.variable,
       )}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <ClerkProvider
           appearance={{

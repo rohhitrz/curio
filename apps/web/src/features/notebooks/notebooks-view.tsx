@@ -8,8 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeleteNotebookDialog } from './delete-notebook-dialog';
 import { NotebookCard } from './notebook-card';
+import { notebookKindLabel } from './notebook-kind-tag';
 import { NotebookTitleDialog } from './notebook-title-dialog';
 import { useCreateNotebook, useDeleteNotebook, useNotebooks, useRenameNotebook } from './queries';
+
+type KindFilter = 'ALL' | Notebook['kind'];
+
+const filters: { value: KindFilter; label: string }[] = [
+  { value: 'ALL', label: 'All' },
+  { value: 'SOURCE', label: notebookKindLabel.SOURCE },
+  { value: 'LEARNING', label: 'Learning paths' },
+];
 
 type DialogState =
   | { type: 'create' }
@@ -23,6 +32,7 @@ export function NotebooksView() {
   const renameNotebook = useRenameNotebook();
   const deleteNotebook = useDeleteNotebook();
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [filter, setFilter] = useState<KindFilter>('ALL');
   const close = (open: boolean) => {
     if (!open) setDialog(null);
   };
@@ -43,7 +53,21 @@ export function NotebooksView() {
         </div>
       </div>
 
-      <section className="mt-6" aria-live="polite">
+      <div role="group" aria-label="Show notebooks" className="mt-6 flex flex-wrap gap-1">
+        {filters.map((option) => (
+          <Button
+            key={option.value}
+            size="sm"
+            variant={filter === option.value ? 'secondary' : 'ghost'}
+            aria-pressed={filter === option.value}
+            onClick={() => setFilter(option.value)}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+
+      <section className="mt-4" aria-live="polite">
         {notebooks.isPending ? (
           <NotebookGrid>
             {Array.from({ length: 6 }, (_, i) => (
@@ -72,8 +96,15 @@ export function NotebooksView() {
           </div>
         ) : (
           <>
+            {shown(notebooks.data, filter).length === 0 && (
+              <p className="text-muted-foreground rounded-xl border border-dashed px-6 py-10 text-center text-sm">
+                {filter === 'LEARNING'
+                  ? 'No learning paths yet. Learn a topic to start one.'
+                  : 'No notebooks with your own sources yet.'}
+              </p>
+            )}
             <NotebookGrid>
-              {notebooks.data.map((notebook) => (
+              {shown(notebooks.data, filter).map((notebook) => (
                 <NotebookCard
                   key={notebook.id}
                   notebook={notebook}
@@ -126,6 +157,10 @@ export function NotebooksView() {
       />
     </main>
   );
+}
+
+function shown(notebooks: Notebook[], filter: KindFilter): Notebook[] {
+  return filter === 'ALL' ? notebooks : notebooks.filter((notebook) => notebook.kind === filter);
 }
 
 function NotebookGrid({ children }: { children: React.ReactNode }) {

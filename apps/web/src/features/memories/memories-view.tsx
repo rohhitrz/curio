@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { timeAgo } from '@/lib/format';
+import { displayTitle, timeAgo } from '@/lib/format';
 import { groupMemories, KIND_LABELS } from './grouping';
 import { ConfirmDeleteDialog, EditMemoryDialog, levelLabel } from './memory-dialogs';
 import { useDeleteAllMemories, useDeleteMemory, useMemories, useUpdateMemory } from './queries';
@@ -77,7 +77,7 @@ export function MemoriesView() {
         ) : (
           groupMemories(items).map((group) => (
             <div key={group.key}>
-              <h2 className="text-muted-foreground text-sm font-medium">{group.title}</h2>
+              <h2 className="text-sm font-semibold">{displayTitle(group.title)}</h2>
               <ul className="mt-2 divide-y rounded-lg border">
                 {group.memories.map((memory) => (
                   <li key={memory.id} className="flex items-start gap-3 p-3">

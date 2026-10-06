@@ -11,7 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { timeAgo } from '@/lib/format';
+import { displayTitle, timeAgo } from '@/lib/format';
+import { NotebookKindTag } from './notebook-kind-tag';
 
 interface NotebookCardProps {
   notebook: Notebook;
@@ -21,23 +22,30 @@ interface NotebookCardProps {
 
 export function NotebookCard({ notebook, onRename, onDelete }: NotebookCardProps) {
   return (
-    <Card className="hover:bg-muted/40 relative transition-colors">
-      <CardHeader className="pr-12">
-        <CardTitle className="line-clamp-2 break-words">
+    <Card className="hover:border-primary/40 has-focus-visible:ring-ring relative transition-colors has-focus-visible:ring-2">
+      <CardHeader className="gap-3 pr-12">
+        <CardTitle className="text-heading line-clamp-2 text-lg leading-snug break-words">
           <Link
             href={`/notebooks/${notebook.id}`}
             className="after:absolute after:inset-0 focus-visible:outline-none"
           >
-            {notebook.title}
+            {displayTitle(notebook.title)}
           </Link>
         </CardTitle>
-        <CardDescription>Updated {timeAgo(notebook.updatedAt)}</CardDescription>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <NotebookKindTag kind={notebook.kind} />
+          <CardDescription>Updated {timeAgo(notebook.updatedAt)}</CardDescription>
+        </div>
       </CardHeader>
       <div className="absolute top-3 right-3">
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="ghost" size="icon" aria-label={`Actions for ${notebook.title}`} />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Actions for ${displayTitle(notebook.title)}`}
+              />
             }
           >
             <MoreHorizontal />

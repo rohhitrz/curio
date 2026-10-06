@@ -16,6 +16,7 @@ import { LessonPanel } from './lesson-panel';
 import { useLesson, useOutline, usePath } from './queries';
 import { TutorPanel } from './tutor-panel';
 import { useLessonStream } from './use-lesson-stream';
+import { displayTitle } from '@/lib/format';
 
 /**
  * The classroom (PRD §5.6 step 8, decision L-10): the path's modules on one side, the open
@@ -41,7 +42,9 @@ export function ClassroomView({ pathId, moduleId }: { pathId: string; moduleId: 
         </Button>
         {path.isSuccess ? (
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{path.data.topic}</h1>
+            <h1 className="truncate text-xl font-bold tracking-tight">
+              {displayTitle(path.data.topic)}
+            </h1>
             {outline.isSuccess && (
               <p className="text-muted-foreground text-sm">
                 {outline.data.progress.completed} of {outline.data.progress.enabled} modules done
