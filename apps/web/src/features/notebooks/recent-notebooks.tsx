@@ -66,11 +66,11 @@ export function RecentNotebooks() {
                     href={`/notebooks/${notebook.id}`}
                     className="hover:bg-accent/60 focus-visible:ring-ring flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3.5 transition-colors first:rounded-t-xl last:rounded-b-xl focus-visible:ring-2 focus-visible:outline-none"
                   >
-                    <span className="text-heading min-w-0 flex-1 truncate font-semibold">
+                    <span className="text-heading min-w-0 flex-1 truncate font-semibold max-sm:basis-full">
                       {displayTitle(notebook.title)}
                     </span>
                     <NotebookKindTag kind={notebook.kind} />
-                    <span className="text-muted-foreground w-28 text-right text-sm max-sm:w-auto">
+                    <span className="text-muted-foreground text-sm sm:w-28 sm:text-right">
                       {timeAgo(notebook.updatedAt)}
                     </span>
                   </Link>

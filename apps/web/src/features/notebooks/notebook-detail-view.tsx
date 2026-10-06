@@ -18,7 +18,7 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
     // On wide screens the page fills the window under the site header (h-14 + border): the
     // sources and the chat scroll on their own, so the message box is always in view.
     <main className="mx-auto flex max-w-7xl flex-col px-4 py-4 lg:h-[calc(100dvh-3.5rem-1px)]">
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-start gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -32,24 +32,28 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
         {notebook.isPending ? (
           <Skeleton className="h-7 w-64" />
         ) : notebook.isSuccess ? (
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3">
-            <h1 className="truncate text-2xl font-bold tracking-tight">
-              {displayTitle(notebook.data.title)}
-            </h1>
-            <NotebookKindTag kind={notebook.data.kind} className="self-center" />
-            <p className="text-muted-foreground text-sm">
-              Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount}{' '}
-              {notebook.data.sourceCount === 1 ? 'source' : 'sources'}
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <h1 className="truncate text-2xl font-bold tracking-tight">
+                {displayTitle(notebook.data.title)}
+              </h1>
+              <NotebookKindTag kind={notebook.data.kind} className="shrink-0" />
+            </div>
+            <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 text-sm">
+              <span>
+                Updated {timeAgo(notebook.data.updatedAt)} · {notebook.data.sourceCount}{' '}
+                {notebook.data.sourceCount === 1 ? 'source' : 'sources'}
+              </span>
+              {notebook.data.learningPathId && (
+                <Link
+                  href={`/learn/${notebook.data.learningPathId}`}
+                  className="text-primary inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
+                >
+                  <GraduationCap className="size-4" aria-hidden />
+                  View path
+                </Link>
+              )}
             </p>
-            {notebook.data.learningPathId && (
-              <Link
-                href={`/learn/${notebook.data.learningPathId}`}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm underline-offset-2 hover:underline"
-              >
-                <GraduationCap className="size-4" aria-hidden />
-                Learning path
-              </Link>
-            )}
           </div>
         ) : null}
       </div>
@@ -64,7 +68,7 @@ export function NotebookDetailView({ notebookId }: { notebookId: string }) {
         </div>
       ) : (
         // Sources beside the chat on wide screens; stacked, chat first, on narrow ones.
-        <div className="mt-4 grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="mt-4 grid grid-cols-1 gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div className="order-2 lg:order-1 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
             <SourcesPanel notebookId={notebookId} />
           </div>

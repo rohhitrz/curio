@@ -17,7 +17,7 @@ export default function Home() {
 
 function Landing() {
   return (
-    <main className="mx-auto grid max-w-5xl items-center gap-12 px-4 py-14 sm:py-20 lg:min-h-[calc(100dvh-3.5rem)] lg:grid-cols-[1.1fr_1fr]">
+    <main className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-12 px-4 py-14 sm:py-20 lg:min-h-[calc(100dvh-3.5rem)] lg:grid-cols-[1.1fr_1fr]">
       <div>
         <h1 className="text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl">
           Answers from your own sources, with the page to prove it.

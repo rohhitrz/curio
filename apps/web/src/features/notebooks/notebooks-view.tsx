@@ -3,22 +3,15 @@
 import type { Notebook } from '@curio/shared';
 import { GraduationCap, NotebookPen, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeleteNotebookDialog } from './delete-notebook-dialog';
 import { NotebookCard } from './notebook-card';
-import { notebookKindLabel } from './notebook-kind-tag';
+import { filters, type KindFilter } from './notebook-filters';
 import { NotebookTitleDialog } from './notebook-title-dialog';
 import { useCreateNotebook, useDeleteNotebook, useNotebooks, useRenameNotebook } from './queries';
-
-type KindFilter = 'ALL' | Notebook['kind'];
-
-const filters: { value: KindFilter; label: string }[] = [
-  { value: 'ALL', label: 'All' },
-  { value: 'SOURCE', label: notebookKindLabel.SOURCE },
-  { value: 'LEARNING', label: 'Learning paths' },
-];
 
 type DialogState =
   | { type: 'create' }
@@ -26,13 +19,14 @@ type DialogState =
   | { type: 'delete'; notebook: Notebook }
   | null;
 
-export function NotebooksView() {
+export function NotebooksView({ initialFilter = 'ALL' }: { initialFilter?: KindFilter }) {
+  const router = useRouter();
   const notebooks = useNotebooks();
   const createNotebook = useCreateNotebook();
   const renameNotebook = useRenameNotebook();
   const deleteNotebook = useDeleteNotebook();
   const [dialog, setDialog] = useState<DialogState>(null);
-  const [filter, setFilter] = useState<KindFilter>('ALL');
+  const [filter, setFilter] = useState<KindFilter>(initialFilter);
   const close = (open: boolean) => {
     if (!open) setDialog(null);
   };
@@ -60,7 +54,12 @@ export function NotebooksView() {
             size="sm"
             variant={filter === option.value ? 'secondary' : 'ghost'}
             aria-pressed={filter === option.value}
-            onClick={() => setFilter(option.value)}
+            onClick={() => {
+              setFilter(option.value);
+              router.replace(option.param ? `/notebooks?show=${option.param}` : '/notebooks', {
+                scroll: false,
+              });
+            }}
           >
             {option.label}
           </Button>
@@ -164,5 +163,5 @@ function shown(notebooks: Notebook[], filter: KindFilter): Notebook[] {
 }
 
 function NotebookGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
+  return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
 }

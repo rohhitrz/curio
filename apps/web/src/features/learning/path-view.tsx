@@ -48,10 +48,11 @@ export function PathView({ pathId }: { pathId: string }) {
         size="sm"
         className="-ml-2"
         nativeButton={false}
-        render={<Link href="/learn" />}
+        // The path lives in its notebook; before it loads, back to where paths start.
+        render={<Link href={path.data ? `/notebooks/${path.data.notebookId}` : '/learn'} />}
       >
         <ArrowLeft />
-        Learn a topic
+        {path.data ? 'Back to notebook' : 'Learn a topic'}
       </Button>
 
       {path.isPending ? (
@@ -261,7 +262,7 @@ function OutlineContent({ path, outline }: { path: LearningPath; outline: Outlin
       {outline.hook && (
         <div className="bg-muted/30 rounded-xl border p-6">
           <p className="text-lg leading-relaxed">{outline.hook.what}</p>
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
+          <dl className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
             <div>
               <dt className="text-muted-foreground font-medium">Why it matters</dt>
               <dd className="mt-1">{outline.hook.why}</dd>

@@ -23,7 +23,7 @@ export function OptionGroup<T extends string>({
   return (
     <fieldset disabled={disabled}>
       <legend className="text-sm font-medium">{legend}</legend>
-      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {options.map((option) => (
           <label
             key={option.value}

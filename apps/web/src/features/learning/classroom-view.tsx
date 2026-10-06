@@ -79,7 +79,7 @@ export function ClassroomView({ pathId, moduleId }: { pathId: string; moduleId: 
           moduleId={moduleId}
         />
       ) : (
-        <div className="mt-4 grid gap-4 lg:grid-cols-[15rem_1fr]" aria-label="Loading">
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[15rem_1fr]" aria-label="Loading">
           <Skeleton className="h-64 rounded-xl" />
           <Skeleton className="h-96 rounded-xl" />
         </div>
@@ -135,7 +135,7 @@ function Classroom({
   }
 
   return (
-    <div className="mt-4 grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,24rem)]">
+    <div className="mt-4 grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,24rem)]">
       {/* Modules: a list on wide screens, a picker on phones. */}
       <nav aria-label="Modules" className="lg:min-h-0 lg:overflow-y-auto">
         <label className="lg:hidden">
