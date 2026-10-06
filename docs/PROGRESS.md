@@ -4,10 +4,10 @@
 > Read this first in every new session.
 
 ## Current status
-- **Phase:** 11 (Final evals + polish), in progress
-- **Current step:** 11.4c PRD speed target relaxed to ~3–6s (R-12); 11.4 done
-- **Blocked on:** nothing in the plan. Owner: the Cohere Trial key is out of calls for the month; if Vercel uses the same key, the live relevance gate is skipped (Pending on owner)
-- **Next step:** 🛑 owner's final review (re-ask the compare question live once rerank works)
+- **Phase:** all 12 phases done (owner approved Phase 11, 2026-10-06): v1 complete
+- **Current step:** none; v1 is complete
+- **Blocked on:** nothing. Live chat's relevance gate is skipped until the Cohere Trial key resets (Pending on owner)
+- **Next step:** none planned; future work is in `docs/todo-v2.md`
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -24,7 +24,7 @@
 | 8 | Learning paths | ✅ Done (owner approved) |
 | 9 | Lessons | ✅ Done (owner approved) |
 | 10 | Hardening | ✅ Done (owner approved) |
-| 11 | Final evals + polish | 🔨 In progress |
+| 11 | Final evals + polish | ✅ Done (owner approved) |
 
 Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 
@@ -53,7 +53,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 11.4d Luna rerank fallback (R-13 draft), **parked, not on `main`**: built on local branch `wip/luna-rerank-fallback` (`74a9a3f`): Luna scores the top 20 fused candidates 0–100 when Cohere fails, eval option `--rerank-model=gpt-6-luna`, 10 unit tests; also a fix for an OpenAI connection dropped mid-stream (raw error → retryable `LlmError`) and failure causes in the eval log. Smoke (3 questions) ranked right and refused the off-topic one; the full eval crashed on that mid-stream reset (~$0.10 spent) and the owner declined a re-run (no more eval spend), so per R-07 it isn't adopted. Second try (owner yes, then **stopped by the owner: option B**): crashed at ~51 / 70 questions in retrieval on a dropped Neon dev connection (the eval process dies instead of reconnecting, as in 11.1), ~$0.06; of 51 Luna rerank calls 47 worked, 3 multi-part ones returned unparseable output (`No object generated`), 1 hit the 15s timeout. Live chat keeps no relevance gate until the Cohere Trial key resets
 - [x] 11.5 Owner's review fixes (2026-10-06): **bug:** opening the conversation picker crashed the page (Base UI throws when a menu group label sits outside `Menu.Group`; the only such label) · action menus no longer squeeze to the trigger's width (items wrapped) · **UI (owner's brief):** two themes on the shadcn tokens: light = beige paper with ink-blue accents, dark = editor-style near-black with blue titles (`--heading`) and accents; toggle in the header (saved per browser, system default, set before paint); Schibsted Grotesk replaces Inter for the interface (lessons keep Source Serif, code JetBrains Mono) · API status is a green / red dot beside the logo, not text on the home page · home: signed out = what Curio does + a sample cited answer, signed in = latest 6 notebooks · notebooks tagged **Your sources** / **Learning path** (cards, list, detail header) with a filter on the Notebooks page · titles shown capitalized (`displayTitle`: lowercase words capitalized, "ML" / "iPhone" kept, short joining words lowercase; stored titles unchanged) on cards, notebook / path / classroom headers and memory topics · phone header shows icons for the three links · tests: 4 unit (`displayTitle`)
 - [x] 11.6 Owner's phone check (2026-10-06): on a phone the notebook page was wider than the screen: a bare CSS `grid` sizes its one column to the widest unbreakable content (a long source URL), so every one-column grid is now `grid-cols-1` (`minmax(0,1fr)`: notebook, classroom, notebooks, home, learn options, path summary) · notebook header: title + tag on one line, details and **View path** below (was a second "Learning path" next to the tag) · home rows wrap to two lines on phones · navigation: a path's back arrow goes to its notebook (was the Learn form); the Notebooks filter is in the URL (`?show=learning`), so browser back returns to it · checked at 375px against local: home, notebooks, notebook, memory, learn, no sideways scroll · local vs live show different notebooks because local uses the Neon `dev` branch, live uses `main`
-- [ ] 🛑 Owner's final review
+- [x] 🛑 Owner approves Phase 11 (2026-10-06: "ok done", after the review fixes in 11.5–11.6)
 
 ## Phase 10 steps (done)
 - [x] 10.1 Rate limits: all 5 limited endpoints (6 routes: chat send + retry share `chatMessages`) were already behind `rateLimit`; audit fixes: the Upstash limiter checks rules shortest window first and stops at the first denial (they ran in parallel, so every per-minute 429 still counted against the daily 200: retrying after a 429 used up the day) · the 429 message names the real wait (`formatWait`: "42 seconds" / "5 minutes" / "about 24 hours"; it said "wait a moment" for daily limits too) · CORS already exposes `retry-after` · fake limiter gets `enforce()` (counts against the real rules like Upstash) · tests: `rate-limits.test.ts` (22: each route lets the last allowed request through and 429s the next with `Retry-After` + message, per user, the rule set = the endpoint list, chat's 21st per minute → 60s and the daily count untouched, send + retry share a count, path retry / prefill / upload URL / lesson read never checked, 401 before any check), `rate-limit.test.ts` unit (11: rule order, stop on denial, reset → seconds ≥ 1, `formatWait`)
