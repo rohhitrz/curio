@@ -104,3 +104,42 @@ export function citationMarkerFromHref(href: string | undefined): number | null 
   const marker = Number(href.slice(CITE_PREFIX.length));
   return Number.isInteger(marker) && marker > 0 ? marker : null;
 }
+
+/**
+ * The number each citation is shown with: 1, 2, 3… in the order the answer first cites them, so
+ * an answer never reads "[5] [6] … [1]" (the stored markers follow the context, not the text).
+ * Citations the text never mentions come last, in marker order. Markers in code are ignored.
+ */
+export function citationDisplayNumbers(
+  text: string,
+  markers: readonly number[],
+): Map<number, number> {
+  const known = new Set(markers);
+  const order: number[] = [];
+  text.split(CODE).forEach((part, index) => {
+    if (index % 2 === 1) return;
+    for (const match of part.matchAll(MARKER_GROUP)) {
+      for (const n of (match[1] ?? '').split(',').map((s) => Number(s.trim()))) {
+        if (known.has(n) && !order.includes(n)) order.push(n);
+      }
+    }
+  });
+  for (const marker of [...markers].sort((a, b) => a - b)) {
+    if (!order.includes(marker)) order.push(marker);
+  }
+  return new Map(order.map((marker, index) => [marker, index + 1]));
+}
+
+/**
+ * A chunk's text as a snippet reads: Markdown links become their text, emphasis and code marks
+ * and escaping backslashes go, whitespace collapses (scraped pages arrive as Markdown).
+ */
+export function plainSnippet(snippet: string): string {
+  return snippet
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__)(.+?)\1/g, '$2')
+    .replace(/`+([^`]*)`+/g, '$1')
+    .replace(/\\([\\`*_{}[\]()#+\-.!|>~])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

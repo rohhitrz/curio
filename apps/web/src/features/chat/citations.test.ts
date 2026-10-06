@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   citationLocation,
   citationMarkerFromHref,
+  citationDisplayNumbers,
   citationTarget,
   linkCitationMarkers,
   pdfAtPage,
+  plainSnippet,
   youtubeAt,
 } from './citations';
 
@@ -111,5 +113,48 @@ describe('linkCitationMarkers', () => {
     expect(citationMarkerFromHref('#cite-3')).toBe(3);
     expect(citationMarkerFromHref('https://example.com')).toBeNull();
     expect(citationMarkerFromHref(undefined)).toBeNull();
+  });
+});
+
+describe('citationDisplayNumbers', () => {
+  it('numbers citations in the order the text first cites them', () => {
+    const numbers = citationDisplayNumbers(
+      'Overfitting [5][6]. Regularization helps [1]. Again [5].',
+      [1, 5, 6],
+    );
+    expect([...numbers]).toEqual([
+      [5, 1],
+      [6, 2],
+      [1, 3],
+    ]);
+  });
+
+  it('reads groups, ignores unknown markers and code, and puts uncited ones last', () => {
+    const numbers = citationDisplayNumbers('See [3, 9] and `x[1]` then [2].', [1, 2, 3]);
+    expect([...numbers]).toEqual([
+      [3, 1],
+      [2, 2],
+      [1, 3],
+    ]);
+  });
+});
+
+describe('plainSnippet', () => {
+  it('turns Markdown links into their text and drops emphasis', () => {
+    expect(
+      plainSnippet(
+        'In [mathematical modeling](https://en.wikipedia.org/wiki/Mathematical_modeling "Mathematical modeling"), **overfitting** is',
+      ),
+    ).toBe('In mathematical modeling, overfitting is');
+  });
+
+  it('drops code marks, escapes and extra whitespace', () => {
+    expect(plainSnippet('[`Ridge`](https://x.org/a#b) uses  `alpha`,\n the d\\_model  ')).toBe(
+      'Ridge uses alpha, the d_model',
+    );
+  });
+
+  it('leaves plain text alone', () => {
+    expect(plainSnippet('Dropout drops units.')).toBe('Dropout drops units.');
   });
 });

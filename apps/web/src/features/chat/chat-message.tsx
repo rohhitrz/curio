@@ -12,10 +12,11 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from 'cn';
 import { AnswerMarkdown, type MarkdownVariant } from './answer-markdown';
-import { citationLocation } from './citations';
+import { citationDisplayNumbers, citationLocation, plainSnippet } from './citations';
 
 export function QuestionBubble({ content }: { content: string }) {
   return (
@@ -32,47 +33,53 @@ const sourceIcons = { PDF: FileText, WEBSITE: Globe, YOUTUBE: SquarePlay, TEXT: 
 function CitationList({
   citations,
   onCite,
+  displayNumbers,
 }: {
   citations: CitationSnapshot[];
   onCite: (citation: CitationSnapshot) => void;
+  displayNumbers: Map<number, number>;
 }) {
+  const shown = (citation: CitationSnapshot) =>
+    displayNumbers.get(citation.marker) ?? citation.marker;
   return (
     <ol
       className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5"
       aria-label="Sources for this answer"
     >
-      {citations.map((citation) => {
-        const Icon = sourceIcons[citation.sourceType];
-        const location = citationLocation(citation);
-        return (
-          <li key={citation.marker}>
-            <button
-              type="button"
-              onClick={() => onCite(citation)}
-              className="hover:bg-muted/60 flex w-full items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors"
-            >
-              <span className="bg-primary/10 text-primary mt-0.5 inline-flex size-4.5 shrink-0 items-center justify-center rounded text-[0.7rem] font-semibold tabular-nums">
-                {citation.marker}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
-                  <Icon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                  {/* Long titles and heading paths truncate: the card never widens the panel. */}
-                  <span className="min-w-0 shrink truncate">{citation.sourceTitle}</span>
-                  {location && (
-                    <span className="text-muted-foreground min-w-0 flex-1 truncate font-normal">
-                      · {location}
-                    </span>
-                  )}
+      {[...citations]
+        .sort((a, b) => shown(a) - shown(b))
+        .map((citation) => {
+          const Icon = sourceIcons[citation.sourceType];
+          const location = citationLocation(citation);
+          return (
+            <li key={citation.marker}>
+              <button
+                type="button"
+                onClick={() => onCite(citation)}
+                className="hover:bg-muted/60 flex w-full items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors"
+              >
+                <span className="bg-primary/10 text-primary mt-0.5 inline-flex size-4.5 shrink-0 items-center justify-center rounded text-[0.7rem] font-semibold tabular-nums">
+                  {shown(citation)}
                 </span>
-                <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-xs break-words">
-                  {citation.snippet}
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+                    <Icon className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                    {/* Long titles and heading paths truncate: the card never widens the panel. */}
+                    <span className="min-w-0 shrink truncate">{citation.sourceTitle}</span>
+                    {location && (
+                      <span className="text-muted-foreground min-w-0 flex-1 truncate font-normal">
+                        · {location}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-xs break-words">
+                    {plainSnippet(citation.snippet)}
+                  </span>
                 </span>
-              </span>
-            </button>
-          </li>
-        );
-      })}
+              </button>
+            </li>
+          );
+        })}
     </ol>
   );
 }
@@ -105,6 +112,14 @@ export function Answer({
   onFeedback,
   variant = 'chat',
 }: AnswerProps) {
+  const displayNumbers = useMemo(
+    () =>
+      citationDisplayNumbers(
+        text,
+        citations.map((c) => c.marker),
+      ),
+    [text, citations],
+  );
   return (
     <div className="max-w-full min-w-0">
       {text === '' && streaming ? (
@@ -114,7 +129,13 @@ export function Answer({
         </p>
       ) : (
         text !== '' && (
-          <AnswerMarkdown text={text} citations={citations} onCite={onCite} variant={variant} />
+          <AnswerMarkdown
+            text={text}
+            citations={citations}
+            onCite={onCite}
+            variant={variant}
+            displayNumbers={displayNumbers}
+          />
         )
       )}
 
@@ -141,7 +162,7 @@ export function Answer({
               Sources cited in this lesson
             </h3>
           )}
-          <CitationList citations={citations} onCite={onCite} />
+          <CitationList citations={citations} onCite={onCite} displayNumbers={displayNumbers} />
         </div>
       )}
 

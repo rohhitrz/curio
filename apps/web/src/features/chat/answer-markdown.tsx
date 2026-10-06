@@ -4,7 +4,7 @@ import type { CitationSnapshot } from '@curio/shared';
 import { useMemo } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { citationMarkerFromHref, linkCitationMarkers } from './citations';
+import { citationDisplayNumbers, citationMarkerFromHref, linkCitationMarkers } from './citations';
 
 export type MarkdownVariant = 'chat' | 'lesson';
 
@@ -14,6 +14,8 @@ interface AnswerMarkdownProps {
   onCite: (citation: CitationSnapshot) => void;
   /** `lesson`: long-form reading (serif, larger, roomier); `chat`: compact answers. */
   variant?: MarkdownVariant;
+  /** The number each marker is shown with (`citationDisplayNumbers`); computed here if absent. */
+  displayNumbers?: Map<number, number>;
 }
 
 /** Plain styles for the Markdown elements answers use (no typography plugin in the app). */
@@ -102,8 +104,18 @@ const wrapperClass: Record<MarkdownVariant, string> = {
 };
 
 /** An answer's Markdown, with `[n]` markers as clickable citation chips. */
-export function AnswerMarkdown({ text, citations, onCite, variant = 'chat' }: AnswerMarkdownProps) {
+export function AnswerMarkdown({
+  text,
+  citations,
+  onCite,
+  variant = 'chat',
+  displayNumbers,
+}: AnswerMarkdownProps) {
   const byMarker = useMemo(() => new Map(citations.map((c) => [c.marker, c])), [citations]);
+  const numbers = useMemo(
+    () => displayNumbers ?? citationDisplayNumbers(text, [...byMarker.keys()]),
+    [displayNumbers, text, byMarker],
+  );
   const linked = useMemo(
     () => linkCitationMarkers(text, new Set(byMarker.keys())),
     [text, byMarker],
@@ -115,15 +127,16 @@ export function AnswerMarkdown({ text, citations, onCite, variant = 'chat' }: An
       const marker = citationMarkerFromHref(href);
       const citation = marker === null ? undefined : byMarker.get(marker);
       if (citation) {
+        const shown = numbers.get(citation.marker) ?? citation.marker;
         return (
           <button
             type="button"
             onClick={() => onCite(citation)}
             title={citation.sourceTitle}
-            aria-label={`Source ${citation.marker}: ${citation.sourceTitle}`}
+            aria-label={`Source ${String(shown)}: ${citation.sourceTitle}`}
             className="bg-primary/10 text-primary hover:bg-primary/20 mx-0.5 inline-flex h-4.5 min-w-4.5 translate-y-[-1px] items-center justify-center rounded px-1 align-middle font-sans text-[0.7rem] leading-none font-semibold tabular-nums transition-colors"
           >
-            {citation.marker}
+            {shown}
           </button>
         );
       }
