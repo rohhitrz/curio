@@ -101,4 +101,10 @@ describe('understandQuery', () => {
       understandQuery({ question: 'q', history: [] }, { llm: invalid.provider }),
     ).rejects.toThrow();
   });
+
+  it('asks for sub-queries that each name one thing (R-11: a part naming both is still a comparison)', () => {
+    expect(QUERY_UNDERSTANDING_INSTRUCTIONS).toContain(
+      'names only that one, never two of them together',
+    );
+  });
 });

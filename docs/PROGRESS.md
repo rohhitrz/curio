@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 11 (Final evals + polish), in progress
-- **Current step:** 11.3b multi-part fix adopted (`subQueries` on, R-11)
+- **Current step:** 11.3e single-topic sub-queries adopted (R-11)
 - **Blocked on:** nothing
-- **Next step:** re-ask the compare question live after deploy; owner decides on the polish list and the understanding deadline; then 11.4 PRD metrics check
+- **Next step:** re-ask the compare question live after deploy; then 11.4 PRD metrics check
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -40,6 +40,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 11.3b Multi-part fix (owner chose option A over documenting the limitation; R-11): docs first (system design §7 steps 4–5, R-05, R-10 superseded, R-11) · `runRetrieval` reranks the fused candidates against the whole question and each sub-query in parallel, `mergeRerankedLists` (pure, `rerank.ts`) merges in turns with duplicates kept once at their best score, the gate takes the best score of any part; any rerank call failing → fused order, gate skipped · eval runner: the Cohere pacer queues parallel calls (three at once broke the Trial key's limit and silently dropped a rerank) · tests: 8 unit (per-part calls, merge order, part relevant → not gated, none relevant → gated, one part failing → fused + no gate, subQueries off → one call, merge edge cases), degradation expects 3 rerank calls · **eval:** `…+subQueries+relevanceGate.json`, $0.23, 14 min: multi-part correctness 4.42 → 4.67, citation accuracy 0.65 → 0.75, refusals 1.0 / false 0 → **`subQueries` on** · 3 of 6 multi-part questions lost the benefit to the 3s understanding deadline (owner to decide whether to raise it)
 - [x] 11.3c After the R-11 deploy the owner's compare question was refused again. Langfuse: its understanding call hit the 3.00s deadline (no parts → gated as one). Live understanding calls: 11 of 13 took 1.1–2.5s (median ~1.5s), 2 timed out, both the first chat after hours idle → `chatTimeouts.understandMs` 3s → **5s** (R-11 note)
 - [x] 11.3d Polish (owner: "fix now"): citations are shown numbered 1, 2, 3… in the order the answer cites them (`citationDisplayNumbers`; chips and cards share the number, cards sorted by it, clicks still use the stored marker) · source snippets read as plain text (`plainSnippet`: Markdown links → text, emphasis / code marks / escapes dropped) · tests: 5 unit · **not a bug:** the "swallowed first click" only happens in a hidden tab (the automated one: `visibilityState: hidden`); browsers pause CSS animations there, so the dialog's exit animation never ends and its invisible overlay takes the next click. Same cause as the path page's stale progress and the double "Start learning" click · **math:** raw LaTeX needs KaTeX (`remark-math` + `rehype-katex` + `katex`), a new dependency → owner to approve
+- [x] 11.3e Still refused live with the 5s deadline (Langfuse: understanding ok in 2.31s, 3 queries, nothing failed, gated): the parts both named ridge **and** lasso, so every passage scored 0.52–0.62 · `QUERY_UNDERSTANDING_INSTRUCTIONS`: each sub-query names exactly one thing (+1 unit test) · smoke (8 questions): all multi-part parts single-topic, gate 0.84–0.93, unanswerable still gated · full eval #1 discarded (OpenAI slow: 29 / 70 understanding timeouts, so most questions never got parts or rewrites; q-056 was falsely refused because its follow-up wasn't rewritten) · retrieval-only after OpenAI recovered (`…-retrieval.json`): hit@5 1.0, MRR 0.983, gates 0.855–0.928 · full eval #2 (`2026-10-06-…+subQueries+relevanceGate.json`, $0.24, 17 min): see R-11 · KaTeX + snippet clean-up committed (`9bd9c9f`; owner approved the dependency, system design updated)
 - [ ] 11.4 Final check against the PRD's success metrics
 - [ ] 🛑 Owner's final review
 
@@ -570,7 +571,8 @@ What it says:
 | + rerank **fast** (`7df8e28`) | **1.000** | **1.000** | **0.983** | 0.968 | 4.78 | 0.95 | 0.847 | 0.95 | 0 |
 | + gate 0.70 (`0568397`) | 1.000 | 1.000 | 0.983 | **0.990** | 4.74 | 0.96 | 0.842 | **1.00** | **0** |
 | **final, same flags (`eb41c05`)** | 1.000 | 1.000 | 0.983 | 0.969 | 4.72 | 0.93 | **0.884** | **1.00** | **0** |
-| **+ sub-queries, gate per part (R-11, `87bced9`+)** | 1.000 | 1.000 | 0.981 | **0.977** | **4.76** | **0.96** | 0.881 | **1.00** | **0** |
+| + sub-queries, gate per part (R-11, `87bced9`+) | 1.000 | 1.000 | 0.981 | 0.977 | 4.76 | 0.96 | 0.881 | 1.00 | 0 |
+| **+ parts name one thing each (`9bd9c9f`+)** | **1.000** | **1.000** | **0.983** | **0.980** | 4.72 | 0.94 | **0.893** | **1.00** | **0** |
 
 | By category (correctness · MRR) | vector | + rewrite | + hybrid |
 |---|---|---|---|

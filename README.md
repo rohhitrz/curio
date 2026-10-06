@@ -73,15 +73,15 @@ judged by GPT-6 Luna with fixed prompts (`evals/judges/`), averaged over 2 runs.
 
 **Ablation** (each row adds one technique to the row above):
 
-| Config                             | Hit@5     | MRR       | Faithfulness | Correctness (1–5) | Citation acc. | Refusal acc. | False refusals |
-| ---------------------------------- | --------- | --------- | ------------ | ----------------- | ------------- | ------------ | -------------- |
-| Vector only                        | 0.933     | 0.796     | 0.976        | 4.50              | 0.832         | 0.90         | 0.008          |
-| + query rewrite                    | 0.950     | 0.814     | 0.956        | 4.59              | 0.867         | 0.95         | 0              |
-| + hybrid search (RRF)              | 0.967     | 0.845     | 0.963        | 4.73              | 0.865         | 0.95         | 0              |
-| + rerank (Cohere v4.0 fast)        | 1.000     | 0.983     | 0.968        | 4.78              | 0.847         | 0.95         | 0              |
-| + relevance gate 0.70              | 1.000     | 0.983     | 0.990        | 4.74              | 0.842         | 1.00         | 0              |
-| Final pipeline, re-run (`eb41c05`) | 1.000     | 0.983     | 0.969        | 4.72              | 0.884         | 1.00         | 0              |
-| **+ sub-queries, gate per part**   | **1.000** | **0.981** | **0.977**    | **4.76**          | **0.881**     | **1.00**     | **0**          |
+| Config                                         | Hit@5     | MRR       | Faithfulness | Correctness (1–5) | Citation acc. | Refusal acc. | False refusals |
+| ---------------------------------------------- | --------- | --------- | ------------ | ----------------- | ------------- | ------------ | -------------- |
+| Vector only                                    | 0.933     | 0.796     | 0.976        | 4.50              | 0.832         | 0.90         | 0.008          |
+| + query rewrite                                | 0.950     | 0.814     | 0.956        | 4.59              | 0.867         | 0.95         | 0              |
+| + hybrid search (RRF)                          | 0.967     | 0.845     | 0.963        | 4.73              | 0.865         | 0.95         | 0              |
+| + rerank (Cohere v4.0 fast)                    | 1.000     | 0.983     | 0.968        | 4.78              | 0.847         | 0.95         | 0              |
+| + relevance gate 0.70                          | 1.000     | 0.983     | 0.990        | 4.74              | 0.842         | 1.00         | 0              |
+| Final pipeline, re-run (`eb41c05`)             | 1.000     | 0.983     | 0.969        | 4.72              | 0.884         | 1.00         | 0              |
+| **+ sub-queries, reranked and gated per part** | **1.000** | **0.983** | **0.980**    | **4.72**          | **0.893**     | **1.00**     | **0**          |
 
 Where each technique helped:
 
@@ -93,10 +93,11 @@ Where each technique helped:
   Its 0–1 scores are what make the gate possible.
 - **Relevance gate:** all 10 unanswerable questions refused before the model runs, with no
   answerable question refused.
-- **Sub-queries with a per-part gate:** a compare question was refused live because, reranked
-  as one query, no passage matched both halves. Reranking and gating each part on its own took
-  multi-part correctness from 4.42 to 4.67 and citation accuracy from 0.65 to 0.75, with no false
-  refusals (R-11).
+- **Sub-queries, reranked and gated per part:** a compare question was refused live because,
+  scored as one query, no passage matched both halves. Each part (naming one thing) is now
+  searched, reranked and gated on its own: the parts score 0.86–0.93 where the whole question
+  scored 0.76–0.84, citation accuracy reaches 0.893 and follow-ups 4.83, with no false refusals
+  (R-11). Multi-part correctness is noisy on six questions (4.42 before, 4.67 and 4.17 after).
 - **Not adopted:** HyDE and chunk-size tuning (retrieval was already at the dataset's ceiling,
   R-09). Both remain behind flags.
 
@@ -113,7 +114,7 @@ question's retrieved chunks. A full answer eval costs about $0.21.
 
 ## Key decisions
 
-All 84 decisions, with alternatives and trade-offs, are in
+All 85 decisions, with alternatives and trade-offs, are in
 [`docs/07-decisions.md`](docs/07-decisions.md). The ones that shape the system most:
 
 | Decision                                                             | Why                                                                                                                     |

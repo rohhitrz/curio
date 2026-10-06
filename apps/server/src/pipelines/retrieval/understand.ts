@@ -13,7 +13,7 @@ export const QUERY_UNDERSTANDING_INSTRUCTIONS = `You prepare search queries for 
 Given the recent conversation and the user's latest message, return JSON with:
 - "needsRetrieval": false only when the latest message needs nothing from the sources: greetings, thanks, acknowledgements, or remarks about the conversation itself ("thanks!", "ok got it", "hi"). Any question or request about a topic, however general, is true. When unsure, true.
 - "standaloneQuery": the latest message rewritten so it can be understood without the conversation: replace pronouns and references ("it", "that paper", "the second one") with what they refer to, and keep every exact term, number, name and code as written. If it already stands alone, return it unchanged. Same language as the message.
-- "subQueries": only when the message asks about two or more distinct things that would be found in different places (a comparison, "X and Y", several questions in one), one short self-contained search query per thing, at most ${String(retrieval.maxSubQueries)}. Otherwise an empty list.`;
+- "subQueries": only when the message asks about two or more distinct things that would be found in different places (a comparison, "X and Y", several questions in one), one short self-contained search query per thing, at most ${String(retrieval.maxSubQueries)}. Each sub-query is about exactly one of the things and names only that one, never two of them together: for "Compare ridge regression and lasso: how do their penalties differ?" return "ridge regression penalty" and "lasso penalty", not "how do the ridge and lasso penalties differ". Otherwise an empty list.`;
 
 export const queryUnderstandingSchema = z.object({
   needsRetrieval: z.boolean(),

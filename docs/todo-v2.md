@@ -27,6 +27,7 @@
 - [ ] **Learning-path eval full run:** 3 topics × 3 runs (~$0.30, ~40 min) for consistency numbers and the topic without official docs (French Revolution); skipped by the owner. Before it: the runner should write results per topic and retry transient DB errors (a dropped Neon connection crashed the first attempt), and the owner reviews `evals/dataset/paths.json`. *(8.7)*
 - [ ] **Python path misses collections and classes:** the tutorial's classes chapter is past `officialSectionPages` (8). *(8.7)*
 
+- [ ] **Merge reranked part lists by score after a guaranteed few:** R-11 merges the whole question's and each part's lists in turns, so a weak part's list can push a strong passage out of the top 8 (q-052 lost a second Dropout-paper passage to two "External links" chunks). Keep each list's top 2, fill the rest by best score; measure with `pnpm eval`. *(11.3e)*
 - [ ] **TypeScript 7:** pinned to `~6.0` because typescript-eslint 8.x doesn't support TS 7. Revisit when it does. *(0.1)*
 
 
