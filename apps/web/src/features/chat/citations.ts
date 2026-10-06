@@ -131,15 +131,21 @@ export function citationDisplayNumbers(
 }
 
 /**
- * A chunk's text as a snippet reads: Markdown links become their text, emphasis and code marks
- * and escaping backslashes go, whitespace collapses (scraped pages arrive as Markdown).
+ * A chunk's text as a snippet reads: Markdown links become their text (also one cut off at the
+ * end), emphasis and code marks and escaping backslashes go, whitespace collapses (scraped pages
+ * arrive as Markdown).
  */
 export function plainSnippet(snippet: string): string {
-  return snippet
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/(\*\*|__)(.+?)\1/g, '$2')
-    .replace(/`+([^`]*)`+/g, '$1')
-    .replace(/\\([\\`*_{}[\]()#+\-.!|>~])/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    snippet
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // A snippet cut off inside a link: "[Ordinary Least…" or "[OLS](https://…"
+      .replace(/!?\[([^\]]*)\]\([^)]*$/, '$1')
+      .replace(/!?\[([^\]]*)$/, '$1')
+      .replace(/(\*\*|__)(.+?)\1/g, '$2')
+      .replace(/`+([^`]*)`+/g, '$1')
+      .replace(/\\([\\`*_{}[\]()#+\-.!|>~])/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }

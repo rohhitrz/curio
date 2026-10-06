@@ -3,8 +3,12 @@
 import type { CitationSnapshot } from '@curio/shared';
 import { useMemo } from 'react';
 import Markdown, { type Components } from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import 'katex/dist/katex.min.css';
 import { citationDisplayNumbers, citationMarkerFromHref, linkCitationMarkers } from './citations';
+import { normalizeMath } from './math';
 
 export type MarkdownVariant = 'chat' | 'lesson';
 
@@ -117,7 +121,7 @@ export function AnswerMarkdown({
     [displayNumbers, text, byMarker],
   );
   const linked = useMemo(
-    () => linkCitationMarkers(text, new Set(byMarker.keys())),
+    () => linkCitationMarkers(normalizeMath(text), new Set(byMarker.keys())),
     [text, byMarker],
   );
 
@@ -155,7 +159,11 @@ export function AnswerMarkdown({
 
   return (
     <div className={wrapperClass[variant]}>
-      <Markdown remarkPlugins={[remarkGfm]} components={components}>
+      <Markdown
+        remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
+        rehypePlugins={[rehypeKatex]}
+        components={components}
+      >
         {linked}
       </Markdown>
     </div>

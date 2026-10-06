@@ -53,7 +53,7 @@
 | **UI** | Tailwind CSS + shadcn/ui | Fast, consistent, accessible components |
 | **Frontend data** | TanStack Query | Caching, refetching, polling source status |
 | **Chat streaming** | Server-Sent Events via Vercel AI SDK (both sides) | Handles streaming UI state; works with an Express backend |
-| **Answer rendering** | `react-markdown` + `remark-gfm` | Answers are Markdown; no raw HTML, `[n]` markers become citation chips |
+| **Answer rendering** | `react-markdown` + `remark-gfm`; `remark-math` + `rehype-katex` (KaTeX) for formulas | Answers are Markdown; no raw HTML, `[n]` markers become citation chips; the model's LaTeX renders as math (added 11.3, owner) |
 | **Backend** | Express + TypeScript | Clean separation, portable off Vercel, matches layered pattern |
 | **Shared** | `packages/shared`: Zod schemas + types | Frontend and backend validate identically, can't drift |
 | **Auth** | Clerk | Token verified on every backend request |

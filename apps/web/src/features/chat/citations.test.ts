@@ -154,6 +154,13 @@ describe('plainSnippet', () => {
     );
   });
 
+  it('handles a link cut off at the end of the snippet', () => {
+    expect(plainSnippet('addresses some of the problems of [Ordinary Least…')).toBe(
+      'addresses some of the problems of Ordinary Least…',
+    );
+    expect(plainSnippet('see [OLS](https://scikit-learn.org/stable/modules/gen…')).toBe('see OLS');
+  });
+
   it('leaves plain text alone', () => {
     expect(plainSnippet('Dropout drops units.')).toBe('Dropout drops units.');
   });
