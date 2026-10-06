@@ -192,8 +192,12 @@ export const embeddingRequests = {
  * An optional step past its deadline is skipped; a required one fails the answer.
  */
 export const chatTimeouts = {
-  /** Query understanding (optional): past this, the raw question is searched. */
-  understandMs: 3_000,
+  /**
+   * Query understanding (optional): past this, the raw question is searched and a multi-part
+   * question loses its parts (R-11). Live calls took 1.1–2.5s (median ~1.5s); at 3s, 2 of 13 timed
+   * out, both the first chat after hours idle (Langfuse, 2026-10-06), so 5s.
+   */
+  understandMs: 5_000,
   /** HyDE (optional): past this, it is skipped. */
   hydeMs: 3_000,
   /** Embedding the question (one short text). */

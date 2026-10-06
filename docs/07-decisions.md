@@ -188,6 +188,7 @@
 - **Kept only if the eval shows it** (R-07): multi-part gains, no regression elsewhere, no false refusals
 - **Result: adopted, `subQueries` on** (`evals/results/2026-10-05-vector+queryRewrite+hybridSearch+rerank-v4.0-fast+subQueries+relevanceGate.json`, against the 11.1 final run): multi-part correctness 4.42 → 4.67, ≥ 4 0.83 → 0.92, citation accuracy 0.65 → 0.75; overall correctness 4.72 → 4.76, faithfulness 0.969 → 0.977, citation accuracy flat (0.884 / 0.881); refusals 1.0, false refusals 0, threshold 0.70 still the only clean one. Where parts were found, the gate score rose 0.758 → 0.891, 0.774 → 0.885, 0.829 → 0.888. Multi-part MRR 0.917 → 0.889: turns can put another part's passage first. 81 rerank calls instead of 70
 - **Limit:** the parts come from the understanding call; past its 3s deadline (5 of 70 questions in this run, 3 of them multi-part) the question is searched and gated as one, as before. A longer deadline would help these and costs time to the first token only when OpenAI is slow
+- **Deadline 3s → 5s** (2026-10-06): after the deploy, the live compare question was refused again: its understanding call hit 3.00s, so no parts. Live understanding calls in Langfuse took 1.1–2.5s (median ~1.5s); 2 of 13 timed out, both the first chat after hours idle. 5s catches that tail and costs time only when the call is slow
 
 ---
 
