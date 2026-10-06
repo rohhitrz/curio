@@ -511,6 +511,7 @@ async function main() {
         reranker ? { model: reranker.model, ...rerankUsage } : null,
       ),
       ...(reranker ? { rerankLatencyMs: latencySummary(rerankUsage.latenciesMs) } : {}),
+      ...(answers ? { answerFirstTokenMs: answers.firstTokenMs } : {}),
       durationSeconds: Math.round((Date.now() - startedAt) / 1000),
       questions: outcomes.map((outcome) => ({
         id: outcome.id,
@@ -553,6 +554,9 @@ async function main() {
     console.log(`cost ≈ $${String(results.cost.usd)} · ${String(results.durationSeconds)}s`);
     if (results.rerankLatencyMs) {
       console.log(`rerank latency (ms): ${JSON.stringify(results.rerankLatencyMs)}`);
+    }
+    if (results.answerFirstTokenMs) {
+      console.log(`answer first token (ms): ${JSON.stringify(results.answerFirstTokenMs)}`);
     }
   } finally {
     await pool.end();
@@ -783,7 +787,18 @@ async function runAnswers({
       ),
     ]),
   );
-  return { metrics: { ...averageMetrics(perRun), perRun }, byCategory, byQuestion };
+  const firstTokens = [...byQuestion.values()]
+    .flat()
+    .flatMap((record) => {
+      const ms = (record as { firstTokenMs: number | null }).firstTokenMs;
+      return ms === null ? [] : [ms];
+    });
+  return {
+    metrics: { ...averageMetrics(perRun), perRun },
+    byCategory,
+    byQuestion,
+    firstTokenMs: latencySummary(firstTokens),
+  };
 }
 
 /** Retries `fn` on a retryable `LlmError`, up to `evalConfig.questionAttempts` attempts. */
@@ -822,9 +837,16 @@ async function answerAndGrade(
     },
     { llm, countTokens },
   );
-  // Read the stream to the end, as chat does; the result has the full text.
-  for await (const _part of stream.textStream);
+  // Read the stream to the end, as chat does; the result has the full text. The answer model's
+  // first-token time is part of chat's first token (PRD speed metric); a gated refusal never
+  // calls the model, so it has none.
+  const started = performance.now();
+  let firstTokenMs: number | null = null;
+  for await (const _part of stream.textStream) {
+    firstTokenMs ??= Math.round(performance.now() - started);
+  }
   const answer = await stream.result;
+  if (chunks.length === 0) firstTokenMs = null;
   if (answer.model && answer.usage) usage.add(answer.model, answer.usage);
 
   // Citation accuracy in code: does each cited chunk sit at an expected location?
@@ -886,6 +908,7 @@ async function answerAndGrade(
     refused: answer.refused,
     // Invented `[n]`s the citation check removed (step 8).
     removedMarkers: answer.removedMarkers,
+    firstTokenMs,
     citations,
     faithfulness: faithfulness && {
       supported: faithfulness.claims.filter((c) => c.supported).length,

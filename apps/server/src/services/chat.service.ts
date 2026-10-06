@@ -304,6 +304,9 @@ export function createChatService(deps: ChatServiceDeps) {
             },
             async (trace) => {
               traceId = trace.traceId;
+              // PRD speed metric: request → first text the learner sees (gated refusals too).
+              const startedAt = performance.now();
+              let firstTokenMs: number | null = null;
               sink({ type: 'status', message: status.searching });
 
               const [history, profile, tutor] = await Promise.all([
@@ -367,6 +370,7 @@ export function createChatService(deps: ChatServiceDeps) {
                 { llm: deps.llm, countTokens: deps.countTokens },
               );
               for await (const delta of stream.textStream) {
+                firstTokenMs ??= Math.round(performance.now() - startedAt);
                 text += delta;
                 sink({ type: 'text', delta });
               }
@@ -392,6 +396,7 @@ export function createChatService(deps: ChatServiceDeps) {
                 text: result.text,
                 citations: result.citations.length,
                 removedMarkers: result.removedMarkers,
+                firstTokenMs,
                 profile: profile !== null,
                 tutor: tutor
                   ? { moduleId: tutor.module.id, suggestComplete: result.suggestComplete }

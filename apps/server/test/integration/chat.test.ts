@@ -349,7 +349,7 @@ describe('send a message', () => {
     expect(saved?.traceId).toBe('trace-1');
   });
 
-  it('traces the request: user, conversation as session, retrieval span, flushed', async () => {
+  it('traces the request: user, conversation as session, retrieval span, first token, flushed', async () => {
     const { conversationId } = await setup();
     llm.reply('Answer [1].');
 
@@ -364,6 +364,7 @@ describe('send a message', () => {
           text: 'Answer [1].',
           citations: 1,
           removedMarkers: [],
+          firstTokenMs: expect.any(Number) as unknown,
           profile: false,
           tutor: null,
         },

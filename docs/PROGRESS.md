@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 11 (Final evals + polish), in progress
-- **Current step:** 11.4 PRD success metrics checked: 4 met, speed not met, ownership for the owner to confirm
-- **Blocked on:** owner's decision on chat latency (first token ~3–6s on the current pipeline against < ~3s)
-- **Next step:** owner picks a latency option (see 11.4); re-ask the compare question live (not asked since the 11.3e deploy); then the owner's final review
+- **Current step:** 11.4b first token measured on every chat trace; `reasoningEffort: 'none'` eval blocked
+- **Blocked on:** the Cohere Trial key is out of calls for the month (1000 / month): evals can't rerank, and the live app's rerank (and so its relevance gate) is skipped if Vercel uses the same key
+- **Next step:** owner: Cohere Production key (or wait for the monthly reset) → re-run the `reasoningEffort: 'none'` eval → set the PRD speed target from the measured numbers (option 4); re-ask the compare question live; owner's final review
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -48,6 +48,7 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
   - **Speed ❌** Langfuse, all 16 prod chat traces (9 on 10-01 before rerank, 7 since 10-05). Langfuse has no `completionStartTime` for the answer call, so what's measured is request → answer call starts (a lower bound; the model's own first token adds ~0.3–1s). Before rerank: 1.3–3.4s (median 2.0). **Current pipeline: 2.6, 2.9, 4.4, 5.5s answered, 4.3–4.6s gated refusals (median 4.3)** → first token roughly 3–6s. Steps run one after another: understanding 1.3–3.0s (median 2.3; 2 hit the old 3s deadline), search 0.7–1.5s (median 0.9; budget said ~0.3), rerank ~0.2s (one 3.0s). The 11.3c / 11.3e choices (5s deadline, per-part rerank) traded speed for multi-part quality. Small sample (7 traces). **Owner to decide** (Pending on owner)
   - **Learning path ⚠️ measured, partly met:** Python beginner covers 0.82 of the hand-listed core tutorial sections (`2026-10-04-paths.json`, 1 run; the partial full run gave 0.64–0.73), Git beginner 0.36–0.46 (printed only). The PRD sets no threshold; no committed multi-run numbers, the no-official-docs topic never ran, `paths.json` dataset not reviewed by the owner (all in todo-v2)
   - **Ownership:** decision log `07-decisions.md` + 12 key decisions in the README; the owner confirms at the final review
+- [x] 11.4b Latency follow-up (owner: options 1, 2, 4 yes; 3 no, it adds retrieval cost: a search on the raw question is wasted whenever understanding rewrites it): (1) the chat trace output has `firstTokenMs` (request → first text the learner sees, gated refusals included; integration test) · the eval records the answer model's first-token time (`answerFirstTokenMs`: p50 / p95 / max over answers that called the model) · (2) eval with `chatAnswer.reasoningEffort: 'none'` **invalid**: the Cohere Trial key hit its 1000 calls / month limit after ~30 questions (40 reranks 429 → fused order, gate skipped) and OpenAI was slow again (19 understanding timeouts at 5s); results file restored, config change reverted, not adopted. The one usable number: answer first token with `'none'` p50 1.1s, p95 2.0s (no `'low'` baseline yet) · (4) waits for (2)
 - [ ] 🛑 Owner's final review
 
 ## Phase 10 steps (done)
@@ -270,8 +271,10 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Cohere key out of calls (2026-10-06):** the Trial key's 1000 calls / month ran out during the 11.4b eval. If Vercel's `COHERE_API_KEY` is the same key, the live app's rerank fails, falls back to fused order and **skips the relevance gate** (no "not in your sources" refusals) until it resets. Fix: a Production key in Vercel and `.env` (same variable name), or wait for the monthly reset
 - **Chat latency (11.4, PRD "first token < ~3s" not met):** request → answer call starts is 2.6–5.5s on the current pipeline (understanding median 2.3s, search 0.9s, rerank 0.2s, one after another), and the answer call uses `reasoningEffort: 'low'`, which delays its first visible token further. Options (can combine):
   1. **Measure it properly first** (small, no behaviour change): record the time the first token is sent on the chat trace, so the metric is measured, not inferred
+  _Owner (2026-10-06): 1 ✅ done, 2 ✅ blocked on Cohere, 3 ❌ no added retrieval cost, 4 ✅ after 2._
   2. **Answer with `reasoningEffort: 'none'`**: removes the model's thinking time before the first token; eval-gated (one `pnpm eval` run, ~$0.25)
   3. **Search the raw question while understanding runs**, and use those results when understanding returns no rewrite and no parts (most first messages): saves ~1s there; more code in `runRetrieval`
   4. **Accept and document**: change the PRD / system design target to ~5s, naming the multi-part quality it buys (R-11)
