@@ -5,9 +5,9 @@
 
 ## Current status
 - **Phase:** 11 (Final evals + polish), in progress
-- **Current step:** 11.3e single-topic sub-queries adopted (R-11)
-- **Blocked on:** nothing
-- **Next step:** re-ask the compare question live after deploy; then 11.4 PRD metrics check
+- **Current step:** 11.4 PRD success metrics checked: 4 met, speed not met, ownership for the owner to confirm
+- **Blocked on:** owner's decision on chat latency (first token ~3–6s on the current pipeline against < ~3s)
+- **Next step:** owner picks a latency option (see 11.4); re-ask the compare question live (not asked since the 11.3e deploy); then the owner's final review
 - **Deferred work** (not in any phase) is listed in `docs/todo-v2.md`; add to it whenever something is left for later.
 
 ## Phases
@@ -41,7 +41,13 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 - [x] 11.3c After the R-11 deploy the owner's compare question was refused again. Langfuse: its understanding call hit the 3.00s deadline (no parts → gated as one). Live understanding calls: 11 of 13 took 1.1–2.5s (median ~1.5s), 2 timed out, both the first chat after hours idle → `chatTimeouts.understandMs` 3s → **5s** (R-11 note)
 - [x] 11.3d Polish (owner: "fix now"): citations are shown numbered 1, 2, 3… in the order the answer cites them (`citationDisplayNumbers`; chips and cards share the number, cards sorted by it, clicks still use the stored marker) · source snippets read as plain text (`plainSnippet`: Markdown links → text, emphasis / code marks / escapes dropped) · tests: 5 unit · **not a bug:** the "swallowed first click" only happens in a hidden tab (the automated one: `visibilityState: hidden`); browsers pause CSS animations there, so the dialog's exit animation never ends and its invisible overlay takes the next click. Same cause as the path page's stale progress and the double "Start learning" click · **math:** raw LaTeX needs KaTeX (`remark-math` + `rehype-katex` + `katex`), a new dependency → owner to approve
 - [x] 11.3e Still refused live with the 5s deadline (Langfuse: understanding ok in 2.31s, 3 queries, nothing failed, gated): the parts both named ridge **and** lasso, so every passage scored 0.52–0.62 · `QUERY_UNDERSTANDING_INSTRUCTIONS`: each sub-query names exactly one thing (+1 unit test) · smoke (8 questions): all multi-part parts single-topic, gate 0.84–0.93, unanswerable still gated · full eval #1 discarded (OpenAI slow: 29 / 70 understanding timeouts, so most questions never got parts or rewrites; q-056 was falsely refused because its follow-up wasn't rewritten) · retrieval-only after OpenAI recovered (`…-retrieval.json`): hit@5 1.0, MRR 0.983, gates 0.855–0.928 · full eval #2 (`2026-10-06-…+subQueries+relevanceGate.json`, $0.24, 17 min): see R-11 · KaTeX + snippet clean-up committed (`9bd9c9f`; owner approved the dependency, system design updated)
-- [ ] 11.4 Final check against the PRD's success metrics
+- [x] 11.4 PRD §9 success metrics, checked 2026-10-06:
+  - **Ingestion ✅** prod (`main`, one read-only count query, owner OK): 34 sources, 33 `READY` (23 website, 6 YouTube, 3 PDF, 1 text; median 5–17s to ready, slowest 108s), 1 `FAILED` `NO_TEXT` (a PDF with no text layer: a correct failure with a reason) → **97.1%**, **0** `PENDING` / `PROCESSING`. Limits: no attempt counter, so a source the user retried after a failure would also count as first-try; deleted sources aren't counted. Dev: 17 processed, all `READY`; 4 `PENDING` from 2026-09-29 are Phase 2 test rows made before the pipeline existed (the sweeper only runs where Inngest runs, not on local dev)
+  - **Retrieval ✅** README ablation: every adopted technique improved its target metric (rewrite: follow-ups; hybrid: multi-part MRR; rerank: hit@5 1.0 / MRR 0.983; gate: refusals 1.0; sub-queries: multi-part correctness and citation accuracy); HyDE dropped because it couldn't show a gain (R-10)
+  - **Citations ✅** final eval (`2026-10-06-…+subQueries+relevanceGate.json`): 140 / 140 answers are cited (120) or a refusal (20), 0 neither; refusal accuracy 1.0, false refusals 0
+  - **Speed ❌** Langfuse, all 16 prod chat traces (9 on 10-01 before rerank, 7 since 10-05). Langfuse has no `completionStartTime` for the answer call, so what's measured is request → answer call starts (a lower bound; the model's own first token adds ~0.3–1s). Before rerank: 1.3–3.4s (median 2.0). **Current pipeline: 2.6, 2.9, 4.4, 5.5s answered, 4.3–4.6s gated refusals (median 4.3)** → first token roughly 3–6s. Steps run one after another: understanding 1.3–3.0s (median 2.3; 2 hit the old 3s deadline), search 0.7–1.5s (median 0.9; budget said ~0.3), rerank ~0.2s (one 3.0s). The 11.3c / 11.3e choices (5s deadline, per-part rerank) traded speed for multi-part quality. Small sample (7 traces). **Owner to decide** (Pending on owner)
+  - **Learning path ⚠️ measured, partly met:** Python beginner covers 0.82 of the hand-listed core tutorial sections (`2026-10-04-paths.json`, 1 run; the partial full run gave 0.64–0.73), Git beginner 0.36–0.46 (printed only). The PRD sets no threshold; no committed multi-run numbers, the no-official-docs topic never ran, `paths.json` dataset not reviewed by the owner (all in todo-v2)
+  - **Ownership:** decision log `07-decisions.md` + 12 key decisions in the README; the owner confirms at the final review
 - [ ] 🛑 Owner's final review
 
 ## Phase 10 steps (done)
@@ -264,6 +270,11 @@ Status values: ⏳ Not started · 🔨 In progress · ✅ Done (owner approved)
 10. Tests use fake providers only; `pnpm eval` is the only thing that calls real LLM APIs, and only from 4.3 on.
 
 ## Pending on owner
+- **Chat latency (11.4, PRD "first token < ~3s" not met):** request → answer call starts is 2.6–5.5s on the current pipeline (understanding median 2.3s, search 0.9s, rerank 0.2s, one after another), and the answer call uses `reasoningEffort: 'low'`, which delays its first visible token further. Options (can combine):
+  1. **Measure it properly first** (small, no behaviour change): record the time the first token is sent on the chat trace, so the metric is measured, not inferred
+  2. **Answer with `reasoningEffort: 'none'`**: removes the model's thinking time before the first token; eval-gated (one `pnpm eval` run, ~$0.25)
+  3. **Search the raw question while understanding runs**, and use those results when understanding returns no rewrite and no parts (most first messages): saves ~1s there; more code in `runRetrieval`
+  4. **Accept and document**: change the PRD / system design target to ~5s, naming the multi-part quality it buys (R-11)
 - Classroom live check done by the owner (2026-10-04: working).
 - **Try a learning path live** (8.1–8.6 are deployed): Learn → a topic you know → level + goal → Build my path. Watch the stages (a few minutes), then check the outline: hook, modules, "why is this here?", the skipped list, unchecking a module, Start learning → the notebook with the resources as sources. Also try an advanced path (branch picker) and a topic without official docs (e.g. a history topic). The first real runs make real Tavily + OpenAI calls (one search set + ~10 Luna calls per path). Tell me what looks off; 8.7 measures coverage and consistency.
 - **Phase 7 live check** (Phase 7 approved; still worth doing):
