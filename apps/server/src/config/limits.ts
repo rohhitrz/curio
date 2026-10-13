@@ -171,8 +171,11 @@ export const ingestion = {
   throttle: { limit: 30, period: '1m' },
   /** Chunk rows per INSERT inside the commit transaction. */
   chunkInsertBatchSize: 100,
-  /** How often the sweeper runs. */
-  sweepCron: '*/5 * * * *',
+  /**
+   * How often the sweeper runs: once a day (03:00 UTC). Every run wakes the database, and
+   * Neon's free compute sleeps only after 5 idle minutes, so a 5-minute cron kept it awake.
+   */
+  sweepCron: '0 3 * * *',
   /** A source still `PROCESSING` after this long is failed with `TIMEOUT`. */
   processingTimeoutMinutes: 15,
   /** A source still `PENDING` after this long never got a job run: its event is sent again. */

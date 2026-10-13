@@ -327,7 +327,7 @@ The lesson's chat ("ask about this"): a normal conversation with `lesson_id` set
 | Job | Trigger | Purpose |
 |---|---|---|
 | `processSource` | `source/created`, `source/reprocess` | Ingestion pipeline |
-| `sweepStuckSources` | Schedule (cron, every 5 min) | Fail sources stuck in `PROCESSING`; re-send sources stuck in `PENDING` |
+| `sweepStuckSources` | Schedule (cron, daily at 03:00 UTC) | Fail sources stuck in `PROCESSING`; re-send sources stuck in `PENDING` |
 | `cleanupNotebookFiles` | `notebook/deleted` | Delete a deleted notebook's files from R2 |
 | `generateLearningPath` | `path/requested` | Learning path pipeline (with pause for advanced) |
 | `summarizeConversation` | `conversation/summarize` | Rolling summary |
